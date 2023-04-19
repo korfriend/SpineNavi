@@ -1,5 +1,9 @@
 # Prerequisites
 *.d
+.vs
+x64
+*.filters
+*.user
 
 # Compiled Object files
 *.slo
