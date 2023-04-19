@@ -39,6 +39,9 @@ int main()
 	return wWinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
 }
 
+void Render() {
+
+}
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
@@ -64,10 +67,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
 	const int postpone = 3;
-#define NUM_RBS 4
+#define NUM_RBS 3
     
 	concurrent_queue<track_info> track_que(10);
-	/*
     std::atomic_bool tracker_alive{true};
 	std::thread tracker_processing_thread([&]() {
 		while (tracker_alive)
@@ -76,7 +78,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			optitrk::UpdateFrame();
 
 			track_info cur_trk_info;
-			static string _rb_names[NUM_RBS] = { "c-arm" , "test1", "test2", "probe" };
+			static string _rb_names[NUM_RBS] = { "c-arm" , "test1", "probe" };
 			for (int i = 0; i < NUM_RBS; i++)
 			{
 				glm::fmat4x4 mat_lfrm2ws;
@@ -90,13 +92,34 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			cur_trk_info.is_updated = true;
 			track_que.push(cur_trk_info);
 		}
-		});
+	});
+
+	//
+	//
+	//using namespace cv;
+	//
+	//int main() {
+	//	Mat image;
+	//	FileStorage fs("my_data.yml", FileStorage::READ);
+	//	fs["my_image"] >> image;
+	//	fs.release();
+	//	imshow("my_image", image);
+	//	waitKey();
+	//	return 0;
+	//}
+
+	//int main() {
+	//	Mat image = imread("my_image.jpg");
+	//	FileStorage fs("my_data.yml", FileStorage::WRITE);
+	//	fs << "my_image" << image;
+	//	fs.release();
+	//	return 0;
+	//}
     /**/
-
-
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAVIWIN));
 
+#ifdef _EVENT_DRIVEN
     MSG msg;
 
     // 기본 메시지 루프입니다:
@@ -107,9 +130,26 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
-    }
+	}
+#else
+	MSG msg = { 0 };
+	while (WM_QUIT != msg.message)
+	{
+		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		else
+		{
+			Render();
+		}
+	}
+#endif
 
 	vzm::DeinitEngineLib();
+	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
+	tracker_processing_thread.join();
 
     return (int) msg.wParam;
 }

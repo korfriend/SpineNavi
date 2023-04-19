@@ -17,37 +17,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/vector_angle.hpp>
 
-#include <opencv2/imgproc.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/aruco.hpp>
-#include <opencv2/calib3d.hpp>
-#include <opencv2/video/tracking.hpp>
-
-
-//#include <opencv2/opencv.hpp>
-//
-//using namespace cv;
-//
-//int main() {
-//	Mat image;
-//	FileStorage fs("my_data.yml", FileStorage::READ);
-//	fs["my_image"] >> image;
-//	fs.release();
-//	imshow("my_image", image);
-//	waitKey();
-//	return 0;
-//}
-
-//int main() {
-//	Mat image = imread("my_image.jpg");
-//	FileStorage fs("my_data.yml", FileStorage::WRITE);
-//	fs << "my_image" << image;
-//	fs.release();
-//	return 0;
-//}
-
-
-
+#include <opencv2/opencv.hpp>
 
 #define __cv3__ *(glm::fvec3*)
 #define __cv4__ *(glm::fvec4*)
