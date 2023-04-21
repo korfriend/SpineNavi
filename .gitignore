@@ -61,9 +61,7 @@ TestResult.xml
 [Rr]eleasePS/
 dlldata.c
 
-NPTrackingToolsx64*.dll
-opencv_world330*.dll
-opencv_world470*.dll
+# Large size ( 50MB+ ) Files
 
 # DNX
 project.lock.json
