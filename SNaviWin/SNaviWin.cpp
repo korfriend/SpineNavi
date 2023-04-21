@@ -53,7 +53,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	// engine initialization to use the core APIs of framework
 	// must be paired with DeinitEngineLib()
-	vzm::InitEngineLib();
+	vzm::InitEngineLib("SpineNavi");
+    bool optitrkMode = optitrk::InitOptiTrackLib();
 
     // 전역 문자열을 초기화합니다.
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -63,7 +64,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     // 애플리케이션 초기화를 수행합니다:
     if (!InitInstance (hInstance, nCmdShow))
     {
-        return FALSE;
+        return 0;
     }
 
 	const int postpone = 3;
@@ -150,6 +151,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	vzm::DeinitEngineLib();
 	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
 	tracker_processing_thread.join();
+
+    optitrk::DeinitOptiTrackLib();
 
     return (int) msg.wParam;
 }
