@@ -19,7 +19,10 @@
 // SpineProjects
 #include "VisMtvApi.h"
 #include "../optitrk/optitrk.h"
-#include "helpers.hpp"
+#include "naviHelpers.hpp"
+#include "rapidcsv/rapidcsv.h"
+
+#define USE_MOTIVE
 
 #define MAX_LOADSTRING 100
 
@@ -54,7 +57,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// engine initialization to use the core APIs of framework
 	// must be paired with DeinitEngineLib()
 	vzm::InitEngineLib("SpineNavi");
+#if USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
+#endif
 
     // 전역 문자열을 초기화합니다.
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);

@@ -150,13 +150,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
-    <ClInclude Include="helpers.hpp" />
+    <ClInclude Include="naviHelpers.hpp" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SNaviWin.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="tinyxml2.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="SNaviWin.cpp" />
+    <ClCompile Include="tinyxml2.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="SNaviWin.rc" />
