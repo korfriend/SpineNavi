@@ -488,7 +488,7 @@ namespace vzm
 	// only for the contributor's (by DongJoon Kim) test info.
 	__dojostatic void SetRenderTestParam(const std::string& _script, const std::any& value, const int scene_id, const int cam_id);
 	__dojostatic bool GetRenderTestParam(const std::string& _script, std::any& value, const int scene_id, const int cam_id);
-	__dojostatic void SetLogConfiguration(const bool displayLog);
+	__dojostatic void SetLogConfiguration(const bool displayLog, const int logLevel);
 	__dojostatic void DisplaySceneSummary();
 
 	// ioActors include camera and light sources
