@@ -168,6 +168,87 @@ void SceneInit() {
 	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 }
 
+struct UpdateCsvData {
+	std::vector<navihelpers::track_info2>* trackingFrames;
+	std::map<std::string, glm::fmat4x4>* rbMapTrAvr;
+	std::map<std::string, glm::fvec3>* mkPosTest1Avr;
+	bool staticPoseAvrTest;
+};
+
+void UpdateFrame(UpdateCsvData& csvData) {
+	
+	std::vector<navihelpers::track_info2>& trackingFrames = *csvData.trackingFrames;
+	std::map<std::string, glm::fmat4x4>& rbMapTrAvr = *csvData.rbMapTrAvr;
+	std::map<std::string, glm::fvec3>& mkPosTest1Avr = *csvData.mkPosTest1Avr;
+	bool staticPoseAvrTest = csvData.staticPoseAvrTest;
+
+
+	static int frameCount = 0;
+	int totalFrames = (int)trackingFrames.size();
+	int frame = (frameCount++) % totalFrames;
+
+	// update frame text 
+	{
+		int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
+		vzm::ActorParameters apFrameText;
+		vzm::GetActorParams(aidFrameText, apFrameText);
+		int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
+		std::vector<glm::fvec3> pinfo(3);
+		pinfo[0] = glm::fvec3(0, 0.3, 0);
+		pinfo[1] = glm::fvec3(0, 0, -1);
+		pinfo[2] = glm::fvec3(0, 1, 0);
+		vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+		//vzm::GetActorParams(aidFrameText, apFrameText);
+	}
+
+	navihelpers::track_info2& trackInfo = trackingFrames[frame];
+	int numRBs = trackInfo.NumRigidBodies();
+	int numMKs = trackInfo.NumMarkers();
+
+	for (int i = 0; i < numRBs; i++) {
+		std::string rbName;
+		glm::fmat4x4 matLS2WS;
+		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL)) {
+			int aidAxis = vzmutils::GetSceneItemIdByName(rbName);
+			vzm::ActorParameters apAxis;
+			vzm::GetActorParams(aidAxis, apAxis);
+			apAxis.is_visible = true;
+
+			if (staticPoseAvrTest)
+				matLS2WS = rbMapTrAvr[rbName];
+
+			apAxis.SetLocalTransform(__FP matLS2WS);
+			vzm::SetActorParams(aidAxis, apAxis);
+		}
+	}
+
+	for (int i = 0; i < numMKs; i++) {
+		std::map<navihelpers::track_info2::MKINFO, std::any> mk;
+		if (trackInfo.GetMarkerByIdx(i, mk)) {
+			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
+			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info2::MKINFO::POSITION]);
+
+			if (staticPoseAvrTest)
+			{
+				auto mkp = mkPosTest1Avr.find(mkName);
+				if (mkp != mkPosTest1Avr.end())
+					pos = mkPosTest1Avr[mkName];
+			}
+
+			glm::fmat4x4 matLS2WS = glm::translate(pos);
+			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.01f)); // set 1 cm to the marker diameter
+			matLS2WS = matLS2WS * matScale;
+			int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
+			vzm::ActorParameters apMarker;
+			vzm::GetActorParams(aidMarker, apMarker);
+			apMarker.is_visible = true;
+			apMarker.is_pickable = true;
+			apMarker.SetLocalTransform(__FP matLS2WS);
+			vzm::SetActorParams(aidMarker, apMarker);
+		}
+	}
+};
+
 void Render() {
 	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
 	int cidCam1 = vzmutils::GetSceneItemIdByName("World Camera");
@@ -176,6 +257,13 @@ void Render() {
 		vzm::RenderScene(sidScene, cidCam1);
 		UpdateBuffer(cidCam1, g_hWnd, true);
 	}
+}
+
+void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
+{
+	UpdateCsvData* csvData = (UpdateCsvData*)pcsvData;
+	UpdateFrame(*csvData);
+	Render();
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -293,7 +381,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	std::map<std::string, rb_tr_smooth> rbMapTRs;
 	std::map<std::string, std::vector<glm::fvec3>> test1MkMapPos;
-	const bool staticPoseAvrTest = true;
+
+	const bool staticPoseAvrTest = false;
 
 	for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
 		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
@@ -494,10 +583,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 	}
 
+	UpdateCsvData csvData;
+	csvData.trackingFrames = &trackingFrames;
+	csvData.rbMapTrAvr = &rbMapTrAvr;
+	csvData.mkPosTest1Avr = &mkPosTest1Avr;
+	csvData.staticPoseAvrTest = staticPoseAvrTest;
+
+	SetTimer(g_hWnd, (UINT_PTR)&csvData, 10, TimerProc);
 #endif
 
-#ifdef _EVENT_DRIVEN
     MSG msg;
+	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAVIWIN));
 
     // 기본 메시지 루프입니다:
     while (GetMessage(&msg, nullptr, 0, 0))
@@ -508,93 +604,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
             DispatchMessage(&msg);
         }
 	}
-#else
-	MSG msg = { 0 };
-	while (WM_QUIT != msg.message)
-	{
-#ifdef USE_MOTIVE
-		navihelpers::track_info trk_info;
-		track_que.wait_and_pop(trk_info);
-#else
-		static int frameCount = 0;
-		Sleep(10);
-
-		int totalFrames = (int)trackingFrames.size();
-		int frame = (frameCount++) % totalFrames;
-
-		// update frame text 
-		{
-			int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
-			vzm::ActorParameters apFrameText;
-			vzm::GetActorParams(aidFrameText, apFrameText);
-			int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
-			std::vector<glm::fvec3> pinfo(3);
-			pinfo[0] = glm::fvec3(0, 0.3, 0);
-			pinfo[1] = glm::fvec3(0, 0, -1);
-			pinfo[2] = glm::fvec3(0, 1, 0);
-			vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
-			//vzm::GetActorParams(aidFrameText, apFrameText);
-		}
-
-		navihelpers::track_info2& trackInfo = trackingFrames[frame];
-		int numRBs = trackInfo.NumRigidBodies();
-		int numMKs = trackInfo.NumMarkers();
-
-		for (int i = 0; i < numRBs; i++) {
-			std::string rbName;
-			glm::fmat4x4 matLS2WS;
-			if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL)) {
-				int aidAxis = vzmutils::GetSceneItemIdByName(rbName);
-				vzm::ActorParameters apAxis;
-				vzm::GetActorParams(aidAxis, apAxis);
-				apAxis.is_visible = true;
-				
-				if(staticPoseAvrTest)
-					matLS2WS = rbMapTrAvr[rbName];
-				
-				apAxis.SetLocalTransform(__FP matLS2WS);
-				vzm::SetActorParams(aidAxis, apAxis);
-			}
-		}
-
-		for (int i = 0; i < numMKs; i++) {
-			std::map<navihelpers::track_info2::MKINFO, std::any> mk;
-			if (trackInfo.GetMarkerByIdx(i, mk)) {
-				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
-				glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info2::MKINFO::POSITION]);
-
-				if (staticPoseAvrTest)
-				{
-					auto mkp = mkPosTest1Avr.find(mkName);
-					if (mkp != mkPosTest1Avr.end())
-						pos = mkPosTest1Avr[mkName];
-				}
-
-				glm::fmat4x4 matLS2WS = glm::translate(pos);
-				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.01f)); // set 1 cm to the marker diameter
-				matLS2WS = matLS2WS * matScale;
-				int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
-				vzm::ActorParameters apMarker;
-				vzm::GetActorParams(aidMarker, apMarker);
-				apMarker.is_visible = true;
-				apMarker.is_pickable = true;
-				apMarker.SetLocalTransform(__FP matLS2WS);
-				vzm::SetActorParams(aidMarker, apMarker);
-			}
-		}
-
-#endif
-		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-		else
-		{
-			Render();
-		}
-	}
-#endif
 
 #ifdef USE_MOTIVE
 	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
@@ -703,7 +712,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
         }
-        break;
+		break;
+	case WM_TIMER:
+		{
+
+		}
+		break;
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
@@ -743,7 +757,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				general_move.RotateMove((int*)&pos_ss, cpCam1);
 
 			vzm::SetCameraParams(cidCam1, cpCam1);
-			Render();
+			//Render();
 			//vzm::RenderScene(sidScene, cidCam1);
 			//UpdateWindow(hWnd);
 			//InvalidateRect(hWnd, NULL, FALSE);
@@ -776,7 +790,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		vzmutils::ZoomImageplane(zDelta > 0, cpCam1.ip_w, cpCam1.ip_h);
 
 		vzm::SetCameraParams(cidCam1, cpCam1);
-		Render();
+		//Render();
 		//vzm::RenderScene(sidScene, cidCam1);
 
 		//InvalidateRect(hWnd, NULL, FALSE);
@@ -785,6 +799,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
+
     return 0;
 }
 
