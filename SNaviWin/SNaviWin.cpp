@@ -293,6 +293,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	std::map<std::string, rb_tr_smooth> rbMapTRs;
 	std::map<std::string, std::vector<glm::fvec3>> test1MkMapPos;
+	const bool staticPoseAvrTest = true;
 
 	for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
 		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
@@ -547,8 +548,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				vzm::ActorParameters apAxis;
 				vzm::GetActorParams(aidAxis, apAxis);
 				apAxis.is_visible = true;
-				// test
-				//matLS2WS = rbMapTrAvr[rbName];
+				
+				if(staticPoseAvrTest)
+					matLS2WS = rbMapTrAvr[rbName];
+				
 				apAxis.SetLocalTransform(__FP matLS2WS);
 				vzm::SetActorParams(aidAxis, apAxis);
 			}
@@ -559,6 +562,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			if (trackInfo.GetMarkerByIdx(i, mk)) {
 				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
 				glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info2::MKINFO::POSITION]);
+
+				if (staticPoseAvrTest)
+				{
+					auto mkp = mkPosTest1Avr.find(mkName);
+					if (mkp != mkPosTest1Avr.end())
+						pos = mkPosTest1Avr[mkName];
+				}
+
 				glm::fmat4x4 matLS2WS = glm::translate(pos);
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.01f)); // set 1 cm to the marker diameter
 				matLS2WS = matLS2WS * matScale;
@@ -566,6 +577,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				vzm::ActorParameters apMarker;
 				vzm::GetActorParams(aidMarker, apMarker);
 				apMarker.is_visible = true;
+				apMarker.is_pickable = true;
 				apMarker.SetLocalTransform(__FP matLS2WS);
 				vzm::SetActorParams(aidMarker, apMarker);
 			}
@@ -735,6 +747,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//vzm::RenderScene(sidScene, cidCam1);
 			//UpdateWindow(hWnd);
 			//InvalidateRect(hWnd, NULL, FALSE);
+		}
+		else {
+			int aidPickedMK = 0;
+			glm::fvec3 pos_picked;
+			if (vzm::PickActor(aidPickedMK, __FP pos_picked, x, y, cidCam1))
+			{
+				std::string mkName;
+				vzm::GetNameBySceneItemID(aidPickedMK, mkName);
+				vzm::ActorParameters apMK;
+				vzm::GetActorParams(aidPickedMK, apMK);
+				glm::fmat4x4 matWorld = *(glm::fmat4x4*)apMK.GetWorldTransform();
+				glm::fvec3 posOrigin(0, 0, 0);
+				glm::fvec3 posMK = vzmutils::transformPos(posOrigin, matWorld);
+				std::cout << mkName << "is picked : " << ", Pos : " << posMK.x << ", " << posMK.y << ", " << posMK.z << std::endl;
+
+			}
+			
 		}
 		break;
 	}
