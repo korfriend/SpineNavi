@@ -177,17 +177,17 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		}
 	};
 
-	enum MKINFO : int
-	{
-		CID = 0, // std::bitset<128>
-		POSITION = 1, // glm::fvec3, world space
-		MK_NAME = 2, // string
-		MK_QUALITY = 3 // float // only for RB_MKSET
-	};
-
 	struct track_info2
 	{
 		// key : rigidbody name
+	public:
+		enum MKINFO : int
+		{
+			CID = 0, // std::bitset<128>
+			POSITION = 1, // glm::fvec3, world space
+			MK_NAME = 2, // string
+			MK_QUALITY = 3 // float // only for RB_MKSET
+		};
 	private:
 		enum RBINFO : int
 		{
@@ -215,6 +215,29 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			return true;
 		}
 
+		int NumRigidBodies() {
+			return (int)__rbinfo.size();
+		}
+
+		bool GetRigidBodyByIdx(const int rbIdx, string* rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet) {
+			auto it = __rbinfo.begin();
+			std::advance(it, rbIdx);
+
+			if (it == __rbinfo.end()) return false;
+
+			auto& v = it->second;
+			if (rbName)
+				*rbName = it->first;
+			if (matLS2WS)
+				*matLS2WS = std::any_cast<glm::fmat4x4>(v[LS2WS]);
+			if (mkMSE)
+				*mkMSE = std::any_cast<float>(v[MK_MSE]);
+			if (rbmkSet)
+				*rbmkSet = std::any_cast<map<string, map<MKINFO, std::any>>>(v[RB_MKSET]);
+
+			return true;
+		}
+
 		void AddRigidBody(const string& rbName, const glm::fmat4x4& matLS2WS, const float mkMSE,
 			const map<string, map<MKINFO, std::any>>& rbmkSet)
 		{
@@ -235,6 +258,21 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		{
 			auto it = __mksByCid.find(cid);
 			if (it == __mksByCid.end()) return false;
+			mk = it->second;
+			return true;
+		}
+
+		int NumMarkers() {
+			return (int)__mksByName.size();
+		}
+
+		bool GetMarkerByIdx(const int mkIdx, map<MKINFO, std::any>& mk)
+		{
+			auto it = __mksByCid.begin();
+			std::advance(it, mkIdx);
+
+			if (it == __mksByCid.end()) return false;
+
 			mk = it->second;
 			return true;
 		}
@@ -550,11 +588,11 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		pinfo[0] = glm::fvec3(0.10, 0, 0);
 		pinfo[1] = glm::fvec3(0, -1, 0);
 		pinfo[2] = glm::fvec3(1, 0, 0);
-		vzm::GenerateTextObject((float*)&pinfo[0], "X", 0.07, true, false, axis_texX_obj_id);
+		vzm::GenerateTextObject((float*)&pinfo[0], "X", 0.1, true, false, axis_texX_obj_id);
 		pinfo[0] = glm::fvec3(0, 0, 0.10);
 		pinfo[1] = glm::fvec3(0, -1, 0);
 		pinfo[2] = glm::fvec3(0, 0, 1);
-		vzm::GenerateTextObject((float*)&pinfo[0], "Z", 0.07, true, false, axis_texZ_obj_id);
+		vzm::GenerateTextObject((float*)&pinfo[0], "Z", 0.1, true, false, axis_texZ_obj_id);
 	}
 
 	void ComputeClosestPointBetweenLineAndPoint(const glm::fvec3& pos_line, const glm::fvec3& dir_line, const glm::fvec3& pos_point, glm::fvec3& pos_closest_point)

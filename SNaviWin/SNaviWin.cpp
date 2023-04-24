@@ -102,25 +102,37 @@ void SceneInit() {
 	int oidGrid, oidLines, oidTextX, oidTextZ;
 	navihelpers::World_GridAxis_Gen(oidGrid, oidLines, oidTextX, oidTextZ);
 
-	vzm::ActorParameters apGrid, apLines, apTextX, apTextZ;
+	std::vector<glm::fvec3> pinfo(3);
+	pinfo[0] = glm::fvec3(0, 0.5, 0);
+	pinfo[1] = glm::fvec3(0, 0, -1);
+	pinfo[2] = glm::fvec3(0, 1, 0);
+	int oidFrameText;
+	vzm::GenerateTextObject((float*)&pinfo[0], "Frame", 0.1, true, false, oidFrameText);
+
+	vzm::ActorParameters apGrid, apLines, apTextX, apTextZ, apTextFrame;
 	apGrid.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidGrid);
 	apLines.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidLines);
 	apTextX.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidTextX);
 	apTextZ.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidTextZ);
+	apTextFrame.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidFrameText);
+	*(glm::fvec4*)apTextX.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+	*(glm::fvec4*)apTextZ.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+	*(glm::fvec4*)apTextFrame.phong_coeffs = glm::fvec4(0, 1, 0, 0);
 
-	int aidGrid, aidLines, aidTextX, aidTextZ;
+	int aidGrid, aidLines, aidTextX, aidTextZ, aidTextFrame;
 	vzm::NewActor(apGrid, "World Grid", aidGrid);
 	vzm::NewActor(apLines, "World Lines", aidLines);
 	vzm::NewActor(apTextX, "World Text X", aidTextX);
 	vzm::NewActor(apTextZ, "World Text Y", aidTextZ);
+	vzm::NewActor(apTextFrame, "Frame Text", aidTextFrame);
 
 	RECT rcWorldView;
 	GetClientRect(g_hWnd, &rcWorldView);
 
 	vzm::CameraParameters cpCam1;
-	*(glm::fvec3*)cpCam1.pos = glm::fvec3(3, 3, 3);
+	*(glm::fvec3*)cpCam1.pos = glm::fvec3(-1.5, 1.5, -1.5);
 	*(glm::fvec3*)cpCam1.up = glm::fvec3(0, 1, 0);
-	*(glm::fvec3*)cpCam1.view = glm::fvec3(-1, -1, -1);
+	*(glm::fvec3*)cpCam1.view = glm::fvec3(1, -1, 1);
 	cpCam1.np = 0.01f;
 	cpCam1.fp = 100.f;
 	cpCam1.fov_y = 3.141592654f / 4.f;
@@ -153,6 +165,7 @@ void SceneInit() {
 	vzm::AppendSceneItemToSceneTree(aidLines, sidScene);
 	vzm::AppendSceneItemToSceneTree(aidTextX, sidScene);
 	vzm::AppendSceneItemToSceneTree(aidTextZ, sidScene);
+	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 }
 
 void Render() {
@@ -180,7 +193,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 #else
-	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0));
+	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
 #endif
 
     // 전역 문자열을 초기화합니다.
@@ -196,10 +214,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	SceneInit();
 
+#ifdef USE_MOTIVE
 #define NUM_RBS 3
 	static std::string _rb_names[NUM_RBS] = { "c-arm" , "test1", "probe" };
-
-#ifdef USE_MOTIVE
 	const int postpone = 3;
 	navihelpers::concurrent_queue<navihelpers::track_info> track_que(10);
     std::atomic_bool tracker_alive{true};
@@ -226,14 +243,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	});
 #else
 	// trackingData
-	const int startRowIdx = 6;
+	int frameRowIdx = trackingData.GetRowIdx("Frame");
+	//trackingData.GetDataRowIdx
+	assert(frameRowIdx > 0);
+	const int startRowIdx = frameRowIdx + 1;
 	const int startColIdx = 1;
 
-	std::vector<std::string> rowTypes = trackingData.GetRow<std::string>(1);
-	std::vector<std::string> rowNames = trackingData.GetRow<std::string>(2);
-	std::vector<std::string> rowIds = trackingData.GetRow<std::string>(3);
-	std::vector<std::string> rotPosLabels = trackingData.GetRow<std::string>(4);
-	std::vector<std::string> xyzwLabels = trackingData.GetRow<std::string>(5);
+	std::vector<std::string> rowTypes = trackingData.GetRow<std::string>(frameRowIdx - 4);
+	std::vector<std::string> rowNames = trackingData.GetRow<std::string>(frameRowIdx - 3);
+	std::vector<std::string> rowIds = trackingData.GetRow<std::string>(frameRowIdx - 2);
+	std::vector<std::string> rotPosLabels = trackingData.GetRow<std::string>(frameRowIdx - 1);
+	std::vector<std::string> xyzwLabels = trackingData.GetRow<std::string>(frameRowIdx);
 	const int numCols = (int)rowTypes.size();//trackingData.GetColumnCount();
 	const int numRows = (int)trackingData.GetRowCount();
 
@@ -264,9 +284,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		return cid;
 	};
 
+	struct rb_tr_smooth
+	{
+		int fr_count;
+		std::vector<glm::fquat> qs;
+		std::vector<glm::fvec3> ts;
+	};
+
+	std::map<std::string, rb_tr_smooth> rbMapTRs;
 
 	for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
-		std::vector<float> rowValues = trackingData.GetRow<float>(rowIdx);
+		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
+		if (rowStrValues.size() == 0)
+			continue;
 		navihelpers::track_info2& trackInfo = trackingFrames[frameIdx++];
 
 		int colIdx = startColIdx;
@@ -278,49 +308,172 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			std::string rotPos = rotPosLabels[colIdx];
 			std::string xyzw = xyzwLabels[colIdx];
 
-			std::map<std::string, std::map<navihelpers::MKINFO, std::any>> rbmkSet;
+			std::map<std::string, std::map<navihelpers::track_info2::MKINFO, std::any>> rbmkSet;
 
 			if (type == "Rigid Body") {
+				std::string startStrValue = rowStrValues[colIdx];
+				if (startStrValue == "") {
+					colIdx += 8;
+					for (; colIdx < numCols; colIdx += 4) {
+						std::string _type = rowTypes[colIdx];
+						if (_type != "Rigid Body Marker") break;
+					}
+					continue;
+				}
+				float values[8];
+				for (int i = 0; i < 8; i++)
+					values[i] = std::stof(rowStrValues[colIdx + i]);
+				
 				// read 8 col-successive cells
-
-				glm::fquat q(rowValues[colIdx + 3], rowValues[colIdx], rowValues[colIdx + 1], rowValues[colIdx + 2]);
-				glm::fvec3 t(rowValues[colIdx + 4], rowValues[colIdx + 5], rowValues[colIdx + 6]);
-				float mkMSE = rowValues[colIdx + 7];
+				glm::fquat q(values[3], values[0], values[1], values[2]);
+				glm::fvec3 t(values[4], values[5], values[6]);
+				float mkMSE = values[7];
 
 				glm::fmat4x4 mat_r = glm::toMat4(q);
 				glm::fmat4x4 mat_t = glm::translate(t);
 				glm::fmat4x4 mat_ls2ws = mat_t * mat_r;
+
+				rb_tr_smooth& rbTrSmooth = rbMapTRs[name];
+				rbTrSmooth.qs.push_back(q);
+				rbTrSmooth.ts.push_back(t);
 
 				colIdx += 8;
 
 				for (; colIdx < numCols; colIdx+=4) {
 					std::string _type = rowTypes[colIdx];
 					if (_type != "Rigid Body Marker") break;
+					std::string startMkStrValue = rowStrValues[colIdx];
+					if (startMkStrValue == "") {
+						continue;
+					}
+					float mkValues[4];
+					for (int i = 0; i < 4; i++)
+						mkValues[i] = std::stof(rowStrValues[colIdx + i]);
+
+
 					// read 4 col-successive cells
 					std::string _name = rowNames[colIdx];
 					std::string _id = rowIds[colIdx];
 					std::bitset<128> _cid = string2cid(_id);
 
-					glm::fvec3 p(rowValues[colIdx], rowValues[colIdx + 1], rowValues[colIdx + 2]);
-					float mq = rowValues[colIdx + 3];
+					glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
+					float mq = mkValues[3];
 					auto& v = rbmkSet[_name];
-					v[navihelpers::MKINFO::POSITION] = p;
-					v[navihelpers::MKINFO::MK_QUALITY] = mq;
-					v[navihelpers::MKINFO::MK_NAME] = _name;
-					v[navihelpers::MKINFO::CID] = _cid;
+					v[navihelpers::track_info2::MKINFO::POSITION] = p;
+					v[navihelpers::track_info2::MKINFO::MK_QUALITY] = mq;
+					v[navihelpers::track_info2::MKINFO::MK_NAME] = _name;
+					v[navihelpers::track_info2::MKINFO::CID] = _cid;
 				}
 
 				trackInfo.AddRigidBody(name, mat_ls2ws, mkMSE, rbmkSet);
 			}
 			if (type == "Marker") {
+				std::string startMkStrValue = rowStrValues[colIdx];
+				if (startMkStrValue == "") {
+					colIdx += 3;
+					continue;
+				}
 				// read 3 col-successive cells
-				glm::fvec3 p(rowValues[colIdx], rowValues[colIdx + 1], rowValues[colIdx + 2]);
+				float mkValues[3];
+				for (int i = 0; i < 3; i++)
+					mkValues[i] = std::stof(rowStrValues[colIdx + i]);
+				glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
 				trackInfo.AddMarker(cid, p, name);
 				colIdx += 3;
 			}
 		}
 	}
-		
+	
+	// compute average of rigid body transforms
+	std::map<std::string, glm::fmat4x4> rbMapTrAvr;
+	{
+		for (auto& v : rbMapTRs) {
+			int numTRs = (int)v.second.qs.size();
+			float normalizedNum = 1.f / (float)numTRs;
+
+			glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
+			float rotAngleAvr = 0;
+			glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
+			for (int i = 0; i < numTRs; i++) {
+				glm::fquat q = v.second.qs[i];
+				float quatMagnitude = glm::length(q);
+				q /= quatMagnitude;
+
+				float rotationAngle = 2.0f * acos(q.w);
+
+				float sinAngle = sin(rotationAngle / 2.0f);
+				glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
+
+				rotAngleAvr += rotationAngle * normalizedNum;
+				rotAxisAvr += rotationAxis * normalizedNum;
+
+				glm::fvec3 t = v.second.ts[i];
+				trAvr += t * normalizedNum;
+			}
+			rotAxisAvr = glm::normalize(rotAxisAvr);
+
+			glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
+			glm::fmat4x4 mat_t = glm::translate(trAvr);
+			glm::fmat4x4 matLS2WSavr = mat_t * mat_r;
+			rbMapTrAvr[v.first] = matLS2WSavr;
+		}
+	}
+
+	// generate scene actors 
+	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
+	if(sidScene != 0)
+	{
+		navihelpers::track_info2& trackInfo = trackingFrames[0];
+		int numMKs = trackInfo.NumMarkers();
+		int numRBs = trackInfo.NumRigidBodies();
+
+		int oidAxis = 0;
+		vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
+		int oidMarker = 0;
+		glm::fvec4 pos(0, 0, 0, 1.f);
+		vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
+
+		for (int i = 0; i < numRBs; i++) {
+			std::string rbName;
+			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, NULL, NULL)) {
+				vzm::ActorParameters apAxis;
+				apAxis.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
+				apAxis.is_visible = false;
+				apAxis.line_thickness = 3;
+				int aidRbAxis = 0;
+				vzm::NewActor(apAxis, rbName, aidRbAxis);
+				vzm::AppendSceneItemToSceneTree(aidRbAxis, sidScene);
+
+				std::vector<glm::fvec3> pinfo(3);
+				pinfo[0] = glm::fvec3(0, 0, 0);
+				pinfo[1] = glm::fvec3(-1, 0, 0);
+				pinfo[2] = glm::fvec3(0, -1, 0);
+				int oidLabelText = 0;
+				vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.07, true, false, oidLabelText);
+				vzm::ActorParameters apLabelText;
+				apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
+				*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+				int aidLabelText = 0;
+				vzm::NewActor(apLabelText, rbName + ":Label", aidLabelText);
+				vzm::AppendSceneItemToSceneTree(aidLabelText, aidRbAxis);
+			}
+		}
+
+		for (int i = 0; i < numMKs; i++) {
+			std::map<navihelpers::track_info2::MKINFO, std::any> mk;
+			if (trackInfo.GetMarkerByIdx(i, mk)) {
+				vzm::ActorParameters apMarker;
+				apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+				apMarker.is_visible = false;
+				*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
+				int aidMarker = 0;
+				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
+				vzm::NewActor(apMarker, mkName, aidMarker);
+				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
+			}
+		}
+	}
+
 #endif
 
 #ifdef _EVENT_DRIVEN
@@ -342,6 +495,63 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
 		navihelpers::track_info trk_info;
 		track_que.wait_and_pop(trk_info);
+#else
+		static int frameCount = 0;
+		Sleep(10);
+
+		int totalFrames = (int)trackingFrames.size();
+		int frame = (frameCount++) % totalFrames;
+
+		// update frame text 
+		{
+			int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
+			vzm::ActorParameters apFrameText;
+			vzm::GetActorParams(aidFrameText, apFrameText);
+			int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
+			std::vector<glm::fvec3> pinfo(3);
+			pinfo[0] = glm::fvec3(0, 0.3, 0);
+			pinfo[1] = glm::fvec3(0, 0, -1);
+			pinfo[2] = glm::fvec3(0, 1, 0);
+			vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+			//vzm::GetActorParams(aidFrameText, apFrameText);
+		}
+
+		navihelpers::track_info2& trackInfo = trackingFrames[frame];
+		int numRBs = trackInfo.NumRigidBodies();
+		int numMKs = trackInfo.NumMarkers();
+
+		for (int i = 0; i < numRBs; i++) {
+			std::string rbName;
+			glm::fmat4x4 matLS2WS;
+			if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL)) {
+				int aidAxis = vzmutils::GetSceneItemIdByName(rbName);
+				vzm::ActorParameters apAxis;
+				vzm::GetActorParams(aidAxis, apAxis);
+				apAxis.is_visible = true;
+				// test
+				//matLS2WS = rbMapTrAvr[rbName];
+				apAxis.SetLocalTransform(__FP matLS2WS);
+				vzm::SetActorParams(aidAxis, apAxis);
+			}
+		}
+
+		for (int i = 0; i < numMKs; i++) {
+			std::map<navihelpers::track_info2::MKINFO, std::any> mk;
+			if (trackInfo.GetMarkerByIdx(i, mk)) {
+				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
+				glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info2::MKINFO::POSITION]);
+				glm::fmat4x4 matLS2WS = glm::translate(pos);
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.01f)); // set 1 cm to the marker diameter
+				matLS2WS = matLS2WS * matScale;
+				int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
+				vzm::ActorParameters apMarker;
+				vzm::GetActorParams(aidMarker, apMarker);
+				apMarker.is_visible = true;
+				apMarker.SetLocalTransform(__FP matLS2WS);
+				vzm::SetActorParams(aidMarker, apMarker);
+			}
+		}
+
 #endif
 		if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
 		{
@@ -502,7 +712,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				general_move.RotateMove((int*)&pos_ss, cpCam1);
 
 			vzm::SetCameraParams(cidCam1, cpCam1);
-
+			Render();
 			//vzm::RenderScene(sidScene, cidCam1);
 			//UpdateWindow(hWnd);
 			//InvalidateRect(hWnd, NULL, FALSE);
@@ -518,6 +728,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		vzmutils::ZoomImageplane(zDelta > 0, cpCam1.ip_w, cpCam1.ip_h);
 
 		vzm::SetCameraParams(cidCam1, cpCam1);
+		Render();
 		//vzm::RenderScene(sidScene, cidCam1);
 
 		//InvalidateRect(hWnd, NULL, FALSE);
