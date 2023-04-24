@@ -193,12 +193,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 #else
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0));
+	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0));
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0));
-	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
 #endif
 
     // 전역 문자열을 초기화합니다.
@@ -292,6 +292,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	};
 
 	std::map<std::string, rb_tr_smooth> rbMapTRs;
+	std::map<std::string, std::vector<glm::fvec3>> test1MkMapPos;
 
 	for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
 		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
@@ -380,12 +381,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
 				trackInfo.AddMarker(cid, p, name);
 				colIdx += 3;
+
+				if (name.find("test1:") != std::string::npos) {
+					std::vector<glm::fvec3>& posMKs = test1MkMapPos[name];
+					posMKs.push_back(p);
+				}
 			}
 		}
 	}
 	
 	// compute average of rigid body transforms
 	std::map<std::string, glm::fmat4x4> rbMapTrAvr;
+	std::map<std::string, glm::fvec3> mkPosTest1Avr;
 	{
 		for (auto& v : rbMapTRs) {
 			int numTRs = (int)v.second.qs.size();
@@ -417,7 +424,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			glm::fmat4x4 matLS2WSavr = mat_t * mat_r;
 			rbMapTrAvr[v.first] = matLS2WSavr;
 		}
+
+		for (auto& pts : test1MkMapPos) {
+			std::vector<glm::fvec3>& posMK = pts.second;
+			int numTRs = (int)posMK.size();
+			float normalizedNum = 1.f / (float)numTRs;
+
+			glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
+			for (int i = 0; i < numTRs; i++)
+				trAvr += posMK[i] * normalizedNum;
+			mkPosTest1Avr[pts.first] = trAvr;
+		}
 	}
+	// TO DO with rbMapTrAvr and mkPosTest1Avr for calibration task
 
 	// generate scene actors 
 	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
