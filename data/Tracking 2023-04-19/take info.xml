@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes" ?>
+<Motive>
+    <Take>
+        <SessionName>Session 2023-04-19</SessionName>
+        <Name>Calibration Ground Plane</Name>
+        <Filename>E:/Spine Project/SpineNavi/data/Session 2023-04-19/Calibration Ground Plane.tak</Filename>
+        <Best>False</Best>
+        <Assets>c-arm, probe, test1, test2</Assets>
+        <Notes></Notes>
+        <TimeRange>0.00 - 0.50</TimeRange>
+        <Duration>0.50</Duration>
+        <Frames>61</Frames>
+    </Take>
+    <Take>
+        <SessionName>Session 2023-04-19</SessionName>
+        <Name>Take 2023-04-19 05.12.57 PM</Name>
+        <Filename>E:/Spine Project/SpineNavi/data/Session 2023-04-19/Take 2023-04-19 05.12.57 PM.tak</Filename>
+        <Best>False</Best>
+        <Assets>c-arm, test1</Assets>
+        <Notes></Notes>
+        <TimeRange>1615.08 - 1619.76</TimeRange>
+        <Duration>4.67</Duration>
+        <Frames>562</Frames>
+    </Take>
+    <Take>
+        <SessionName>Session 2023-04-19</SessionName>
+        <Name>Take 2023-04-19 05.13.30 PM</Name>
+        <Filename>E:/Spine Project/SpineNavi/data/Session 2023-04-19/Take 2023-04-19 05.13.30 PM.tak</Filename>
+        <Best>False</Best>
+        <Assets>c-arm, test1</Assets>
+        <Notes></Notes>
+        <TimeRange>0.00 - 2.84</TimeRange>
+        <Duration>2.84</Duration>
+        <Frames>342</Frames>
+    </Take>
+    <Take>
+        <SessionName>Session 2023-04-19</SessionName>
+        <Name>Take 2023-04-19 05.14.05 PM</Name>
+        <Filename>E:/Spine Project/SpineNavi/data/Session 2023-04-19/Take 2023-04-19 05.14.05 PM.tak</Filename>
+        <Best>False</Best>
+        <Assets>c-arm, test1</Assets>
+        <Notes></Notes>
+        <TimeRange>0.00 - 3.23</TimeRange>
+        <Duration>3.23</Duration>
+        <Frames>389</Frames>
+    </Take>
+    <Take>
+        <SessionName>Session 2023-04-19</SessionName>
+        <Name>Take 2023-04-19 05.14.56 PM</Name>
+        <Filename>E:/Spine Project/SpineNavi/data/Session 2023-04-19/Take 2023-04-19 05.14.56 PM.tak</Filename>
+        <Best>False</Best>
+        <Assets>c-arm, test1</Assets>
+        <Notes></Notes>
+        <TimeRange>0.00 - 2.14</TimeRange>
+        <Duration>2.14</Duration>
+        <Frames>258</Frames>
+    </Take>
+    <Take>
+        <SessionName>Session 2023-04-19</SessionName>
+        <Name>Take 2023-04-19 05.18.13 PM</Name>
+        <Filename>E:/Spine Project/SpineNavi/data/Session 2023-04-19/Take 2023-04-19 05.18.13 PM.tak</Filename>
+        <Best>False</Best>
+        <Assets>probe</Assets>
+        <Notes></Notes>
+        <TimeRange>0.00 - 44.82</TimeRange>
+        <Duration>44.82</Duration>
+        <Frames>5379</Frames>
+    </Take>
+    <Take>
+        <SessionName>Session 2023-04-19</SessionName>
+        <Name>Take 2023-04-19 05.19.59 PM</Name>
+        <Filename>E:/Spine Project/SpineNavi/data/Session 2023-04-19/Take 2023-04-19 05.19.59 PM.tak</Filename>
+        <Best>False</Best>
+        <Assets>c-arm, test1, probe</Assets>
+        <Notes></Notes>
+        <TimeRange>0.00 - 14.66</TimeRange>
+        <Duration>14.66</Duration>
+        <Frames>1760</Frames>
+    </Take>
+</Motive>
