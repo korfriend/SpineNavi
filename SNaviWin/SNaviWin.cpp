@@ -33,7 +33,7 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 
 //#define USE_MOTIVE
-#define USE_WHND false
+#define USE_WHND true
 
 #define MAX_LOADSTRING 100
 
@@ -90,7 +90,8 @@ void UpdateBuffer(int cam_id, HWND _hwnd, bool updateHwnd)
 			//UpdateWindow(hwnd__);
 
 			EndPaint(hwnd__, &ps);
-			InvalidateRect(hwnd__, NULL, FALSE);
+			//InvalidateRect(hwnd__, NULL, FALSE);
+			//UpdateWindow(hwnd__);
 		}
 	};
 
@@ -299,10 +300,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 #else
-	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0));
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));  // 7082.png
+	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));  // 7083.png
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
+	// 
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0));
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
 #endif
@@ -321,30 +323,31 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	SceneInit();
 
 #ifdef USE_MOTIVE
-#define NUM_RBS 3
-	static std::string _rb_names[NUM_RBS] = { "c-arm" , "test1", "probe" };
-	const int postpone = 3;
-	navihelpers::concurrent_queue<navihelpers::track_info> track_que(10);
+	//const int postpone = 3;
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+
+	navihelpers::concurrent_queue<navihelpers::track_info2> track_que(10);
     std::atomic_bool tracker_alive{true};
 	std::thread tracker_processing_thread([&]() {
 		while (tracker_alive)
 		{
-			Sleep(postpone);
+			//Sleep(postpone);
 			optitrk::UpdateFrame();
 
-			navihelpers::track_info cur_trk_info;
-			for (int i = 0; i < NUM_RBS; i++)
+			navihelpers::track_info2 trk_info;
+			for (int i = 0; i < numRBs; i++)
 			{
-				glm::fmat4x4 mat_lfrm2ws;
-				bool is_detected = optitrk::GetRigidBodyLocationByName(_rb_names[i], (float*)&mat_lfrm2ws);
-				cur_trk_info.SetLFrmInfo(_rb_names[i], is_detected, mat_lfrm2ws);
+				std::string rbName = rbNames[i];
+				glm::fmat4x4 mat_ls2ws;
+				if (optitrk::GetRigidBodyLocationByName(rbName, (float*)&mat_ls2ws)) {
+					// trk_info.AddRigidBody(rbName, mat_ls2ws)
+				}
 			}
-
-			//cout << cur_is_rsrb_detected << ", " << cur_is_probe_detected << endl;
-
-			optitrk::GetMarkersLocation(&cur_trk_info.mk_xyz_list, &cur_trk_info.mk_residue_list, &cur_trk_info.mk_cid_list);
-			cur_trk_info.is_updated = true;
-			track_que.push(cur_trk_info);
+			//optitrk::GetMarkersLocation(&cur_trk_info.mk_xyz_list, &cur_trk_info.mk_residue_list, &cur_trk_info.mk_cid_list);
+			//
+			//cur_trk_info.is_updated = true;
+			track_que.push(trk_info);
 		}
 	});
 #else
@@ -400,7 +403,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	std::map<std::string, rb_tr_smooth> rbMapTRs;
 	std::map<std::string, std::vector<glm::fvec3>> test1MkMapPos;
 
-	const bool staticPoseAvrTest = false;
+	const bool staticPoseAvrTest = true;
 
 	for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
 		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
@@ -607,6 +610,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	csvData.mkPosTest1Avr = &mkPosTest1Avr;
 	csvData.staticPoseAvrTest = staticPoseAvrTest;
 
+
+	//UpdateFrame(csvData);
+	//Render();
 	SetTimer(g_hWnd, (UINT_PTR)&csvData, 10, TimerProc);
 #endif
 
@@ -735,12 +741,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		break;
     case WM_PAINT:
         {
-            //PAINTSTRUCT ps;
-            //HDC hdc = BeginPaint(hWnd, &ps);
-            ////// TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
-			//EndPaint(hWnd, &ps);
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            //// TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
+			EndPaint(hWnd, &ps);
 			//if(cidCam1 != 0)
-			UpdateBuffer(cidCam1, hWnd, USE_WHND);
+			//UpdateBuffer(cidCam1, hWnd, USE_WHND);
 			break;
         }
         break;
