@@ -8,6 +8,14 @@
 #include <windowsx.h>
 #include <iostream>
 
+#include <objidl.h>
+#include <gdiplus.h>
+#include <gdipluspath.h>
+#include <gdiplusgraphics.h>
+using namespace Gdiplus;
+#pragma comment (lib,"Gdiplus.lib")
+
+
 // math using GLM
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/transform.hpp"
@@ -25,7 +33,7 @@
 #include "rapidcsv/rapidcsv.h"
 
 //#define USE_MOTIVE
-#define USE_WHND true
+#define USE_WHND false
 
 #define MAX_LOADSTRING 100
 
@@ -75,6 +83,12 @@ void UpdateBuffer(int cam_id, HWND _hwnd, bool updateHwnd)
 
 			DeleteObject(map);
 			DeleteDC(src); // Deleting temp HDC
+
+			// label text for world markers
+			//Graphics graphics(hdc);
+			//graphics.DrawString()
+			//UpdateWindow(hwnd__);
+
 			EndPaint(hwnd__, &ps);
 			InvalidateRect(hwnd__, NULL, FALSE);
 		}
@@ -255,7 +269,7 @@ void Render() {
 
 	if (sidScene != 0 && cidCam1 != 0) {
 		vzm::RenderScene(sidScene, cidCam1);
-		UpdateBuffer(cidCam1, g_hWnd, true);
+		UpdateBuffer(cidCam1, g_hWnd, USE_WHND);
 	}
 }
 
@@ -273,6 +287,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR gdiplusToken;
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
 	// engine initialization to use the core APIs of framework
 	// must be paired with DeinitEngineLib()
@@ -612,6 +630,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #endif
 	vzm::DeinitEngineLib();
 
+	GdiplusShutdown(gdiplusToken);
+
     return (int) msg.wParam;
 }
 
@@ -713,18 +733,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
 		break;
-	case WM_TIMER:
-		{
-
-		}
-		break;
     case WM_PAINT:
         {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
-			EndPaint(hWnd, &ps);
-			//UpdateBuffer(cidCam1, hWnd, USE_WHND);
+            //PAINTSTRUCT ps;
+            //HDC hdc = BeginPaint(hWnd, &ps);
+            ////// TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
+			//EndPaint(hWnd, &ps);
+			//if(cidCam1 != 0)
+			UpdateBuffer(cidCam1, hWnd, USE_WHND);
 			break;
         }
         break;
@@ -796,6 +812,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		//InvalidateRect(hWnd, NULL, FALSE);
 		//UpdateWindow(hWnd);
 	}
+	case WM_ERASEBKGND:
+		return TRUE; // tell Windows that we handled it. (but don't actually draw anything)
     default:
         return DefWindowProc(hWnd, message, wParam, lParam);
     }

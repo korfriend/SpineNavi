@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CArmCalibration.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="naviHelpers.hpp" />
     <ClInclude Include="Resource.h" />
@@ -157,6 +158,7 @@
     <ClInclude Include="tinyxml2.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CArmCalibration.cpp" />
     <ClCompile Include="SNaviWin.cpp" />
     <ClCompile Include="tinyxml2.cpp" />
   </ItemGroup>
