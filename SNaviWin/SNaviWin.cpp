@@ -183,42 +183,14 @@ void SceneInit() {
 	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 }
 
-struct UpdateCsvData {
-	std::vector<navihelpers::track_info2>* trackingFrames;
-	std::map<std::string, glm::fmat4x4>* rbMapTrAvr;
-	std::map<std::string, glm::fvec3>* mkPosTest1Avr;
-	bool staticPoseAvrTest;
-};
+bool staticPoseAvrTest = false;
+std::map<std::string, glm::fmat4x4> rbMapTrAvr;
+std::map<std::string, glm::fvec3> mkPosTest1Avr;
 
-void UpdateFrame(UpdateCsvData& csvData) {
-	
-	std::vector<navihelpers::track_info2>& trackingFrames = *csvData.trackingFrames;
-	std::map<std::string, glm::fmat4x4>& rbMapTrAvr = *csvData.rbMapTrAvr;
-	std::map<std::string, glm::fvec3>& mkPosTest1Avr = *csvData.mkPosTest1Avr;
-	bool staticPoseAvrTest = csvData.staticPoseAvrTest;
+void UpdateTrackInfo2Scene(navihelpers::track_info2& trackInfo) {
 
-
-	static int frameCount = 0;
-	int totalFrames = (int)trackingFrames.size();
-	int frame = (frameCount++) % totalFrames;
-
-	// update frame text 
-	{
-		int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
-		vzm::ActorParameters apFrameText;
-		vzm::GetActorParams(aidFrameText, apFrameText);
-		int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
-		std::vector<glm::fvec3> pinfo(3);
-		pinfo[0] = glm::fvec3(0, 0.3, 0);
-		pinfo[1] = glm::fvec3(0, 0, -1);
-		pinfo[2] = glm::fvec3(0, 1, 0);
-		vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
-		//vzm::GetActorParams(aidFrameText, apFrameText);
-	}
-
-	navihelpers::track_info2& trackInfo = trackingFrames[frame];
 	int numRBs = trackInfo.NumRigidBodies();
-	int numMKs = trackInfo.NumMarkers();
+	int numMKs = 0;// trackInfo.NumMarkers();
 
 	for (int i = 0; i < numRBs; i++) {
 		std::string rbName;
@@ -262,7 +234,7 @@ void UpdateFrame(UpdateCsvData& csvData) {
 			vzm::SetActorParams(aidMarker, apMarker);
 		}
 	}
-};
+}
 
 void Render() {
 	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
@@ -276,8 +248,107 @@ void Render() {
 
 void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 {
-	UpdateCsvData* csvData = (UpdateCsvData*)pcsvData;
-	UpdateFrame(*csvData);
+	static int frameCount = 0;
+#ifdef USE_MOTIVE
+	int frame = frameCount++;
+#else
+	std::vector<navihelpers::track_info2>& trackingFrames = *(std::vector<navihelpers::track_info2>*)pcsvData;
+	int totalFrames = (int)trackingFrames.size();
+	int frame = (frameCount++) % totalFrames;
+#endif
+	// update frame text 
+	{
+		int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
+		vzm::ActorParameters apFrameText;
+		vzm::GetActorParams(aidFrameText, apFrameText);
+		int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
+		std::vector<glm::fvec3> pinfo(3);
+		pinfo[0] = glm::fvec3(0, 0.3, 0);
+		pinfo[1] = glm::fvec3(0, 0, -1);
+		pinfo[2] = glm::fvec3(0, 1, 0);
+		vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+		//vzm::GetActorParams(aidFrameText, apFrameText);
+	}
+
+
+#ifdef USE_MOTIVE
+	navihelpers::concurrent_queue<navihelpers::track_info2>* track_que = 
+		(navihelpers::concurrent_queue<navihelpers::track_info2>*)pcsvData;
+	navihelpers::track_info2 trackInfo;
+	track_que->wait_and_pop(trackInfo);
+
+	// generate scene actors with updated trackInfo
+	{
+		using namespace std;
+		using namespace navihelpers;
+
+		int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
+		int numMKs = trackInfo.NumMarkers();
+		int numRBs = trackInfo.NumRigidBodies();
+
+		static int oidAxis = 0;
+		static int oidMarker = 0;
+		if (oidAxis == 0) {
+			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
+		}
+		if (oidMarker == 0) {
+			glm::fvec4 pos(0, 0, 0, 1.f);
+			vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
+		}
+
+		static map<string, int> sceneActors;
+
+		for (int i = 0; i < numRBs; i++) {
+			std::string rbName;
+			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, NULL, NULL)) {
+				auto actorId = sceneActors.find(rbName);
+				if (actorId == sceneActors.end()) {
+					vzm::ActorParameters apAxis;
+					apAxis.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
+					apAxis.is_visible = false;
+					apAxis.line_thickness = 3;
+					int aidRbAxis = 0;
+					vzm::NewActor(apAxis, rbName, aidRbAxis);
+					vzm::AppendSceneItemToSceneTree(aidRbAxis, sidScene);
+
+					std::vector<glm::fvec3> pinfo(3);
+					pinfo[0] = glm::fvec3(0, 0, 0);
+					pinfo[1] = glm::fvec3(-1, 0, 0);
+					pinfo[2] = glm::fvec3(0, -1, 0);
+					int oidLabelText = 0;
+					vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.07, true, false, oidLabelText);
+					vzm::ActorParameters apLabelText;
+					apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
+					*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+					int aidLabelText = 0;
+					vzm::NewActor(apLabelText, rbName + ":Label", aidLabelText);
+					vzm::AppendSceneItemToSceneTree(aidLabelText, aidRbAxis);
+				}
+			}
+		}
+
+		for (int i = 0; i < numMKs; i++) {
+			std::map<navihelpers::track_info2::MKINFO, std::any> mk;
+			if (trackInfo.GetMarkerByIdx(i, mk)) {
+				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
+				auto actorId = sceneActors.find(mkName);
+				if (actorId == sceneActors.end()) {
+					vzm::ActorParameters apMarker;
+					apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+					apMarker.is_visible = false;
+					*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
+					int aidMarker = 0;
+					vzm::NewActor(apMarker, mkName, aidMarker);
+					vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
+				}
+			}
+		}
+	}
+
+	UpdateTrackInfo2Scene(trackInfo);
+#else
+	UpdateTrackInfo2Scene(trackingFrames[frame]);
+#endif
 	Render();
 }
 
@@ -330,35 +401,59 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	navihelpers::concurrent_queue<navihelpers::track_info2> track_que(10);
     std::atomic_bool tracker_alive{true};
 	std::thread tracker_processing_thread([&]() {
+		using namespace std;
+		using namespace navihelpers;
+		using namespace glm;
 		while (tracker_alive)
 		{
 			//Sleep(postpone);
 			optitrk::UpdateFrame();
 
-			navihelpers::track_info2 trk_info;
+			track_info2 trk_info;
 			for (int i = 0; i < numRBs; i++)
 			{
-				std::string rbName;// = rbNames[i];
-				glm::fmat4x4 matLS2WS;
+				string rbName;// = rbNames[i];
+				fmat4x4 matLS2WS;
 				float rbMSE;
-				std::vector<float> posMKs;
-				//std::bitset<128> cid;
-				if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, NULL, &rbMSE, &posMKs, NULL, &rbName)) {
-					//CID = 0, // std::bitset<128>
-					//POSITION = 1, // glm::fvec3, world space
-					//MK_NAME = 2, // string
-					//MK_QUALITY = 3 // float // only for RB_MKSET
-					std::map<std::string, std::map<navihelpers::track_info2::MKINFO, std::any>> rbmkSet;
-					trk_info.AddRigidBody(rbName, matLS2WS, rbMSE, );
-
+				vector<float> posMKs;
+				vector<float> mkQualities;
+				bitset<128> rbCid;
+				if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, &rbCid, &rbMSE, &posMKs, NULL, &mkQualities, &rbName)) {
+					int numRbMks = (int)posMKs.size() / 3;
+					vector<fvec3> mkPts(numRbMks);
+					memcpy(&mkPts[0], &posMKs[0], sizeof(fvec3) * numRbMks);
+					map<string, map<track_info2::MKINFO, std::any>> rbmkSet;
+					for (int j = 0; j < numRbMks; j++) {
+						//CID = 0, // std::bitset<128>
+						//POSITION = 1, // glm::fvec3, world space
+						//MK_NAME = 2, // string
+						//MK_QUALITY = 3 // float // only for RB_MKSET
+						string mkName = rbName + ":Marker" + to_string(j + 1);
+						auto& pt = rbmkSet[mkName];
+						pt[track_info2::MKINFO::CID] = rbCid;
+						pt[track_info2::MKINFO::POSITION] = mkPts[j];
+						pt[track_info2::MKINFO::MK_NAME] = mkName;
+						pt[track_info2::MKINFO::MK_QUALITY] = mkQualities[j];
+					}
+					trk_info.AddRigidBody(rbName, matLS2WS, rbMSE, rbmkSet);
 				}
 			}
-			//optitrk::GetMarkersLocation(&cur_trk_info.mk_xyz_list, &cur_trk_info.mk_residue_list, &cur_trk_info.mk_cid_list);
-			//
-			//cur_trk_info.is_updated = true;
+			vector<float> mkPts;
+			vector<float> mkResiduals;
+			vector<bitset<128>> mkCIDs;
+			optitrk::GetMarkersLocation(&mkPts, &mkResiduals, &mkCIDs);
+			int numMKs = (int)mkCIDs.size();
+			for (int i = 0; i < numMKs; i++) {
+				fvec3 pos = fvec3(mkPts[3 * i + 0], mkPts[3 * i + 1], mkPts[3 * i + 2]);
+				string mkName = "Marker" + to_string(i + 1);
+				trk_info.AddMarker(mkCIDs[i], pos, mkName);
+			}
 			track_que.push(trk_info);
 		}
 	});
+
+	SetTimer(g_hWnd, (UINT_PTR)&track_que, 10, TimerProc);
+
 #else
 	// trackingData
 	int frameRowIdx = trackingData.GetRowIdx("Frame");
@@ -411,8 +506,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	std::map<std::string, rb_tr_smooth> rbMapTRs;
 	std::map<std::string, std::vector<glm::fvec3>> test1MkMapPos;
-
-	const bool staticPoseAvrTest = true;
 
 	for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
 		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
@@ -511,8 +604,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 	
 	// compute average of rigid body transforms
-	std::map<std::string, glm::fmat4x4> rbMapTrAvr;
-	std::map<std::string, glm::fvec3> mkPosTest1Avr;
+	//std::map<std::string, glm::fmat4x4> rbMapTrAvr;
+	//std::map<std::string, glm::fvec3> mkPosTest1Avr;
 	{
 		for (auto& v : rbMapTRs) {
 			int numTRs = (int)v.second.qs.size();
@@ -613,16 +706,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 	}
 
-	UpdateCsvData csvData;
-	csvData.trackingFrames = &trackingFrames;
-	csvData.rbMapTrAvr = &rbMapTrAvr;
-	csvData.mkPosTest1Avr = &mkPosTest1Avr;
-	csvData.staticPoseAvrTest = staticPoseAvrTest;
-
-
 	//UpdateFrame(csvData);
 	//Render();
-	SetTimer(g_hWnd, (UINT_PTR)&csvData, 10, TimerProc);
+	SetTimer(g_hWnd, (UINT_PTR)&trackingFrames, 10, TimerProc);
 #endif
 
     MSG msg;

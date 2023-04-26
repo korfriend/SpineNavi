@@ -20,6 +20,13 @@
 
 #include <opencv2/opencv.hpp>
 
+
+//#include <boost/thread/mutex.hpp>
+//#include <boost/thread/thread.hpp>
+#include <mutex>
+#include <thread>
+
+
 #define __cv3__ *(glm::fvec3*)
 #define __cv4__ *(glm::fvec4*)
 #define __cm4__ *(glm::fmat4x4*)
@@ -71,9 +78,104 @@ __VA_ARGS__\
 std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
     std::string EtoString(const name v) { return name##Map.at(v);}
 
+	/*
+// https://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html
+	template<typename Data>
+	class concurrent_queue2 // single consumer
+	{
+	private:
+		std::queue<Data> the_queue;
+		mutable boost::mutex the_mutex;
 
-#include <mutex>
-#include <thread>
+		boost::condition_variable the_condition_variable;
+		int MAX_QUEUE;
+
+	public:
+		concurrent_queue2(int cap = 10)
+		{
+			MAX_QUEUE = cap;
+		}
+
+		void wait_for_data()
+		{
+			boost::mutex::scoped_lock lock(the_mutex);
+			while (the_queue.empty())
+			{
+				the_condition_variable.wait(lock);
+			}
+		}
+
+		void wait_and_pop(Data& popped_value)
+		{
+			boost::mutex::scoped_lock lock(the_mutex);
+			while (the_queue.empty())
+			{
+				the_condition_variable.wait(lock);
+			}
+
+			popped_value = the_queue.front();
+			the_queue.pop();
+		}
+
+		//void postphone_back_and_clear(Data& popped_value)
+		//{
+		//	boost::mutex::scoped_lock lock(the_mutex);
+		//	while (the_queue.size() < MAX_QUEUE)
+		//	{
+		//		the_condition_variable.wait(lock);
+		//	}
+		//
+		//	popped_value = the_queue.back();
+		//	std::queue<Data> empty_queue;
+		//	std::swap(the_queue, empty_queue);
+		//}
+
+		void push(const Data& data) //enque
+		{
+			//boost::mutex::scoped_lock lock(the_mutex);
+			//the_queue.push(data);
+
+			boost::mutex::scoped_lock lock(the_mutex);
+			bool const was_empty = the_queue.empty();
+			the_queue.push(data);
+			if (the_queue.size() > MAX_QUEUE)
+			{
+				the_queue.pop();
+			}
+
+			lock.unlock(); // unlock the mutex
+
+			if (was_empty)
+			{
+				the_condition_variable.notify_one();
+			}
+		}
+
+		bool empty() const
+		{
+			boost::mutex::scoped_lock lock(the_mutex);
+			return the_queue.empty();
+		}
+
+		Data& front()
+		{
+			boost::mutex::scoped_lock lock(the_mutex);
+			return the_queue.front();
+		}
+
+		Data const& front() const
+		{
+			boost::mutex::scoped_lock lock(the_mutex);
+			return the_queue.front();
+		}
+
+		void pop() // deque
+		{
+			boost::mutex::scoped_lock lock(the_mutex);
+			the_queue.pop();
+		}
+	};
+	/**/
 // https://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html
 	template<typename Data>
 	class concurrent_queue // single consumer
@@ -93,7 +195,8 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 
 		void wait_for_data()
 		{
-			std::lock_guard<std::mutex> lock(the_mutex);
+			//std::lock_guard<std::mutex> lock(the_mutex);
+			std::unique_lock<std::mutex> lock(the_mutex);
 			while (the_queue.empty())
 			{
 				the_condition_variable.wait(lock);
@@ -102,7 +205,8 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 
 		void wait_and_pop(Data& popped_value)
 		{
-			std::lock_guard<std::mutex> lock(the_mutex);
+			//std::lock_guard<std::mutex> lock(the_mutex);
+			std::unique_lock<std::mutex> lock(the_mutex);
 			while (the_queue.empty())
 			{
 				the_condition_variable.wait(lock);
@@ -148,32 +252,38 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 
 		bool empty() const
 		{
-			std::lock_guard<std::mutex> lock(the_mutex);
+			//std::lock_guard<std::mutex> lock(the_mutex);
+			std::unique_lock<std::mutex> lock(the_mutex);
 			return the_queue.empty();
 		}
 
 		Data& front()
 		{
-			std::lock_guard<std::mutex> lock(the_mutex);
+			//std::lock_guard<std::mutex> lock(the_mutex);
+			std::unique_lock<std::mutex> lock(the_mutex);
 			return the_queue.front();
 		}
 
 		Data const& front() const
 		{
-			std::lock_guard<std::mutex> lock(the_mutex);
+			//std::lock_guard<std::mutex> lock(the_mutex);
+			std::unique_lock<std::mutex> lock(the_mutex);
 			return the_queue.front();
 		}
 
 		void pop() // deque
 		{
-			std::lock_guard<std::mutex> lock(the_mutex);
+			//std::lock_guard<std::mutex> lock(the_mutex);
+			std::unique_lock<std::mutex> lock(the_mutex);
 			the_queue.pop();
 		}
 	};
 
 	template<size_t sz> struct bitset_comparer {
 		bool operator() (const bitset<sz>& b1, const bitset<sz>& b2) const {
-			return b1.to_ulong() < b2.to_ulong();
+			string b1ll = b1.to_string();
+			string b2ll = b2.to_string();
+			return b1ll < b2ll;
 		}
 	};
 
@@ -188,6 +298,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			MK_NAME = 2, // string
 			MK_QUALITY = 3 // float // only for RB_MKSET
 		};
+		std::map<string, std::any> testData;
 	private:
 		enum RBINFO : int
 		{
