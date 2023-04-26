@@ -880,6 +880,42 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			fs.write("tvec", tvec);
 			fs.release();
 
+			auto computeMatCS2PS = [](const float fx, const float fy, const float s, const float cx, const float cy,
+				const float widthPix, const float heightPix,
+				const float near_p, const float far_p, glm::fmat4x4& matCS2PS)
+			{
+				double q = far_p / (near_p - far_p);
+				double qn = far_p * near_p / (near_p - far_p);
+
+				double fx = fx;
+				double fy = fy;
+				double sc = sc;
+				double cx = cx;
+				double cy = cy;
+				double width = (double)widthPix;
+				double height = (double)heightPix;
+				double x0 = 0, y0 = 0;
+
+				matCS2PS[0][0] = 2.0 * fx / width;
+				matCS2PS[1][0] = -2.0 * sc / width;
+				matCS2PS[2][0] = (width + 2.0 * x0 - 2.0 * cx) / width;
+				matCS2PS[3][0] = 0;
+				matCS2PS[0][1] = 0;
+				matCS2PS[1][1] = 2.0 * fy / height;
+				matCS2PS[2][1] = -(height + 2.0 * y0 - 2.0 * cy) / height;
+				matCS2PS[3][1] = 0;
+				matCS2PS[0][2] = 0;
+				matCS2PS[1][2] = 0;
+				matCS2PS[2][2] = q;
+				matCS2PS[3][2] = qn;
+				matCS2PS[0][3] = 0;
+				matCS2PS[1][3] = 0;
+				matCS2PS[2][3] = -1.0;
+				matCS2PS[3][3] = 0;
+				//mat_cs2ps = glm::transpose(mat_cs2ps);
+				//fmat_cs2ps = mat_cs2ps;
+			};
+
 			//trans = np.array([[-0.07255497],
 			//	[-0.26624713],
 			//	[0.34485428]] )
@@ -889,14 +925,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//	[0.60106798]] )
 			// 
 			// compute c-arm RB frame to c-arm Cam frame
-			cv::Mat tvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
-			((double*)tvec_.data)[0] = -0.07255497;
-			((double*)tvec_.data)[1] = -0.26624713;
-			((double*)tvec_.data)[2] = 0.34485428;
-			cv::Mat rvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
-			((double*)rvec_.data)[0] = -1.95647732;
-			((double*)rvec_.data)[1] = 2.02905939;
-			((double*)rvec_.data)[2] = 0.60106798;
+			//cv::Mat tvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
+			//((double*)tvec_.data)[0] = -0.07255497;
+			//((double*)tvec_.data)[1] = -0.26624713;
+			//((double*)tvec_.data)[2] = 0.34485428;
+			//cv::Mat rvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
+			//((double*)rvec_.data)[0] = -1.95647732;
+			//((double*)rvec_.data)[1] = 2.02905939;
+			//((double*)rvec_.data)[2] = 0.60106798;
 
 			cv::Mat matR;
 			cv::Rodrigues(rvec, matR);
@@ -914,27 +950,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			matCaRb2CaCam[3][0] = (float)((double*)tvec.data)[0];
 			matCaRb2CaCam[3][1] = (float)((double*)tvec.data)[1];
 			matCaRb2CaCam[3][2] = (float)((double*)tvec.data)[2];
-
-			//glm::fmat4x4 matR_gl(1), matT_gl(1);
-			//matR_gl[0][0] = (float)matR.at<double>(0, 0);
-			//matR_gl[0][1] = (float)matR.at<double>(1, 0);
-			//matR_gl[0][2] = (float)matR.at<double>(2, 0);
-			//matR_gl[1][0] = (float)matR.at<double>(0, 1);
-			//matR_gl[1][1] = (float)matR.at<double>(1, 1);
-			//matR_gl[1][2] = (float)matR.at<double>(2, 1);
-			//matR_gl[2][0] = (float)matR.at<double>(0, 2);
-			//matR_gl[2][1] = (float)matR.at<double>(1, 2);
-			//matR_gl[2][2] = (float)matR.at<double>(2, 2);
-			//matT_gl[3][0] = (float)((double*)tvec.data)[0];
-			//matT_gl[3][1] = (float)((double*)tvec.data)[1];
-			//matT_gl[3][2] = (float)((double*)tvec.data)[2];
-			//matCaRb2CaCam = matR_gl * matT_gl;
-
-
 			glm::fmat4x4 matCaCam2CaRb = glm::inverse(matCaRb2CaCam);
-
-
-
 			glm::fmat4x4 matCaRb2WS;
 			trackInfo.GetRigidBodyByName("c-arm", &matCaRb2WS, NULL, NULL);
 			glm::fmat4x4 matCam2WS = matCaRb2WS * matCaCam2CaRb;
