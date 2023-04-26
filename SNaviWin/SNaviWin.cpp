@@ -338,10 +338,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			navihelpers::track_info2 trk_info;
 			for (int i = 0; i < numRBs; i++)
 			{
-				std::string rbName = rbNames[i];
-				glm::fmat4x4 mat_ls2ws;
-				if (optitrk::GetRigidBodyLocationByName(rbName, (float*)&mat_ls2ws)) {
-					// trk_info.AddRigidBody(rbName, mat_ls2ws)
+				std::string rbName;// = rbNames[i];
+				glm::fmat4x4 matLS2WS;
+				float rbMSE;
+				std::vector<float> posMKs;
+				//std::bitset<128> cid;
+				if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, NULL, &rbMSE, &posMKs, NULL, &rbName)) {
+					//CID = 0, // std::bitset<128>
+					//POSITION = 1, // glm::fvec3, world space
+					//MK_NAME = 2, // string
+					//MK_QUALITY = 3 // float // only for RB_MKSET
+					std::map<std::string, std::map<navihelpers::track_info2::MKINFO, std::any>> rbmkSet;
+					trk_info.AddRigidBody(rbName, matLS2WS, rbMSE, );
+
 				}
 			}
 			//optitrk::GetMarkersLocation(&cur_trk_info.mk_xyz_list, &cur_trk_info.mk_residue_list, &cur_trk_info.mk_cid_list);

@@ -124,7 +124,6 @@ bool optitrk::SetCameraFrameRate(int cam_idx, int frameRate)
 	return TT_SetCameraFrameRate(cam_idx, frameRate);
 }
 
-std::map<std::string, int> rb_id_map;
 bool optitrk::LoadProfileAndCalibInfo(const std::string& file_profile, const std::string& file_calib)
 {
 	// Do an update to pick up any recently-arrived cameras.
@@ -137,10 +136,6 @@ bool optitrk::LoadProfileAndCalibInfo(const std::string& file_profile, const std
 	// Load a calibration file from the executable directory
 	printf("Loading Calibration: Calibration.cal\n\n");
 	CheckResult(TT_LoadCalibration(file_calib.c_str()));
-
-	int num_rbs = TT_RigidBodyCount();
-	for (int i = 0; i < num_rbs; i++)
-		rb_id_map[TT_RigidBodyName(i)] = i;
 
 	return true;
 }
@@ -220,7 +215,7 @@ struct rb_tr_smooth_info
 	}
 };
 std::map<int, rb_tr_smooth_info> rb_smooth_frcount;
-bool optitrk::SetRigidBodyPropertyById(const int rb_idx, const float smooth_term, const int test_smooth_term)
+bool optitrk::SetRigidBodyPropertyByIdx(const int rb_idx, const float smooth_term, const int test_smooth_term)
 {
 	if (!is_initialized) return false;
 	if (TT_RigidBodyName(rb_idx) == NULL) return false;
@@ -236,11 +231,14 @@ bool optitrk::SetRigidBodyPropertyById(const int rb_idx, const float smooth_term
 bool optitrk::SetRigidBodyPropertyByName(const std::string& name, const float smooth_term, const int test_smooth_term)
 {
 	if (!is_initialized) return false;
-	auto it = rb_id_map.find(name);
-	if (it == rb_id_map.end())
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+	int rb_idx = 0;
+	for (; rb_idx < numRBs; rb_idx++)
+		if (name == rbNames[rb_idx]) break;
+	if (rb_idx == numRBs)
 		return false;
-	int rb_idx = it->second;
-	return SetRigidBodyPropertyById(rb_idx, smooth_term, test_smooth_term);
+	return SetRigidBodyPropertyByIdx(rb_idx, smooth_term, test_smooth_term);
 }
 
 bool optitrk::SetRigidBodyEnabledbyId(const int rb_idx, const bool enabled)
@@ -255,16 +253,20 @@ bool optitrk::SetRigidBodyEnabledbyId(const int rb_idx, const bool enabled)
 bool optitrk::SetRigidBodyEnabledbyName(const std::string& name, const bool enabled)
 {
 	if (!is_initialized) return false;
-	auto it = rb_id_map.find(name);
-	if (it == rb_id_map.end())
+
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+	int rb_idx = 0;
+	for (; rb_idx < numRBs; rb_idx++)
+		if (name == rbNames[rb_idx]) break;
+	if (rb_idx == numRBs)
 		return false;
-	int rb_idx = it->second;
 
 	TT_SetRigidBodyEnabled(rb_idx, enabled);
 	return true;
 }
 
-bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::string* rb_name)
+bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::string* rb_name)
 {
 	if (!is_initialized) return false;
 	if (rb_name) *rb_name = TT_RigidBodyName(rb_idx);
@@ -337,6 +339,7 @@ bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_ls2ws, std::
 
 	int num_mks = TT_RigidBodyMarkerCount(rb_idx);
 	std::vector<glm::fvec3> posMKs(num_mks);
+	std::vector<bool> isTrackeds(num_mks);
 	for (int i = 0; i < num_mks; i++)
 	{
 		float mk_x, mk_y, mk_z;
@@ -348,103 +351,54 @@ bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_ls2ws, std::
 		//(*rbmk_xyz_list)[i * 3 + 1] = pos.y / pos.w;
 		//(*rbmk_xyz_list)[i * 3 + 2] = pos.z / pos.w;
 
+		//TT_RigidBodyMarker()
+
 
 		float mx, my, mz;
-		bool tred;
-		TT_RigidBodyPointCloudMarker(rb_idx, i, tred, mx, my, mz);
+		bool tracked;
+		TT_RigidBodyPointCloudMarker(rb_idx, i, tracked, mx, my, mz);
 		posMKs[i] = glm::fvec3(mx, my, mz);
-
+		isTrackeds[i] = tracked;
 	}
 
 	if (rbmk_xyz_list) {
 		rbmk_xyz_list->assign(num_mks * 3, 0);
+		memcpy(&rbmk_xyz_list->at(0), &posMKs[0], sizeof(glm::fvec3) * num_mks);
+	}
+	if (mk_tracked_list) {
+		*mk_tracked_list = isTrackeds;
 	}
 
-
-	if (rbmk_xyz_list)
-	{
+	if (rb_mse) {
+		*rb_mse = TT_RigidBodyMeanError(rb_idx);
 	}
-	if (trmk_xyz_list || tr_list)
-	{
-		int num_mks = TT_RigidBodyMarkerCount(rb_idx);
-		if (trmk_xyz_list) trmk_xyz_list->assign(num_mks * 3, 0); // always num_mks >= 3
-		if (tr_list) tr_list->assign(num_mks, false);
-		for (int i = 0; i < num_mks; i++)
-		{
-			bool tracked;
-			float mk_x, mk_y, mk_z;
-			// tracking �� rg mk �� world frame �� ���� ��
-			TT_RigidBodyPointCloudMarker(rb_idx, i, tracked, mk_x, mk_y, mk_z);
-			if (trmk_xyz_list)
-			{
-				(*trmk_xyz_list)[i * 3 + 0] = mk_x;
-				(*trmk_xyz_list)[i * 3 + 1] = mk_y;
-				(*trmk_xyz_list)[i * 3 + 2] = mk_z;
-			}
-			if (tr_list) (*tr_list)[i] = tracked;
-		}
+
+	if (cid) {
+		Core::cUID _cid = TT_RigidBodyID(rb_idx);
+		unsigned __int64 lbs = _cid.LowBits();
+		unsigned __int64 hbs = _cid.HighBits();
+		std::bitset<128> cid_bs;
+		cid_bs |= hbs;
+		cid_bs <<= 64;
+		cid_bs |= lbs;
+		*cid = cid_bs;
 	}
 
 	return true;
 }
 
-bool optitrk::GetRigidBodyLocationByName(const string& name, float* mat_ls2ws, std::vector<float>* rbmk_xyz_list, std::vector<float>* trmk_xyz_list, std::vector<bool>* tr_list, int* rb_id)
+bool optitrk::GetRigidBodyLocationByName(const string& name, float* mat_ls2ws, int* rb_idx, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list)
 {
-	auto it = rb_id_map.find(name);
-	if (it == rb_id_map.end())
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+	int _rb_idx = 0;
+	for (; _rb_idx < numRBs; _rb_idx++)
+		if (name == rbNames[_rb_idx]) break;
+	if (_rb_idx == numRBs)
 		return false;
-	int rb_idx = it->second;
-	if (rb_id) *rb_id = rb_idx;
-	return GetRigidBodyLocationById(rb_idx, mat_ls2ws, rbmk_xyz_list, trmk_xyz_list, tr_list, NULL);
-}
 
-bool optitrk::SetRigidBodyByMkPositions(const std::string& name, const float* rbmk_xyz_array, const int num_mks, int* rb_idx)
-{
-	std::set<int, std::greater<int>> ids;
-	int dst_idx = -1;
-	for (auto it = rb_id_map.begin(); it != rb_id_map.end(); it++)
-	{
-		if (name == it->first)
-		{
-			dst_idx = it->second;
-			TT_RemoveRigidBody(dst_idx);
-			break;
-		}
-		ids.insert(it->second);
-	}
-
-	if (dst_idx < 0) dst_idx = ids.size() > 0 ? *ids.begin() + 1 : 1;
-	rb_id_map[name] = dst_idx;
-	if (rb_idx) *rb_idx = dst_idx;
-
-	assert(TT_CreateRigidBody(name.c_str(), dst_idx, num_mks, (float*)rbmk_xyz_array) == NPRESULT_SUCCESS);
-
-	return true;
-}
-
-bool optitrk::SetRigidBodyByMkIds(const std::string& name, const std::bitset<128>* rbmk_id_array, const int num_mks, int* rb_idx)
-{
-	std::vector<float> mk_xyz_list;
-	std::vector<std::bitset<128>> mk_cid_list;
-	if (!GetMarkersLocation(&mk_xyz_list, NULL, &mk_cid_list)) return false;
-
-	std::map<std::bitset<128>, int, bitset_comparer<128>> map_cids;
-	for (int i = 0; i < (int)mk_cid_list.size(); i++)
-		map_cids[mk_cid_list[i]] = i;
-
-	glm::fvec3* pos_mks = (glm::fvec3*)&mk_xyz_list[0];
-	std::vector<glm::fvec3> mk_dst_pos;
-	for (int i = 0; i < num_mks; i++)
-	{
-		auto it = map_cids.find(rbmk_id_array[i]);
-		if (it == map_cids.end())
-		{
-			std::cout << "MISSING MARKER!!" << std::endl;
-			return false;
-		}
-		mk_dst_pos.push_back(pos_mks[it->second]);
-	}
-	return SetRigidBodyByMkPositions(name, (float*)&pos_mks[0], num_mks, rb_idx);
+	if (rb_idx) *rb_idx = _rb_idx;
+	return GetRigidBodyLocationByIdx(_rb_idx, mat_ls2ws, cid, rb_mse, rbmk_xyz_list, mk_tracked_list, nullptr);
 }
 
 bool optitrk::GetCameraLocation(const int cam_idx, float* mat_cam2ws)
@@ -484,25 +438,6 @@ bool optitrk::UpdateFrame(bool use_latest)
 	if (!is_initialized) return false;
 	//return use_latest ? TT_UpdateLastestFrame() == NPRESULT_SUCCESS : TT_Update() == NPRESULT_SUCCESS;
 	return TT_Update() == NPRESULT_SUCCESS;
-}
-
-bool optitrk::__test()
-{
-	using namespace std;
-	using namespace glm;
-
-	auto it = rb_id_map.find("ss_head");
-	if (it == rb_id_map.end())
-		return false;
-	int rb_idx = it->second;
-	int num_mks = TT_RigidBodyMarkerCount(rb_idx);
-
-	vector<float> _x(num_mks), _y(num_mks), _z(num_mks);
-	TT_RigidBodyUpdateMarker(rb_idx, -1, //== Update RigidBody mrkr
-		(float*)&_x[0], (float*)&_y[0], (float*)&_z[0]);
-	return true;
-
-	// TT_CreateRigidBody
 }
 
 bool optitrk::DeinitOptiTrackLib()
