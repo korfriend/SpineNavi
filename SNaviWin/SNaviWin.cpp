@@ -32,8 +32,11 @@ using namespace Gdiplus;
 #include "naviHelpers.hpp"
 #include "rapidcsv/rapidcsv.h"
 
-#define USE_MOTIVE
+//#define USE_MOTIVE
 #define USE_WHND true
+bool staticPoseAvrTest = false;
+std::map<std::string, glm::fmat4x4> rbMapTrAvr;
+std::map<std::string, glm::fvec3> mkPosTest1Avr;
 
 #define MAX_LOADSTRING 100
 
@@ -183,14 +186,10 @@ void SceneInit() {
 	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 }
 
-bool staticPoseAvrTest = false;
-std::map<std::string, glm::fmat4x4> rbMapTrAvr;
-std::map<std::string, glm::fvec3> mkPosTest1Avr;
-
 void UpdateTrackInfo2Scene(navihelpers::track_info2& trackInfo) {
 
 	int numRBs = trackInfo.NumRigidBodies();
-	int numMKs = 0;// trackInfo.NumMarkers();
+	int numMKs = trackInfo.NumMarkers();
 
 	for (int i = 0; i < numRBs; i++) {
 		std::string rbName;
@@ -743,6 +742,90 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				vzm::NewActor(apMarker, mkName, aidMarker);
 				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
 			}
+		}
+
+
+		static int aidGroupCams = 0;
+		if (aidGroupCams == 0) {
+			vzm::ActorParameters apGroupCams;
+			vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
+			vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
+
+			//trans = np.array([[-0.07255497],
+			//	[-0.26624713],
+			//	[0.34485428]] )
+			//
+			//rotvec = np.array([[-1.95647732],
+			//	[2.02905939],
+			//	[0.60106798]] )
+			// 
+			// compute c-arm RB frame to c-arm Cam frame
+			cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
+			((double*)tvec.data)[0] = -0.07255497;
+			((double*)tvec.data)[1] = -0.26624713;
+			((double*)tvec.data)[2] = 0.34485428;
+			cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
+			((double*)rvec.data)[0] = -1.95647732;
+			((double*)rvec.data)[1] = 2.02905939;
+			((double*)rvec.data)[2] = 0.60106798;
+
+			cv::Mat matR;
+			cv::Rodrigues(rvec, matR);
+
+			glm::fmat4x4 matCaRb2CaCam = glm::fmat4x4(1);
+			matCaRb2CaCam[0][0] = (float)matR.at<double>(0, 0);
+			matCaRb2CaCam[0][1] = (float)matR.at<double>(1, 0);
+			matCaRb2CaCam[0][2] = (float)matR.at<double>(2, 0);
+			matCaRb2CaCam[1][0] = (float)matR.at<double>(0, 1);
+			matCaRb2CaCam[1][1] = (float)matR.at<double>(1, 1);
+			matCaRb2CaCam[1][2] = (float)matR.at<double>(2, 1);
+			matCaRb2CaCam[2][0] = (float)matR.at<double>(0, 2);
+			matCaRb2CaCam[2][1] = (float)matR.at<double>(1, 2);
+			matCaRb2CaCam[2][2] = (float)matR.at<double>(2, 2);
+			matCaRb2CaCam[3][0] = (float)((double*)tvec.data)[0];
+			matCaRb2CaCam[3][1] = (float)((double*)tvec.data)[1];
+			matCaRb2CaCam[3][2] = (float)((double*)tvec.data)[2];
+
+			//glm::fmat4x4 matR_gl(1), matT_gl(1);
+			//matR_gl[0][0] = (float)matR.at<double>(0, 0);
+			//matR_gl[0][1] = (float)matR.at<double>(1, 0);
+			//matR_gl[0][2] = (float)matR.at<double>(2, 0);
+			//matR_gl[1][0] = (float)matR.at<double>(0, 1);
+			//matR_gl[1][1] = (float)matR.at<double>(1, 1);
+			//matR_gl[1][2] = (float)matR.at<double>(2, 1);
+			//matR_gl[2][0] = (float)matR.at<double>(0, 2);
+			//matR_gl[2][1] = (float)matR.at<double>(1, 2);
+			//matR_gl[2][2] = (float)matR.at<double>(2, 2);
+			//matT_gl[3][0] = (float)((double*)tvec.data)[0];
+			//matT_gl[3][1] = (float)((double*)tvec.data)[1];
+			//matT_gl[3][2] = (float)((double*)tvec.data)[2];
+			//matCaRb2CaCam = matR_gl * matT_gl;
+
+
+			glm::fmat4x4 matCaCam2CaRb = glm::inverse(matCaRb2CaCam);
+
+
+
+			glm::fmat4x4 matCaRb2WS;
+			trackInfo.GetRigidBodyByName("c-arm", &matCaRb2WS, NULL, NULL);
+			glm::fmat4x4 matCam2WS = matCaRb2WS * matCaCam2CaRb;
+			int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
+			navihelpers::Cam_Gen(matCam2WS, "C-Arm Source", oidCamTris, oidCamLines, oidCamLabel);
+			vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
+			apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
+			apCamTris.color[3] = 0.5f;
+			apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
+			*(glm::fvec4*)apCamLines.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+			apCamLines.line_thickness = 2;
+			apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
+			*(glm::fvec4*)apCamLabel.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+			int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
+			vzm::NewActor(apCamTris, "C-Arm Cam Tris", aidCamTris);
+			vzm::NewActor(apCamLines, "C-Arm Lines", aidCamLines);
+			vzm::NewActor(apCamLabel, "C-Arm Label", aidCamLabel);
+			vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
+			vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
+			vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
 		}
 	}
 

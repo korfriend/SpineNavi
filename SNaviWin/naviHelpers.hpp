@@ -349,6 +349,22 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			return true;
 		}
 
+		bool GetRigidBodyByName(const string& rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet) {
+			auto it = __rbinfo.find(rbName);
+			if (it == __rbinfo.end())
+				return false;
+
+			auto& v = it->second;
+			if (matLS2WS)
+				*matLS2WS = std::any_cast<glm::fmat4x4>(v[LS2WS]);
+			if (mkMSE)
+				*mkMSE = std::any_cast<float>(v[MK_MSE]);
+			if (rbmkSet)
+				*rbmkSet = std::any_cast<map<string, map<MKINFO, std::any>>>(v[RB_MKSET]);
+
+			return true;
+		}
+
 		void AddRigidBody(const string& rbName, const glm::fmat4x4& matLS2WS, const float mkMSE,
 			const map<string, map<MKINFO, std::any>>& rbmkSet)
 		{
@@ -640,6 +656,14 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		glm::fvec3 pos_cam_ws = tr_pt(mat_cs2ws, glm::fvec3());
 		glm::fvec3 view_ws = tr_vec(mat_cs2ws, glm::fvec3(0, 0, -1));
 		glm::fvec3 up_ws = tr_vec(mat_cs2ws, glm::fvec3(0, 1, 0));
+		Cam_Gen(pos_cam_ws, view_ws, up_ws, cam_label, cam_tris_is, cam_lines_id, cam_label_id);
+	}
+
+	void CamOcv_Gen(const glm::fmat4x4& mat_cs2ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
+	{
+		glm::fvec3 pos_cam_ws = tr_pt(mat_cs2ws, glm::fvec3());
+		glm::fvec3 view_ws = tr_vec(mat_cs2ws, glm::fvec3(0, 0, 1));
+		glm::fvec3 up_ws = tr_vec(mat_cs2ws, glm::fvec3(0, -1, 0));
 		Cam_Gen(pos_cam_ws, view_ws, up_ws, cam_label, cam_tris_is, cam_lines_id, cam_label_id);
 	}
 
