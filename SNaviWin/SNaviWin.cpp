@@ -281,10 +281,46 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	{
 		using namespace std;
 		using namespace navihelpers;
+		using namespace glm;
 
 		int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
 		int numMKs = trackInfo.NumMarkers();
 		int numRBs = trackInfo.NumRigidBodies();
+
+		// Tracking Cam Geometry and Actors
+		{
+			static int aidGroupCams = 0;
+			if (aidGroupCams == 0) {
+				vzm::ActorParameters apGroupCams;
+				vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
+				vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
+
+				static int oidCamModels[3] = { 0, 0, 0 };
+				for (int i = 0; i < 3; i++) {
+					fmat4x4 matCam2WS;
+					optitrk::GetCameraLocation(i, __FP matCam2WS);
+					int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
+					Cam_Gen(matCam2WS, "CAM" + to_string(i), oidCamTris, oidCamLines, oidCamLabel);
+
+					vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
+					apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
+					apCamTris.color[3] = 0.5f;
+					apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
+					*(fvec4*)apCamLines.phong_coeffs = fvec4(0, 1, 0, 0);
+					apCamLines.line_thickness = 2;
+					apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
+					*(fvec4*)apCamLabel.phong_coeffs = fvec4(0, 1, 0, 0);
+					int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
+					vzm::NewActor(apCamTris, "Cam" + to_string(i) + " Tris", aidCamTris);
+					vzm::NewActor(apCamLines, "Cam" + to_string(i) + " Lines", aidCamLines);
+					vzm::NewActor(apCamLabel, "Cam" + to_string(i) + " Label", aidCamLabel);
+					vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
+					vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
+					vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
+				}
+			}
+			//
+		}
 
 		static int oidAxis = 0;
 		static int oidMarker = 0;
@@ -323,6 +359,8 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 					int aidLabelText = 0;
 					vzm::NewActor(apLabelText, rbName + ":Label", aidLabelText);
 					vzm::AppendSceneItemToSceneTree(aidLabelText, aidRbAxis);
+
+					sceneActors[rbName] = 2;
 				}
 			}
 		}
@@ -340,6 +378,8 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 					int aidMarker = 0;
 					vzm::NewActor(apMarker, mkName, aidMarker);
 					vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
+
+					sceneActors[mkName] = 1;
 				}
 			}
 		}
@@ -833,6 +873,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
                 return DefWindowProc(hWnd, message, wParam, lParam);
             }
         }
+		break;
+	case WM_SIZE:
+		{
+			RECT rc;
+			GetClientRect(hWnd, &rc);
+			UINT width = rc.right - rc.left;
+			UINT height = rc.bottom - rc.top;
+
+			cpCam1.w = width;
+			cpCam1.h = height;
+			vzm::SetCameraParams(cidCam1, cpCam1);
+		}
 		break;
     case WM_PAINT:
         {

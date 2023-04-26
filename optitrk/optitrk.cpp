@@ -430,7 +430,7 @@ bool optitrk::GetCameraLocation(const int cam_idx, float* mat_cam2ws)
 
 	using namespace glm;
 	fmat4x4 mat_t = translate(fvec3(x, y, z));
-	fmat4x4 mat_r;
+	fmat4x4 mat_r = fmat4x4(1);
 	float* _v = value_ptr(mat_r);
 	_v[0] = v[0];
 	_v[4] = v[1];

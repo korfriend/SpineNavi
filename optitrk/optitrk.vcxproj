@@ -128,11 +128,11 @@
       <AdditionalLibraryDirectories>../lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>postbuild.bat</Command>
     </PostBuildEvent>
     <PreBuildEvent>
-      <Command>postbuild.bat</Command>
+      <Command>
+      </Command>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -155,8 +155,7 @@
       <AdditionalLibraryDirectories>../lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>postbuild.bat</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
