@@ -264,7 +264,7 @@ bool optitrk::SetRigidBodyEnabledbyName(const std::string& name, const bool enab
 	return true;
 }
 
-bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_rb2ws, std::vector<float>* rbmk_xyz_list, std::vector<float>* trmk_xyz_list, std::vector<bool>* tr_list, std::string* rb_name)
+bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::string* rb_name)
 {
 	if (!is_initialized) return false;
 	if (rb_name) *rb_name = TT_RigidBodyName(rb_idx);
@@ -320,9 +320,9 @@ bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_rb2ws, std::
 	glm::fquat qt(qw, qx, qy, qz);
 	fmat4x4 mat_r = glm::toMat4(qt);
 	fmat4x4 mat_t = glm::translate(fvec3(x, y, z));
-	fmat4x4 mat_ls2ws = mat_t * mat_r;
-	//fmat4x4 mat_ws2ls = inverse(mat_ls2ws);
-	*(fmat4x4*)mat_rb2ws = mat_ls2ws;
+	fmat4x4 _mat_ls2ws = mat_t * mat_r;
+	//fmat4x4 mat_ws2ls = inverse(_mat_ls2ws);
+	*(fmat4x4*)mat_ls2ws = _mat_ls2ws;
 
 	// local-to-world
 	// TEST
@@ -332,30 +332,37 @@ bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_rb2ws, std::
 	//TransformMatrix worldTransform = xRot * yRot * zRot;
 	//worldTransform.SetTranslation(x, y, z);
 
-	//fmat4x4 mat_ls2ws_0 = *(fmat4x4*) mat_rb2ws;
+	//fmat4x4 mat_ls2ws_0 = *(fmat4x4*) mat_ls2ws;
 	//int gg = 0;
+
+	int num_mks = TT_RigidBodyMarkerCount(rb_idx);
+	std::vector<glm::fvec3> posMKs(num_mks);
+	for (int i = 0; i < num_mks; i++)
+	{
+		float mk_x, mk_y, mk_z;
+		// rb markers are defined in local frame 
+		TT_RigidBodyMarker(rb_idx, i, &mk_x, &mk_y, &mk_z); // Get the rigid body's local coordinate for each marker.
+		glm::fvec4 pos(mk_x, mk_y, mk_z, 1.f);
+		pos = _mat_ls2ws * pos;
+		//(*rbmk_xyz_list)[i * 3 + 0] = pos.x / pos.w;
+		//(*rbmk_xyz_list)[i * 3 + 1] = pos.y / pos.w;
+		//(*rbmk_xyz_list)[i * 3 + 2] = pos.z / pos.w;
+
+
+		float mx, my, mz;
+		bool tred;
+		TT_RigidBodyPointCloudMarker(rb_idx, i, tred, mx, my, mz);
+		posMKs[i] = glm::fvec3(mx, my, mz);
+
+	}
+
+	if (rbmk_xyz_list) {
+		rbmk_xyz_list->assign(num_mks * 3, 0);
+	}
+
 
 	if (rbmk_xyz_list)
 	{
-		int num_mks = TT_RigidBodyMarkerCount(rb_idx);
-		rbmk_xyz_list->assign(num_mks * 3, 0); // always num_mks >= 3
-		for (int i = 0; i < num_mks; i++)
-		{
-			float mk_x, mk_y, mk_z;
-			// ��ϵ� rg mk ��θ� local frame �� ���� ��
-			TT_RigidBodyMarker(rb_idx, i, &mk_x, &mk_y, &mk_z); // Get the rigid body's local coordinate for each marker.
-			//glm::fvec4 pos(mk_x, mk_y, mk_z, 1.f);
-			//pos = mat_ls2ws * pos;
-
-			(*rbmk_xyz_list)[i * 3 + 0] = mk_x;//pos.x / pos.w;
-			(*rbmk_xyz_list)[i * 3 + 1] = mk_y;//pos.y / pos.w;
-			(*rbmk_xyz_list)[i * 3 + 2] = mk_z;//pos.z / pos.w;
-
-
-			//float mx, my, mz;
-			//bool tred;
-			//TT_RigidBodyPointCloudMarker(id, i, tred, mx, my, mz);
-		}
 	}
 	if (trmk_xyz_list || tr_list)
 	{
@@ -381,14 +388,14 @@ bool optitrk::GetRigidBodyLocationById(const int rb_idx, float* mat_rb2ws, std::
 	return true;
 }
 
-bool optitrk::GetRigidBodyLocationByName(const string& name, float* mat_rb2ws, std::vector<float>* rbmk_xyz_list, std::vector<float>* trmk_xyz_list, std::vector<bool>* tr_list, int* rb_id)
+bool optitrk::GetRigidBodyLocationByName(const string& name, float* mat_ls2ws, std::vector<float>* rbmk_xyz_list, std::vector<float>* trmk_xyz_list, std::vector<bool>* tr_list, int* rb_id)
 {
 	auto it = rb_id_map.find(name);
 	if (it == rb_id_map.end())
 		return false;
 	int rb_idx = it->second;
 	if (rb_id) *rb_id = rb_idx;
-	return GetRigidBodyLocationById(rb_idx, mat_rb2ws, rbmk_xyz_list, trmk_xyz_list, tr_list, NULL);
+	return GetRigidBodyLocationById(rb_idx, mat_ls2ws, rbmk_xyz_list, trmk_xyz_list, tr_list, NULL);
 }
 
 bool optitrk::SetRigidBodyByMkPositions(const std::string& name, const float* rbmk_xyz_array, const int num_mks, int* rb_idx)

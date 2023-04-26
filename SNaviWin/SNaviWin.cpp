@@ -32,7 +32,7 @@ using namespace Gdiplus;
 #include "naviHelpers.hpp"
 #include "rapidcsv/rapidcsv.h"
 
-//#define USE_MOTIVE
+#define USE_MOTIVE
 #define USE_WHND true
 
 #define MAX_LOADSTRING 100
