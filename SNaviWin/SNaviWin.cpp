@@ -4,6 +4,7 @@
 #include "framework.h"
 #include "SNaviWin.h"
 
+#include <regex>
 #include <vector>
 #include <windowsx.h>
 #include <iostream>
@@ -151,13 +152,26 @@ void SceneInit() {
 	*(glm::fvec3*)cpCam1.pos = glm::fvec3(-1.5, 1.5, -1.5);
 	*(glm::fvec3*)cpCam1.up = glm::fvec3(0, 1, 0);
 	*(glm::fvec3*)cpCam1.view = glm::fvec3(1, -1, 1);
+
+	cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
+	if (fs.isOpened()) {
+		cv::Mat ocvVec3;
+		fs["POS"] >> ocvVec3;
+		memcpy(cpCam1.pos, ocvVec3.ptr(), sizeof(float) * 3);
+		fs["VIEW"] >> ocvVec3;
+		memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
+		fs["UP"] >> ocvVec3;
+		memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
+		fs.release();
+	}
+
 	cpCam1.np = 0.01f;
 	cpCam1.fp = 100.f;
 	cpCam1.fov_y = 3.141592654f / 4.f;
 	cpCam1.projection_mode = vzm::CameraParameters::CAMERA_FOV;
 	cpCam1.w = rcWorldView.right - rcWorldView.left;
 	cpCam1.h = rcWorldView.bottom - rcWorldView.top;
-	cpCam1.SetOrthogonalProjection(true);
+	//cpCam1.SetOrthogonalProjection(true);
 	cpCam1.hWnd = USE_WHND ? g_hWnd : NULL;
 	cpCam1.aspect_ratio = (float)cpCam1.w / (float)cpCam1.h;
 	int cidCam1 = 0;
@@ -410,9 +424,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 #else
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
+	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));  // 7082.png
-	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));  // 7083.png
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));  // 7083.png
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
 	// 
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0));
@@ -645,7 +659,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// compute average of rigid body transforms
 	//std::map<std::string, glm::fmat4x4> rbMapTrAvr;
 	//std::map<std::string, glm::fvec3> mkPosTest1Avr;
+	if (staticPoseAvrTest)
 	{
+		cv::FileStorage fs("../data/Tracking 2023-04-19/c-arm-track4.txt", cv::FileStorage::Mode::WRITE);
 		for (auto& v : rbMapTRs) {
 			int numTRs = (int)v.second.qs.size();
 			float normalizedNum = 1.f / (float)numTRs;
@@ -675,6 +691,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			glm::fmat4x4 mat_t = glm::translate(trAvr);
 			glm::fmat4x4 matLS2WSavr = mat_t * mat_r;
 			rbMapTrAvr[v.first] = matLS2WSavr;
+
+			cv::Mat ocvRbMapTrAvr(4, 4, CV_32FC1);
+			memcpy(ocvRbMapTrAvr.ptr(), glm::value_ptr(matLS2WSavr), sizeof(float) * 16);
+			fs.write(v.first, ocvRbMapTrAvr);
 		}
 
 		for (auto& pts : test1MkMapPos) {
@@ -686,9 +706,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			for (int i = 0; i < numTRs; i++)
 				trAvr += posMK[i] * normalizedNum;
 			mkPosTest1Avr[pts.first] = trAvr;
+
+			static cv::Mat ocvPt(1, 3, CV_32FC1);
+			memcpy(ocvPt.ptr(), &trAvr, sizeof(float) * 3);
+			fs.write(std::regex_replace(pts.first, std::regex(":"), " "), ocvPt);
 		}
+		fs.release();
+		// TO DO with rbMapTrAvr and mkPosTest1Avr for calibration task
 	}
-	// TO DO with rbMapTrAvr and mkPosTest1Avr for calibration task
 
 	// generate scene actors 
 	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
@@ -741,6 +766,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
 				vzm::NewActor(apMarker, mkName, aidMarker);
 				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
+
+				if (mkName.find("test1") != std::string::npos) {
+					std::vector<glm::fvec3> pinfo(3);
+					pinfo[0] = glm::fvec3(0, 1, 0);
+					pinfo[1] = glm::fvec3(0, 0, -1);
+					pinfo[2] = glm::fvec3(0, -1, 0);
+					int oidLabelText = 0;
+					vzm::GenerateTextObject((float*)&pinfo[0], mkName.substr(6, mkName.length()-1), 2, true, false, oidLabelText, true);
+					vzm::ActorParameters apLabelText;
+					//apLabelText.is_visible = true;
+					apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
+					*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+					int aidLabelText = 0;
+					vzm::NewActor(apLabelText, mkName + ":Label", aidLabelText);
+					vzm::AppendSceneItemToSceneTree(aidLabelText, aidMarker);
+				}
 			}
 		}
 
@@ -751,6 +792,94 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
 			vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
 
+			std::map<int, cv::Point2f> pts2Dmap;
+			pts2Dmap[100 + 6] = cv::Point2f(961, 215   );
+			pts2Dmap[100 + 3] = cv::Point2f(1146, 895  );
+			pts2Dmap[100 + 4] = cv::Point2f(263, 940   );
+			pts2Dmap[100 + 2] = cv::Point2f(756, 703   );
+			pts2Dmap[100 + 5] = cv::Point2f(1105, 485  );
+			pts2Dmap[100 + 1] = cv::Point2f(619, 325   );
+			pts2Dmap[100 + 7] = cv::Point2f(273, 341   );
+			
+			pts2Dmap[200 + 6] = cv::Point2f(952, 350);
+			pts2Dmap[200 + 3] = cv::Point2f(1155, 862);
+			pts2Dmap[200 + 4] = cv::Point2f(245, 916);
+			pts2Dmap[200 + 2] = cv::Point2f(753, 719);
+			pts2Dmap[200 + 5] = cv::Point2f(1102, 547);
+			pts2Dmap[200 + 1] = cv::Point2f(613, 435);
+			pts2Dmap[200 + 7] = cv::Point2f(269, 456);
+			
+			pts2Dmap[300 + 6] = cv::Point2f(954, 494);
+			pts2Dmap[300 + 3] = cv::Point2f(1168, 751);
+			pts2Dmap[300 + 4] = cv::Point2f(260, 807);
+			pts2Dmap[300 + 2] = cv::Point2f(766, 686);
+			pts2Dmap[300 + 5] = cv::Point2f(1107, 590);
+			pts2Dmap[300 + 1] = cv::Point2f(626, 551);
+			pts2Dmap[300 + 7] = cv::Point2f(289, 569);
+
+			pts2Dmap[400 + 6] = cv::Point2f(687, 653);
+			pts2Dmap[400 + 3] = cv::Point2f(1173, 917);
+			pts2Dmap[400 + 4] = cv::Point2f(389, 997);
+			pts2Dmap[400 + 2] = cv::Point2f(736, 859);
+			pts2Dmap[400 + 5] = cv::Point2f(939, 753);
+			pts2Dmap[400 + 1] = cv::Point2f(434, 709);
+			pts2Dmap[400 + 7] = cv::Point2f(118, 729);
+
+			cv::Mat rvec, tvec;
+			{
+				using namespace std;
+				using namespace glm;
+				// To Do //
+				const int numCalPts = 7;
+				const int numCalScans = 4;
+				vector<fvec3> ptsRBS;
+				ptsRBS.reserve(numCalPts* numCalScans);
+				for (int i = 0; i < numCalScans; i++) {
+					cv::FileStorage fs("../data/Tracking 2023-04-19/c-arm-track" + to_string(i + 1) + ".txt", 
+						cv::FileStorage::Mode::READ);
+					cv::Mat ocvMatRB2WS;
+					fs["c-arm"] >> ocvMatRB2WS;
+
+					fmat4x4 matRB2WS;
+					memcpy(&matRB2WS, ocvMatRB2WS.ptr(), sizeof(float) * 16);
+					fmat4x4 matWS2RB = glm::inverse(matRB2WS);
+
+					for (int j = 0; j < numCalPts; j++) {
+						cv::Mat ocvPos;
+						fs["test1 Marker" + to_string(j + 1)] >> ocvPos;
+						fvec3 posWS;
+						memcpy(&posWS, ocvPos.ptr(), sizeof(float) * 3);
+						fvec3 posRBS = vzmutils::transformPos(posWS, matWS2RB);
+						ptsRBS.push_back(posRBS);
+					}
+					fs.release();
+				}
+
+				vector<cv::Point3f> pts3Ds(ptsRBS.size());
+				vector<cv::Point2f> pts2Ds(pts2Dmap.size());
+				memcpy(&pts3Ds[0], &ptsRBS[0], sizeof(fvec3) * numCalPts * numCalScans);
+				int i = 0;
+				for (auto it = pts2Dmap.begin(); it != pts2Dmap.end(); it++)
+					pts2Ds[i++] = it->second;
+
+				double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
+					0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
+					0.00000000e+00, 0.00000000e+00, 1.00000000e+00
+				}; 
+				double arrayDistCoeffs[5] = { -4.41147907e-02,  1.01898819e+00,  6.79242077e-04,
+					-1.16990433e-02,  3.42748576e-01
+				};
+				cv::Mat cameraMatrix(3, 3, CV_64FC1);
+				memcpy(cameraMatrix.ptr(), arrayMatK, sizeof(double) * 9);
+				cv::Mat distCoeffs(5, 1, CV_64FC1);
+				memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
+				cv::solvePnP(pts3Ds, pts2Ds, cameraMatrix, distCoeffs, rvec, tvec);
+			}
+			cv::FileStorage fs("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::WRITE);
+			fs.write("rvec", rvec);
+			fs.write("tvec", tvec);
+			fs.release();
+
 			//trans = np.array([[-0.07255497],
 			//	[-0.26624713],
 			//	[0.34485428]] )
@@ -760,14 +889,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//	[0.60106798]] )
 			// 
 			// compute c-arm RB frame to c-arm Cam frame
-			cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);
-			((double*)tvec.data)[0] = -0.07255497;
-			((double*)tvec.data)[1] = -0.26624713;
-			((double*)tvec.data)[2] = 0.34485428;
-			cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);
-			((double*)rvec.data)[0] = -1.95647732;
-			((double*)rvec.data)[1] = 2.02905939;
-			((double*)rvec.data)[2] = 0.60106798;
+			cv::Mat tvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
+			((double*)tvec_.data)[0] = -0.07255497;
+			((double*)tvec_.data)[1] = -0.26624713;
+			((double*)tvec_.data)[2] = 0.34485428;
+			cv::Mat rvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
+			((double*)rvec_.data)[0] = -1.95647732;
+			((double*)rvec_.data)[1] = 2.02905939;
+			((double*)rvec_.data)[2] = 0.60106798;
 
 			cv::Mat matR;
 			cv::Rodrigues(rvec, matR);
@@ -939,7 +1068,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	static vzmutils::GeneralMove general_move;
 
     switch (message)
-    {
+	{
+	case WM_KEYDOWN:
+		{
+			switch (wParam) {
+				case char('S') :
+				{
+					cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
+					cv::Mat ocvVec3(1, 3, CV_32FC1);
+					memcpy(ocvVec3.ptr(), cpCam1.pos, sizeof(float) * 3);
+					fs.write("POS", ocvVec3);
+					memcpy(ocvVec3.ptr(), cpCam1.view, sizeof(float) * 3);
+					fs.write("VIEW", ocvVec3);
+					memcpy(ocvVec3.ptr(), cpCam1.up, sizeof(float) * 3);
+					fs.write("UP", ocvVec3);
+					fs.release();
+				}break;
+				case char('L') :
+				{
+					cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
+					if (fs.isOpened()) {
+						cv::Mat ocvVec3;
+						fs["POS"] >> ocvVec3;
+						memcpy(cpCam1.pos, ocvVec3.ptr(), sizeof(float) * 3);
+						fs["VIEW"] >> ocvVec3;
+						memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
+						fs["UP"] >> ocvVec3;
+						memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
+						fs.release();
+					}
+					vzm::SetCameraParams(cidCam1, cpCam1);
+				}
+			}
+		}break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
@@ -1039,9 +1200,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_MOUSEWHEEL:
 	{
 		int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
-		vzmutils::ZoomImageplane(zDelta > 0, cpCam1.ip_w, cpCam1.ip_h);
 
-		vzm::SetCameraParams(cidCam1, cpCam1);
+		// by adjusting cam distance
+			if (zDelta > 0)
+				*(glm::fvec3*)cpCam1.pos += scene_stage_scale * 0.01f * (*(glm::fvec3*)cpCam1.view);
+			else
+				*(glm::fvec3*)cpCam1.pos -= scene_stage_scale * 0.01f * (*(glm::fvec3*)cpCam1.view);
+
+			vzm::SetCameraParams(cidCam1, cpCam1);
 		//Render();
 		//vzm::RenderScene(sidScene, cidCam1);
 

@@ -4,6 +4,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 16.0.33529.622
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SNaviWin", "SNaviWin\SNaviWin.vcxproj", "{4E6B4EB9-C3B1-4735-BC9F-EC68B529C618}"
+	ProjectSection(ProjectDependencies) = postProject
+		{6C93712C-9847-4212-8BAA-138F18C127F1} = {6C93712C-9847-4212-8BAA-138F18C127F1}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "optitrk", "optitrk\optitrk.vcxproj", "{6C93712C-9847-4212-8BAA-138F18C127F1}"
 EndProject
