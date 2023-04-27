@@ -200,7 +200,7 @@ void SceneInit() {
 	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 }
 
-void UpdateTrackInfo2Scene(navihelpers::track_info2& trackInfo) {
+void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo) {
 
 	int numRBs = trackInfo.NumRigidBodies();
 	int numMKs = trackInfo.NumMarkers();
@@ -223,10 +223,10 @@ void UpdateTrackInfo2Scene(navihelpers::track_info2& trackInfo) {
 	}
 
 	for (int i = 0; i < numMKs; i++) {
-		std::map<navihelpers::track_info2::MKINFO, std::any> mk;
+		std::map<navihelpers::track_info::MKINFO, std::any> mk;
 		if (trackInfo.GetMarkerByIdx(i, mk)) {
-			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
-			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info2::MKINFO::POSITION]);
+			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
+			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
 
 			if (staticPoseAvrTest)
 			{
@@ -265,7 +265,7 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 #ifdef USE_MOTIVE
 	int frame = frameCount++;
 #else
-	std::vector<navihelpers::track_info2>& trackingFrames = *(std::vector<navihelpers::track_info2>*)pcsvData;
+	std::vector<navihelpers::track_info>& trackingFrames = *(std::vector<navihelpers::track_info>*)pcsvData;
 	int totalFrames = (int)trackingFrames.size();
 	int frame = (frameCount++) % totalFrames;
 #endif
@@ -285,9 +285,9 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 
 
 #ifdef USE_MOTIVE
-	navihelpers::concurrent_queue<navihelpers::track_info2>* track_que = 
-		(navihelpers::concurrent_queue<navihelpers::track_info2>*)pcsvData;
-	navihelpers::track_info2 trackInfo;
+	navihelpers::concurrent_queue<navihelpers::track_info>* track_que = 
+		(navihelpers::concurrent_queue<navihelpers::track_info>*)pcsvData;
+	navihelpers::track_info trackInfo;
 	track_que->wait_and_pop(trackInfo);
 
 	// generate scene actors with updated trackInfo
@@ -379,9 +379,9 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 		}
 
 		for (int i = 0; i < numMKs; i++) {
-			std::map<navihelpers::track_info2::MKINFO, std::any> mk;
+			std::map<navihelpers::track_info::MKINFO, std::any> mk;
 			if (trackInfo.GetMarkerByIdx(i, mk)) {
-				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
+				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
 				auto actorId = sceneActors.find(mkName);
 				if (actorId == sceneActors.end()) {
 					vzm::ActorParameters apMarker;
@@ -451,7 +451,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	std::vector<std::string> rbNames;
 	int numRBs = optitrk::GetRigidBodies(&rbNames);
 
-	navihelpers::concurrent_queue<navihelpers::track_info2> track_que(10);
+	navihelpers::concurrent_queue<navihelpers::track_info> track_que(10);
     std::atomic_bool tracker_alive{true};
 	std::thread tracker_processing_thread([&]() {
 		using namespace std;
@@ -462,7 +462,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//Sleep(postpone);
 			optitrk::UpdateFrame();
 
-			track_info2 trk_info;
+			track_info trk_info;
 			for (int i = 0; i < numRBs; i++)
 			{
 				string rbName;// = rbNames[i];
@@ -475,7 +475,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 					int numRbMks = (int)posMKs.size() / 3;
 					vector<fvec3> mkPts(numRbMks);
 					memcpy(&mkPts[0], &posMKs[0], sizeof(fvec3) * numRbMks);
-					map<string, map<track_info2::MKINFO, std::any>> rbmkSet;
+					map<string, map<track_info::MKINFO, std::any>> rbmkSet;
 					for (int j = 0; j < numRbMks; j++) {
 						//CID = 0, // std::bitset<128>
 						//POSITION = 1, // glm::fvec3, world space
@@ -483,10 +483,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 						//MK_QUALITY = 3 // float // only for RB_MKSET
 						string mkName = rbName + ":Marker" + to_string(j + 1);
 						auto& pt = rbmkSet[mkName];
-						pt[track_info2::MKINFO::CID] = rbCid;
-						pt[track_info2::MKINFO::POSITION] = mkPts[j];
-						pt[track_info2::MKINFO::MK_NAME] = mkName;
-						pt[track_info2::MKINFO::MK_QUALITY] = mkQualities[j];
+						pt[track_info::MKINFO::CID] = rbCid;
+						pt[track_info::MKINFO::POSITION] = mkPts[j];
+						pt[track_info::MKINFO::MK_NAME] = mkName;
+						pt[track_info::MKINFO::MK_QUALITY] = mkQualities[j];
 					}
 					trk_info.AddRigidBody(rbName, matLS2WS, rbMSE, rbmkSet);
 				}
@@ -523,7 +523,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	const int numCols = (int)rowTypes.size();//trackingData.GetColumnCount();
 	const int numRows = (int)trackingData.GetRowCount();
 
-	std::vector<navihelpers::track_info2> trackingFrames(numRows - startRowIdx);
+	std::vector<navihelpers::track_info> trackingFrames(numRows - startRowIdx);
 	int frameIdx = 0;
 	auto string2cid = [](const std::string id) {
 		std::bitset<128> cid;
@@ -564,7 +564,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
 		if (rowStrValues.size() == 0)
 			continue;
-		navihelpers::track_info2& trackInfo = trackingFrames[frameIdx++];
+		navihelpers::track_info& trackInfo = trackingFrames[frameIdx++];
 
 		int colIdx = startColIdx;
 		while (colIdx < numCols) {
@@ -575,7 +575,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			std::string rotPos = rotPosLabels[colIdx];
 			std::string xyzw = xyzwLabels[colIdx];
 
-			std::map<std::string, std::map<navihelpers::track_info2::MKINFO, std::any>> rbmkSet;
+			std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
 
 			if (type == "Rigid Body") {
 				std::string startStrValue = rowStrValues[colIdx];
@@ -626,10 +626,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 					glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
 					float mq = mkValues[3];
 					auto& v = rbmkSet[_name];
-					v[navihelpers::track_info2::MKINFO::POSITION] = p;
-					v[navihelpers::track_info2::MKINFO::MK_QUALITY] = mq;
-					v[navihelpers::track_info2::MKINFO::MK_NAME] = _name;
-					v[navihelpers::track_info2::MKINFO::CID] = _cid;
+					v[navihelpers::track_info::MKINFO::POSITION] = p;
+					v[navihelpers::track_info::MKINFO::MK_QUALITY] = mq;
+					v[navihelpers::track_info::MKINFO::MK_NAME] = _name;
+					v[navihelpers::track_info::MKINFO::CID] = _cid;
 				}
 
 				trackInfo.AddRigidBody(name, mat_ls2ws, mkMSE, rbmkSet);
@@ -719,7 +719,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
 	if(sidScene != 0)
 	{
-		navihelpers::track_info2& trackInfo = trackingFrames[0];
+		navihelpers::track_info& trackInfo = trackingFrames[0];
 		int numMKs = trackInfo.NumMarkers();
 		int numRBs = trackInfo.NumRigidBodies();
 
@@ -756,14 +756,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 
 		for (int i = 0; i < numMKs; i++) {
-			std::map<navihelpers::track_info2::MKINFO, std::any> mk;
+			std::map<navihelpers::track_info::MKINFO, std::any> mk;
 			if (trackInfo.GetMarkerByIdx(i, mk)) {
 				vzm::ActorParameters apMarker;
 				apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
 				apMarker.is_visible = false;
 				*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
 				int aidMarker = 0;
-				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info2::MKINFO::MK_NAME]);
+				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
 				vzm::NewActor(apMarker, mkName, aidMarker);
 				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
 
@@ -786,12 +786,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 
 
-		static int aidGroupCams = 0;
-		if (aidGroupCams == 0) {
+		static int aidGroupCArmCam = 0;
+		if (aidGroupCArmCam == 0) {
 			vzm::ActorParameters apGroupCams;
-			vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
-			vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
+			vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCArmCam);
+			vzm::AppendSceneItemToSceneTree(aidGroupCArmCam, sidScene);
 
+			///////////////////////////////////
+			// preprocessing information
 			std::map<int, cv::Point2f> pts2Dmap;
 			pts2Dmap[100 + 6] = cv::Point2f(961, 215   );
 			pts2Dmap[100 + 3] = cv::Point2f(1146, 895  );
@@ -824,6 +826,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			pts2Dmap[400 + 5] = cv::Point2f(939, 753);
 			pts2Dmap[400 + 1] = cv::Point2f(434, 709);
 			pts2Dmap[400 + 7] = cv::Point2f(118, 729);
+
+			double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
+				0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
+				0.00000000e+00, 0.00000000e+00, 1.00000000e+00
+			};
+			double arrayDistCoeffs[5] = { -4.41147907e-02,  1.01898819e+00,  6.79242077e-04,
+				-1.16990433e-02,  3.42748576e-01
+			};
+			///////////////////////////////////
 
 			cv::Mat rvec, tvec;
 			{
@@ -862,13 +873,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				for (auto it = pts2Dmap.begin(); it != pts2Dmap.end(); it++)
 					pts2Ds[i++] = it->second;
 
-				double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
-					0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
-					0.00000000e+00, 0.00000000e+00, 1.00000000e+00
-				}; 
-				double arrayDistCoeffs[5] = { -4.41147907e-02,  1.01898819e+00,  6.79242077e-04,
-					-1.16990433e-02,  3.42748576e-01
-				};
 				cv::Mat cameraMatrix(3, 3, CV_64FC1);
 				memcpy(cameraMatrix.ptr(), arrayMatK, sizeof(double) * 9);
 				cv::Mat distCoeffs(5, 1, CV_64FC1);
@@ -879,60 +883,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			fs.write("rvec", rvec);
 			fs.write("tvec", tvec);
 			fs.release();
-
-			auto computeMatCS2PS = [](const float fx, const float fy, const float s, const float cx, const float cy,
-				const float widthPix, const float heightPix,
-				const float near_p, const float far_p, glm::fmat4x4& matCS2PS)
-			{
-				double q = far_p / (near_p - far_p);
-				double qn = far_p * near_p / (near_p - far_p);
-
-				double fx = fx;
-				double fy = fy;
-				double sc = sc;
-				double cx = cx;
-				double cy = cy;
-				double width = (double)widthPix;
-				double height = (double)heightPix;
-				double x0 = 0, y0 = 0;
-
-				matCS2PS[0][0] = 2.0 * fx / width;
-				matCS2PS[1][0] = -2.0 * sc / width;
-				matCS2PS[2][0] = (width + 2.0 * x0 - 2.0 * cx) / width;
-				matCS2PS[3][0] = 0;
-				matCS2PS[0][1] = 0;
-				matCS2PS[1][1] = 2.0 * fy / height;
-				matCS2PS[2][1] = -(height + 2.0 * y0 - 2.0 * cy) / height;
-				matCS2PS[3][1] = 0;
-				matCS2PS[0][2] = 0;
-				matCS2PS[1][2] = 0;
-				matCS2PS[2][2] = q;
-				matCS2PS[3][2] = qn;
-				matCS2PS[0][3] = 0;
-				matCS2PS[1][3] = 0;
-				matCS2PS[2][3] = -1.0;
-				matCS2PS[3][3] = 0;
-				//mat_cs2ps = glm::transpose(mat_cs2ps);
-				//fmat_cs2ps = mat_cs2ps;
-			};
-
-			//trans = np.array([[-0.07255497],
-			//	[-0.26624713],
-			//	[0.34485428]] )
-			//
-			//rotvec = np.array([[-1.95647732],
-			//	[2.02905939],
-			//	[0.60106798]] )
-			// 
-			// compute c-arm RB frame to c-arm Cam frame
-			//cv::Mat tvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
-			//((double*)tvec_.data)[0] = -0.07255497;
-			//((double*)tvec_.data)[1] = -0.26624713;
-			//((double*)tvec_.data)[2] = 0.34485428;
-			//cv::Mat rvec_ = cv::Mat::zeros(3, 1, CV_64FC1);
-			//((double*)rvec_.data)[0] = -1.95647732;
-			//((double*)rvec_.data)[1] = 2.02905939;
-			//((double*)rvec_.data)[2] = 0.60106798;
 
 			cv::Mat matR;
 			cv::Rodrigues(rvec, matR);
@@ -968,9 +918,77 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			vzm::NewActor(apCamTris, "C-Arm Cam Tris", aidCamTris);
 			vzm::NewActor(apCamLines, "C-Arm Lines", aidCamLines);
 			vzm::NewActor(apCamLabel, "C-Arm Label", aidCamLabel);
-			vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
-			vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
-			vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
+			vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCArmCam);
+			vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCArmCam);
+			vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCArmCam);
+
+
+			auto computeMatCS2PS = [](const float _fx, const float _fy, const float _s, const float _cx, const float _cy,
+				const float widthPix, const float heightPix,
+				const float near_p, const float far_p, glm::fmat4x4& matCS2PS)
+			{
+				double q = far_p / (near_p - far_p);
+				double qn = far_p * near_p / (near_p - far_p);
+
+				double fx = (double)_fx;
+				double fy = (double)_fy;
+				double sc = (double)_s;
+				double cx = (double)_cx;
+				double cy = (double)_cy;
+				double width = (double)widthPix;
+				double height = (double)heightPix;
+				double x0 = 0, y0 = 0;
+
+				matCS2PS[0][0] = 2.0 * fx / width;
+				matCS2PS[1][0] = -2.0 * sc / width;
+				matCS2PS[2][0] = (width + 2.0 * x0 - 2.0 * cx) / width;
+				matCS2PS[3][0] = 0;
+				matCS2PS[0][1] = 0;
+				matCS2PS[1][1] = 2.0 * fy / height;
+				matCS2PS[2][1] = -(height + 2.0 * y0 - 2.0 * cy) / height;
+				matCS2PS[3][1] = 0;
+				matCS2PS[0][2] = 0;
+				matCS2PS[1][2] = 0;
+				matCS2PS[2][2] = q;
+				matCS2PS[3][2] = qn;
+				matCS2PS[0][3] = 0;
+				matCS2PS[1][3] = 0;
+				matCS2PS[2][3] = -1.0;
+				matCS2PS[3][3] = 0;
+				//mat_cs2ps = glm::transpose(mat_cs2ps);
+				//fmat_cs2ps = mat_cs2ps;
+			};
+
+			cv::Mat imgCArm = cv::imread("../data/c-arm 2023-04-19/7085.png");
+
+			glm::fmat4x4 matCArm2PS;
+			computeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
+				(float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCArm2PS);
+
+			glm::fmat4x4 matPS2CArm = glm::inverse(matCArm2PS);
+			glm::fmat4x4 matPS2WS = matCam2WS * matPS2CArm;
+			// mapping the carm image to far plane
+			glm::fvec3 ptsCArmPlanes[4] = { glm::fvec3(-1, 1, 1), glm::fvec3(1, 1, 1), glm::fvec3(1, -1, 1), glm::fvec3(-1, -1, 1) };
+			for (int i = 0; i < 4; i++) {
+				ptsCArmPlanes[i] = vzmutils::transformPos(ptsCArmPlanes[i], matPS2WS);
+			}
+			//glm::fvec2 ptsTexCoords[4] = { glm::fvec2(0, 0), glm::fvec2(1, 0), glm::fvec2(1, 1), glm::fvec2(0, 1) };
+			glm::fvec3 ptsTexCoords[4] = { glm::fvec3(0, 0, 0), glm::fvec3(1, 0, 0), glm::fvec3(1, 1, 0), glm::fvec3(0, 1, 0) };
+			//std::vector<glm::fvec3> posBuffer(6);
+			//std::vector<glm::fvec2> texBuffer(6);
+			unsigned int idxList[6] = { 0, 1, 3, 1, 2, 3 };
+
+			int iodImage = 0;
+			vzm::LoadImageFile("../data/c-arm 2023-04-19/7086.png", iodImage);
+			int oidCArmPlane = 0;
+			vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
+			vzm::ActorParameters apCArmPlane;
+			apCArmPlane.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCArmPlane);
+			apCArmPlane.SetResourceID(vzm::ActorParameters::TEXTURE_2D, iodImage);
+			*(glm::fvec4*)apCArmPlane.phong_coeffs = glm::fvec4(1, 0, 0, 0);
+			int aidCArmPlane = 0;
+			vzm::NewActor(apCArmPlane, "CArm Plane", aidCArmPlane);
+			vzm::AppendSceneItemToSceneTree(aidCArmPlane, sidScene);
 		}
 	}
 

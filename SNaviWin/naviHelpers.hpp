@@ -287,7 +287,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		}
 	};
 
-	struct track_info2
+	struct track_info
 	{
 		// key : rigidbody name
 	public:
@@ -311,7 +311,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		std::map<std::bitset<128>, map<MKINFO, std::any>, bitset_comparer<128>> __mksByCid;
 		std::map<string, std::bitset<128>> __mksByName;
 	public:
-		track_info2() { }
+		track_info() { }
 
 		bool GetRigidBody(const string& rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet) {
 			auto it = __rbinfo.find(rbName);
@@ -431,142 +431,6 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			v[MK_NAME] = mkName;
 
 			__mksByName[mkName] = cid;
-		}
-	};
-
-	struct track_info
-	{
-		//  "rs_cam" , "probe" , "ss_tool_v1" , "ss_head" , "breastbody" 
-		std::map<string, pair<bool, glm::fmat4x4>> map_ls2ws;
-
-		bool GetLFrmInfo(const string& name, glm::fmat4x4& mat_lfrm2ws) const
-		{
-			bool is_detected = false;
-			auto it = map_ls2ws.find(name);
-			if (it != map_ls2ws.end())
-			{
-				is_detected = get<0>(it->second);
-				mat_lfrm2ws = get<1>(it->second);
-			}
-			return is_detected;
-		}
-
-		void SetLFrmInfo(const string& name, const bool is_detected, const glm::fmat4x4& mat_lfrm2ws)
-		{
-			map_ls2ws[name] = pair<bool, glm::fmat4x4>(is_detected, mat_lfrm2ws);
-		}
-		// when changing this, please consider the serialization
-		//"rs_cam"
-		//glm::fmat4x4 mat_rbcam2ws;
-		//bool is_detected_rscam;
-		//
-		////"probe"
-		//glm::fmat4x4 mat_probe2ws;
-		//bool is_detected_probe;
-		//
-		////"ss_tool_v1"
-		//glm::fmat4x4 mat_tfrm2ws;
-		//bool is_detected_sstool;
-		//
-		////"ss_head"
-		//glm::fmat4x4 mat_headfrm2ws;
-		//bool is_detected_sshead;
-		//
-		////"breastbody"
-		//glm::fmat4x4 mat_bodyfrm2ws;
-		//bool is_detected_brbody;
-
-		std::vector<float> mk_xyz_list;
-		std::vector<float> mk_residue_list;
-		std::vector<std::bitset<128>> mk_cid_list;
-
-		bool is_updated;
-		track_info() { is_updated = false; }
-
-		bool GetProbePinPoint(glm::fvec3& pos)
-		{
-			glm::fmat4x4 mat_lfrm2ws;
-			if (GetLFrmInfo("probe", mat_lfrm2ws))
-			{
-				pos = tr_pt(mat_lfrm2ws, glm::fvec3(0));
-				return true;
-			}
-			return false;
-		}
-
-		glm::fvec3 GetMkPos(int idx)
-		{
-			if (idx < 0 || idx >= mk_xyz_list.size() / 3) return glm::fvec3(0);
-			return ((glm::fvec3*)&mk_xyz_list[0])[idx];
-		}
-
-		char* GetSerialBuffer(size_t& bytes_size)
-		{
-			int num_mks = (int)mk_xyz_list.size();
-			int num_lfrms = (int)map_ls2ws.size();
-			bytes_size = (sizeof(glm::fmat4x4) + sizeof(bool) + sizeof(char) * 100) * num_lfrms + (sizeof(float) * 2 + (128 / 8)) * num_mks + 4 * 2; // last 4 * 2 means num_mks, num_lfrms
-			char* buf = new char[bytes_size];
-			memset(buf, 0, bytes_size);
-			*(int*)&buf[0] = num_mks;
-			*(int*)&buf[4] = num_lfrms;
-
-			memcpy(&buf[8], &mk_xyz_list[0], sizeof(float) * num_mks);
-			memcpy(&buf[8 + sizeof(float) * num_mks], &mk_residue_list[0], sizeof(float) * num_mks);
-			memcpy(&buf[8 + sizeof(float) * num_mks * 2], &mk_cid_list[0], (128 / 8) * num_mks);
-
-			int offset = 8 + sizeof(float) * num_mks * 2 + (128 / 8) * num_mks;
-			int unit_size = sizeof(bool) + sizeof(glm::fmat4x4) + sizeof(char) * 100;
-			int i = 0;
-			for (auto it = map_ls2ws.begin(); it != map_ls2ws.end(); it++, i++)
-			{
-				memcpy(&buf[offset + unit_size * i], it->first.c_str(), sizeof(char) * it->first.length());
-				*(bool*)&buf[offset + unit_size * i + 100] = get<0>(it->second);
-				*(glm::fmat4x4*)&buf[offset + unit_size * i + 100 + sizeof(bool)] = get<1>(it->second);
-			}
-
-			return buf;
-		}
-
-		void SetFromSerialBuffer(const char* buf)
-		{
-			int num_mks = *(int*)buf[0];
-			int num_lfrms = *(int*)buf[4];
-			mk_xyz_list.assign(num_mks, 0);
-			mk_residue_list.assign(num_mks, 0);
-			mk_cid_list.assign(num_mks, 0);
-
-			memcpy(&mk_xyz_list[0], &buf[8], sizeof(float) * num_mks);
-			memcpy(&mk_residue_list[0], &buf[8 + sizeof(float) * num_mks], sizeof(float) * num_mks);
-			memcpy(&mk_cid_list[0], &buf[8 + sizeof(float) * num_mks * 2], (128 / 8) * num_mks);
-
-			int offset = 8 + sizeof(float) * num_mks * 2 + (128 / 8) * num_mks;
-			int unit_size = sizeof(bool) + sizeof(glm::fmat4x4) + sizeof(char) * 100;
-			for (int i = 0; i < num_lfrms; i++)
-			{
-				char arry[100];
-				memcpy(arry, &buf[offset + unit_size * i], sizeof(char) * 100);
-				string name = arry;
-				bool is_detected = *(bool*)&buf[offset + unit_size * i + 100];
-				glm::fmat4x4 mat_lfrm2ws = *(glm::fmat4x4*)&buf[offset + unit_size * i + 100 + sizeof(bool)];
-				SetLFrmInfo(name, is_detected, mat_lfrm2ws);
-			}
-		}
-
-		bool CheckExistCID(const std::bitset<128>& cid, int* mk_idx = NULL)
-		{
-			bool exist_mk_cid = false;
-			if (mk_idx) *mk_idx = -1;
-			for (int i = 0; i < (int)mk_cid_list.size(); i++)
-			{
-				if (mk_cid_list[i] == cid)
-				{
-					exist_mk_cid = true;
-					if (mk_idx) *mk_idx = i;
-					break;
-				}
-			}
-
-			return exist_mk_cid;
 		}
 	};
 
