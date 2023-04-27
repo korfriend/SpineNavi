@@ -266,6 +266,13 @@ bool optitrk::SetRigidBodyEnabledbyName(const std::string& name, const bool enab
 	return true;
 }
 
+bool optitrk::Test(float* v) {
+	float   yaw, pitch, roll;
+	float   x, y, z;
+	float   qx, qy, qz, qw;
+	return true;
+}
+
 bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::vector<float>* mk_quality_list, std::string* rb_name)
 {
 	if (!is_initialized) return false;
@@ -324,15 +331,23 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 	fmat4x4 mat_t = glm::translate(fvec3(x, y, z));
 	fmat4x4 _mat_ls2ws = mat_t * mat_r;
 	//fmat4x4 mat_ws2ls = inverse(_mat_ls2ws);
+	//_mat_ls2ws = inverse(_mat_ls2ws);
 	*(fmat4x4*)mat_ls2ws = _mat_ls2ws;
+
+	fvec4 localpt(1, 2, 3, 1);
+	fvec4 worldpt = _mat_ls2ws * localpt;
+
 
 	// local-to-world
 	// TEST
-	//TransformMatrix xRot(TransformMatrix::RotateX(pitch * kRadToDeg));
-	//TransformMatrix yRot(TransformMatrix::RotateY(yaw   * kRadToDeg));
-	//TransformMatrix zRot(TransformMatrix::RotateZ(roll  * kRadToDeg));
-	//TransformMatrix worldTransform = xRot * yRot * zRot;
-	//worldTransform.SetTranslation(x, y, z);
+	TransformMatrix xRot(TransformMatrix::RotateX(pitch * kRadToDeg));
+	TransformMatrix yRot(TransformMatrix::RotateY(yaw * kRadToDeg));
+	TransformMatrix zRot(TransformMatrix::RotateZ(roll * kRadToDeg));
+	TransformMatrix worldTransform = xRot * yRot * zRot;
+	worldTransform.SetTranslation(x, y, z);
+
+	Point4  localPnt(1, 2, 3, 1.0f);
+	Point4  WorldPnt = worldTransform * localPnt;
 
 	//fmat4x4 mat_ls2ws_0 = *(fmat4x4*) mat_ls2ws;
 	//int gg = 0;
