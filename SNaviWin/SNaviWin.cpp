@@ -236,7 +236,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo) {
 			}
 
 			glm::fmat4x4 matLS2WS = glm::translate(pos);
-			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.01f)); // set 1 cm to the marker diameter
+			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
 			matLS2WS = matLS2WS * matScale;
 			int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
 			vzm::ActorParameters apMarker;
@@ -421,13 +421,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// must be paired with DeinitEngineLib()
 	vzm::InitEngineLib("SpineNavi");
 	vzm::SetLogConfiguration(true, 4);
+
 #ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 #else
-	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
+	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));  // 7082.png
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));  // 7083.png
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
+	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
 	// 
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0));
 	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
@@ -777,6 +778,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 					vzm::ActorParameters apLabelText;
 					//apLabelText.is_visible = true;
 					apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
+					//apLabelText.script_params.SetParam("_bool_IsScaleFree", true);
 					*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
 					int aidLabelText = 0;
 					vzm::NewActor(apLabelText, mkName + ":Label", aidLabelText);
@@ -794,15 +796,23 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 			///////////////////////////////////
 			// preprocessing information
+			// *** IMPORTANT NOTE:
+			// the C-arm image (Genoray) is aligned w.r.t. detector's view
+			// the calibration image must be aligned w.r.t. source's view (view frustum's origin point)
+			// therefore, the position mirrored horizontally
+			std::string imgFile = "../data/c-arm 2023-04-19/7084.png";
+			cv::Mat imgCArm = cv::imread(imgFile);
+
+			const bool mirrorHorizontal = true;
 			std::map<int, cv::Point2f> pts2Dmap;
-			pts2Dmap[100 + 6] = cv::Point2f(961, 215   );
-			pts2Dmap[100 + 3] = cv::Point2f(1146, 895  );
-			pts2Dmap[100 + 4] = cv::Point2f(263, 940   );
-			pts2Dmap[100 + 2] = cv::Point2f(756, 703   );
-			pts2Dmap[100 + 5] = cv::Point2f(1105, 485  );
-			pts2Dmap[100 + 1] = cv::Point2f(619, 325   );
-			pts2Dmap[100 + 7] = cv::Point2f(273, 341   );
-			
+			pts2Dmap[100 + 6] = cv::Point2f(961, 215);
+			pts2Dmap[100 + 3] = cv::Point2f(1146, 895);
+			pts2Dmap[100 + 4] = cv::Point2f(263, 940);
+			pts2Dmap[100 + 2] = cv::Point2f(756, 703);
+			pts2Dmap[100 + 5] = cv::Point2f(1105, 485);
+			pts2Dmap[100 + 1] = cv::Point2f(619, 325);
+			pts2Dmap[100 + 7] = cv::Point2f(273, 341);
+
 			pts2Dmap[200 + 6] = cv::Point2f(952, 350);
 			pts2Dmap[200 + 3] = cv::Point2f(1155, 862);
 			pts2Dmap[200 + 4] = cv::Point2f(245, 916);
@@ -810,7 +820,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			pts2Dmap[200 + 5] = cv::Point2f(1102, 547);
 			pts2Dmap[200 + 1] = cv::Point2f(613, 435);
 			pts2Dmap[200 + 7] = cv::Point2f(269, 456);
-			
+
 			pts2Dmap[300 + 6] = cv::Point2f(954, 494);
 			pts2Dmap[300 + 3] = cv::Point2f(1168, 751);
 			pts2Dmap[300 + 4] = cv::Point2f(260, 807);
@@ -826,6 +836,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			pts2Dmap[400 + 5] = cv::Point2f(939, 753);
 			pts2Dmap[400 + 1] = cv::Point2f(434, 709);
 			pts2Dmap[400 + 7] = cv::Point2f(118, 729);
+			if(mirrorHorizontal)
+			{
+				for (auto it = pts2Dmap.begin(); it != pts2Dmap.end(); it++) {
+					it->second.x = imgCArm.cols - it->second.x;
+				}
+			}
 
 			double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
 				0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
@@ -887,25 +903,29 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			cv::Mat matR;
 			cv::Rodrigues(rvec, matR);
 
-			glm::fmat4x4 matCaRb2CaCam = glm::fmat4x4(1);
-			matCaRb2CaCam[0][0] = (float)matR.at<double>(0, 0);
-			matCaRb2CaCam[0][1] = (float)matR.at<double>(1, 0);
-			matCaRb2CaCam[0][2] = (float)matR.at<double>(2, 0);
-			matCaRb2CaCam[1][0] = (float)matR.at<double>(0, 1);
-			matCaRb2CaCam[1][1] = (float)matR.at<double>(1, 1);
-			matCaRb2CaCam[1][2] = (float)matR.at<double>(2, 1);
-			matCaRb2CaCam[2][0] = (float)matR.at<double>(0, 2);
-			matCaRb2CaCam[2][1] = (float)matR.at<double>(1, 2);
-			matCaRb2CaCam[2][2] = (float)matR.at<double>(2, 2);
-			matCaRb2CaCam[3][0] = (float)((double*)tvec.data)[0];
-			matCaRb2CaCam[3][1] = (float)((double*)tvec.data)[1];
-			matCaRb2CaCam[3][2] = (float)((double*)tvec.data)[2];
-			glm::fmat4x4 matCaCam2CaRb = glm::inverse(matCaRb2CaCam);
-			glm::fmat4x4 matCaRb2WS;
-			trackInfo.GetRigidBodyByName("c-arm", &matCaRb2WS, NULL, NULL);
-			glm::fmat4x4 matCam2WS = matCaRb2WS * matCaCam2CaRb;
+			// note, here camera frame (notation 'CA', opencv convention) is defined with
+			// z axis as viewing direction
+			// -y axis as up vector
+			glm::fmat4x4 matRB2CA = glm::fmat4x4(1);
+			matRB2CA[0][0] = (float)matR.at<double>(0, 0);
+			matRB2CA[0][1] = (float)matR.at<double>(1, 0);
+			matRB2CA[0][2] = (float)matR.at<double>(2, 0);
+			matRB2CA[1][0] = (float)matR.at<double>(0, 1);
+			matRB2CA[1][1] = (float)matR.at<double>(1, 1);
+			matRB2CA[1][2] = (float)matR.at<double>(2, 1);
+			matRB2CA[2][0] = (float)matR.at<double>(0, 2);
+			matRB2CA[2][1] = (float)matR.at<double>(1, 2);
+			matRB2CA[2][2] = (float)matR.at<double>(2, 2);
+			matRB2CA[3][0] = (float)((double*)tvec.data)[0];
+			matRB2CA[3][1] = (float)((double*)tvec.data)[1];
+			matRB2CA[3][2] = (float)((double*)tvec.data)[2];
+
+			glm::fmat4x4 matCA2RB = glm::inverse(matRB2CA);
+			glm::fmat4x4 matRB2WS;
+			trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL);
+			glm::fmat4x4 matCA2WS = matRB2WS * matCA2RB;
 			int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
-			navihelpers::Cam_Gen(matCam2WS, "C-Arm Source", oidCamTris, oidCamLines, oidCamLabel);
+			navihelpers::CamOcv_Gen(matCA2WS, "C-Arm Source", oidCamTris, oidCamLines, oidCamLabel);
 			vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
 			apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
 			apCamTris.color[3] = 0.5f;
@@ -959,14 +979,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				//fmat_cs2ps = mat_cs2ps;
 			};
 
-			cv::Mat imgCArm = cv::imread("../data/c-arm 2023-04-19/7085.png");
-
-			glm::fmat4x4 matCArm2PS;
+			glm::fmat4x4 matCS2PS;
 			computeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
-				(float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCArm2PS);
+				(float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCS2PS);
+			// here, CS is defined with
+			// -z axis as viewing direction
+			// y axis as up vector
+			glm::fmat4x4 matPS2CS = glm::inverse(matCS2PS);
 
-			glm::fmat4x4 matPS2CArm = glm::inverse(matCArm2PS);
-			glm::fmat4x4 matPS2WS = matCam2WS * matPS2CArm;
+			// so, we need to convert CS to OpenCV's Camera Frame by rotating 180 deg w.r.t. x axis
+			glm::fmat4x4 matCS2CA = glm::rotate(glm::pi<float>(), glm::fvec3(1, 0, 0));
+
+			glm::fmat4x4 matPS2WS = matCA2WS * matCS2CA * matPS2CS;
 			// mapping the carm image to far plane
 			glm::fvec3 ptsCArmPlanes[4] = { glm::fvec3(-1, 1, 1), glm::fvec3(1, 1, 1), glm::fvec3(1, -1, 1), glm::fvec3(-1, -1, 1) };
 			for (int i = 0; i < 4; i++) {
@@ -979,12 +1003,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			unsigned int idxList[6] = { 0, 1, 3, 1, 2, 3 };
 
 			int iodImage = 0;
-			vzm::LoadImageFile("../data/c-arm 2023-04-19/7086.png", iodImage);
+			vzm::LoadImageFile(imgFile, iodImage, true, true);
 			int oidCArmPlane = 0;
 			vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
 			vzm::ActorParameters apCArmPlane;
 			apCArmPlane.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCArmPlane);
 			apCArmPlane.SetResourceID(vzm::ActorParameters::TEXTURE_2D, iodImage);
+			apCArmPlane.script_params.SetParam("matCA2WS", matCA2WS); // temporal storage :)
+			apCArmPlane.script_params.SetParam("imageWH", glm::ivec2(imgCArm.cols, imgCArm.rows)); // temporal storage :)
 			*(glm::fvec4*)apCArmPlane.phong_coeffs = glm::fvec4(1, 0, 0, 0);
 			int aidCArmPlane = 0;
 			vzm::NewActor(apCArmPlane, "CArm Plane", aidCArmPlane);
@@ -1132,6 +1158,42 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						fs.release();
 					}
 					vzm::SetCameraParams(cidCam1, cpCam1);
+				}break;
+				case char('A') :
+				{
+					double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
+						0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
+						0.00000000e+00, 0.00000000e+00, 1.00000000e+00
+					};
+					double arrayDistCoeffs[5] = { -4.41147907e-02,  1.01898819e+00,  6.79242077e-04,
+						-1.16990433e-02,  3.42748576e-01
+					};
+
+					int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane");
+					vzm::ActorParameters apCArmPlane;
+					vzm::GetActorParams(aidCArmPlane, apCArmPlane);
+					glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
+					glm::ivec2 imageWH = apCArmPlane.script_params.GetParam("imageWH", glm::ivec2(0));
+
+					cpCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
+					glm::fvec3 pos(0, 0, 0);
+					glm::fvec3 view(0, 0, 1);
+					glm::fvec3 up(0, -1, 0);
+					*(glm::fvec3*)cpCam1.pos = vzmutils::transformPos(pos, matCA2WS);
+					*(glm::fvec3*)cpCam1.view = vzmutils::transformVec(view, matCA2WS);
+					*(glm::fvec3*)cpCam1.up = vzmutils::transformVec(up, matCA2WS);
+					cpCam1.w = imageWH.x;
+					cpCam1.h = imageWH.y;
+					cpCam1.fx = arrayMatK[0];
+					cpCam1.fy = arrayMatK[4];
+					cpCam1.sc = arrayMatK[1];
+					cpCam1.cx = arrayMatK[2];
+					cpCam1.cy = arrayMatK[5];
+					vzm::SetCameraParams(cidCam1, cpCam1);
+					//cpCam1.
+					// Call SetWindowPos to resize the window
+					UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
+					SetWindowPos(g_hWnd, NULL, 100, 100, imageWH.x, imageWH.y, flags);
 				}
 			}
 		}break;

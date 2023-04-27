@@ -404,7 +404,7 @@ namespace vzm
 	__dojostatic bool LoadModelFile(const std::string& filename, int& obj_id, const bool unify_redundancy = false);
 	__dojostatic bool LoadMaskVolumeFile(const std::string& filename, const int ref_vol_obj, const std::string& data_type, int& obj_id, const bool reverse_zdir = false);
 	__dojostatic bool LoadMultipleModelsFile(const std::string& filename, std::vector<int>& obj_ids, const bool unify_redundancy = false);
-	__dojostatic bool LoadImageFile(const std::string& filename, int& obj_id);
+	__dojostatic bool LoadImageFile(const std::string& filename, int& obj_id, const bool hFlip = false, const bool vFlip = false);
 	// data_type "CHAR" "BYTE" "SHORT" "USHORT" "INT" "FLOAT"
 	__dojostatic bool GenerateEmptyVolume(int& vol_id, const int ref_vol_id = 0, const std::string& data_type = "", const double min_v = 0, const double max_v = 0, const double fill_v = 0);
 	// note that redundant safe-bnd to slices is not allowed

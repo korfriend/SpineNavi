@@ -334,20 +334,20 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 	//_mat_ls2ws = inverse(_mat_ls2ws);
 	*(fmat4x4*)mat_ls2ws = _mat_ls2ws;
 
-	fvec4 localpt(1, 2, 3, 1);
-	fvec4 worldpt = _mat_ls2ws * localpt;
-
-
-	// local-to-world
-	// TEST
-	TransformMatrix xRot(TransformMatrix::RotateX(pitch * kRadToDeg));
-	TransformMatrix yRot(TransformMatrix::RotateY(yaw * kRadToDeg));
-	TransformMatrix zRot(TransformMatrix::RotateZ(roll * kRadToDeg));
-	TransformMatrix worldTransform = xRot * yRot * zRot;
-	worldTransform.SetTranslation(x, y, z);
-
-	Point4  localPnt(1, 2, 3, 1.0f);
-	Point4  WorldPnt = worldTransform * localPnt;
+	//fvec4 localpt(1, 2, 3, 1);
+	//fvec4 worldpt = _mat_ls2ws * localpt;
+	//
+	//
+	//// local-to-world
+	//// TEST
+	//TransformMatrix xRot(TransformMatrix::RotateX(pitch * kRadToDeg));
+	//TransformMatrix yRot(TransformMatrix::RotateY(yaw * kRadToDeg));
+	//TransformMatrix zRot(TransformMatrix::RotateZ(roll * kRadToDeg));
+	//TransformMatrix worldTransform = xRot * yRot * zRot;
+	//worldTransform.SetTranslation(x, y, z);
+	//
+	//Point4  localPnt(1, 2, 3, 1.0f);
+	//Point4  WorldPnt = worldTransform * localPnt;
 
 	//fmat4x4 mat_ls2ws_0 = *(fmat4x4*) mat_ls2ws;
 	//int gg = 0;
