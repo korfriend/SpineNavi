@@ -395,11 +395,9 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 
 		bool GetMarkerByIdx(const int mkIdx, map<MKINFO, std::any>& mk)
 		{
+			if (mkIdx >= __mksByCid.size()) return false;
 			auto it = __mksByCid.begin();
 			std::advance(it, mkIdx);
-
-			if (it == __mksByCid.end()) return false;
-
 			mk = it->second;
 			return true;
 		}
