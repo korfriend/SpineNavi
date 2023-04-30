@@ -33,7 +33,7 @@ using namespace Gdiplus;
 #include "naviHelpers.hpp"
 #include "rapidcsv/rapidcsv.h"
 
-#define USE_MOTIVE
+//#define USE_MOTIVE
 #define DESIRED_SCREEN_W 1000
 #define DESIRED_SCREEN_H 1000
 #define USE_WHND true
@@ -604,7 +604,7 @@ int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, con
 	*(glm::fvec4*)apCArmPlane.phong_coeffs = glm::fvec4(1, 0, 0, 0);
 	int aidCArmPlane = 0;
 	vzm::NewActor(apCArmPlane, "CArm Plane:" + scanName, aidCArmPlane);
-	vzm::AppendSceneItemToSceneTree(aidCArmPlane, sidScene);
+	vzm::AppendSceneItemToSceneTree(aidCArmPlane, aidGroupCArmCam);
 
 	return aidGroupCArmCam;
 }
@@ -1373,7 +1373,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
 	int cidCam1 = vzmutils::GetSceneItemIdByName("World Camera");
 	float scene_stage_scale = 5.f;
-	static int activeCarmIdx = -1;
+#ifdef USE_MOTIVE
+	static int activeCarmIdx = -1; 
+#else
+	static int activeCarmIdx = 0;
+#endif
 	glm::fvec3 scene_stage_center = glm::fvec3();
 	vzm::CameraParameters cpCam1;
 	if (sidScene != 0 && cidCam1 != 0) {
@@ -1435,11 +1439,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						-1.16990433e-02,  3.42748576e-01
 					};
 
-#ifdef USE_MOTIVE
 					int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + to_string(activeCarmIdx));
-#else
-					int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test0");
-#endif
+	
 					vzm::ActorParameters apCArmPlane;
 					vzm::GetActorParams(aidCArmPlane, apCArmPlane);
 					glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
@@ -1576,8 +1577,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				} break;
 			}
 
-#ifdef USE_MOTIVE
-
 			auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
 				
 				cv::FileStorage __fs("../data/Tracking Test 2023-04-30/" + paramsFileName, cv::FileStorage::Mode::WRITE);
@@ -1609,25 +1608,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				__fs.release();
 			};
 
-			static char LOADKEYS[10] = { '1' , '2', '3', '4', '5', '6', '7', '8', '9', '0' };
+#ifdef USE_MOTIVE
 			static char SAVEKEYS[10] = { 'Q' , 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P' };
-			static map<int, int> mapAidGroupCArmCam;
 			navihelpers::track_info trackInfo;
 			g_track_que->wait_and_pop(trackInfo);
 			glm::fmat4x4 matRB2WS;
 			if (trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL)) {
 				for (int i = 0; i < 10; i++) {
-					if (wParam == LOADKEYS[i]) {
-						// load case
-						auto it = mapAidGroupCArmCam.find(i);
-						if (it != mapAidGroupCArmCam.end())
-							vzm::RemoveSceneItem(it->second);
-						int aidGroup = RegisterCArmImage(sidScene, string("../data/Tracking Test 2023-04-30/") + "test" + to_string(i) + ".txt", "test" + to_string(i));
-						mapAidGroupCArmCam[i] = aidGroup;
-						activeCarmIdx = i;
-						break;
-					}
-					else if (wParam == SAVEKEYS[i]) {
+					if (wParam == SAVEKEYS[i]) {
 						StoreParams("test" + to_string(i) + ".txt", matRB2WS, "../data/c-arm 2023-04-19/7084.png");
 						break;
 					}
@@ -1635,6 +1623,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 			}
 #endif
+
+			static map<int, int> mapAidGroupCArmCam;
+			static char LOADKEYS[10] = { '1' , '2', '3', '4', '5', '6', '7', '8', '9', '0' };
+			for (int i = 0; i < 10; i++) {
+				if (wParam == LOADKEYS[i]) {
+					// load case
+					auto it = mapAidGroupCArmCam.find(i + 1);
+					if (it != mapAidGroupCArmCam.end())
+						vzm::RemoveSceneItem(it->second);
+					int aidGroup = RegisterCArmImage(sidScene, string("../data/Tracking Test 2023-04-30/") + "test" + to_string(i) + ".txt", "test" + to_string(i));
+					mapAidGroupCArmCam[i + 1] = aidGroup;
+					activeCarmIdx = i;
+					break;
+				}
+			}
 		}break;
     case WM_COMMAND:
         {

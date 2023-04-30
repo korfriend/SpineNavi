@@ -33,4 +33,4 @@ rb2wsMat: !!opencv-matrix
        9.84712303e-01, 4.14407849e-02, -1.69187650e-01, 0.,
        -1.71622887e-01, 6.47137314e-02, -9.83034968e-01, 0.,
        1.22468300e-01, 9.20745313e-01, -6.50221825e-01, 1. ]
-imgFile: "E:/Genoray/Zenis/image/Emergency_3236/7470.png"
+imgFile: "../data/Tracking Test 2023-04-30/7463.png"
