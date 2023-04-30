@@ -34,8 +34,8 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 
 #define USE_MOTIVE
-#define DESIRED_SCREEN_W 800
-#define DESIRED_SCREEN_H 800
+#define DESIRED_SCREEN_W 1000
+#define DESIRED_SCREEN_H 1000
 #define USE_WHND true
 bool storeAvrCarmTrackinfo = false;
 std::map<std::string, glm::fmat4x4> rbMapTrAvr;
@@ -1345,7 +1345,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	   100, 50, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
+	   -1200, 10, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
    {
       return FALSE;
@@ -1373,6 +1373,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
 	int cidCam1 = vzmutils::GetSceneItemIdByName("World Camera");
 	float scene_stage_scale = 5.f;
+	static int activeCarmIdx = -1;
 	glm::fvec3 scene_stage_center = glm::fvec3();
 	vzm::CameraParameters cpCam1;
 	if (sidScene != 0 && cidCam1 != 0) {
@@ -1421,6 +1422,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}break;
 				case char('A') :
 				{
+#ifdef USE_MOTIVE
+					if (activeCarmIdx < 0)
+						break;
+#endif
+
 					double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
 						0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
 						0.00000000e+00, 0.00000000e+00, 1.00000000e+00
@@ -1429,7 +1435,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						-1.16990433e-02,  3.42748576e-01
 					};
 
+#ifdef USE_MOTIVE
+					int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + to_string(activeCarmIdx));
+#else
 					int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test0");
+#endif
 					vzm::ActorParameters apCArmPlane;
 					vzm::GetActorParams(aidCArmPlane, apCArmPlane);
 					glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
@@ -1556,6 +1566,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						INTERPOLCAM(cy);
 					}
 					arAnimationKeyFrame = 0;
+					activeCarmIdx = -1;
 					//vzm::SetCameraParams(cidCam1, cpNewCam1);
 
 					//cpCam1.
@@ -1608,11 +1619,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				for (int i = 0; i < 10; i++) {
 					if (wParam == LOADKEYS[i]) {
 						// load case
-						auto it = mapAidGroupCArmCam.find(1);
+						auto it = mapAidGroupCArmCam.find(i);
 						if (it != mapAidGroupCArmCam.end())
 							vzm::RemoveSceneItem(it->second);
 						int aidGroup = RegisterCArmImage(sidScene, string("../data/Tracking Test 2023-04-30/") + "test" + to_string(i) + ".txt", "test" + to_string(i));
 						mapAidGroupCArmCam[i] = aidGroup;
+						activeCarmIdx = i;
 						break;
 					}
 					else if (wParam == SAVEKEYS[i]) {
