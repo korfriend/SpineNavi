@@ -25,7 +25,7 @@ Viewer::Viewer(QWidget *parent)
     setImages();
     //ui.centralWidget->setLayout(hboxLayout);
 
-    
+    connect(qlistwidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)),this, SLOT(clickedImage()));
 }
 
 Viewer::~Viewer()
@@ -41,6 +41,7 @@ void Viewer::setImages()
         if (dir_entry.path().extension() == ".png")
         {
             QListWidgetItem* item = new QListWidgetItem(QIcon(dir_entry.path().u8string().c_str()), QString(dir_entry.path().filename().u8string().c_str()));
+            image_paths.push_back(dir_entry.path().u8string().c_str());
             items.push_back(item);
             if (num_imgs == 0)
             {
@@ -80,5 +81,16 @@ void Viewer::setThumbnailItems()
     {
         qlistwidget->addItem(i);
     }
+
+}
+
+void Viewer::clickedImage()
+{
+    QModelIndex index = qlistwidget->currentIndex();
+    int inx = index.row();
+    leftImg = QImage(image_paths[inx]);
+
+    setLeftRightImg();
+
 
 }

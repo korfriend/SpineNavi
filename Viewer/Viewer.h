@@ -33,6 +33,7 @@ private:
     Ui::ViewerClass ui;
 
     std::vector<QListWidgetItem*> items; // thumbnail 표시 할 image 들 저장
+    std::vector<QString> image_paths;
     std::filesystem::path image_path;// image들 저장된 경로 저장
     QListWidget* qlistwidget; // thumnail 표시할 widget
     QImage leftImg; // 크게 표시될 두개의 img
@@ -40,4 +41,8 @@ private:
     QLabel* leftView;
     QLabel* rightView;
     int num_imgs;
+
+
+private slots:
+    void clickedImage();
 };
