@@ -8,6 +8,10 @@
 #include <vector>
 #include <windowsx.h>
 #include <iostream>
+#include <winsock2.h> // udp
+#include <stdio.h>
+
+#pragma comment(lib,"ws2_32.lib")
 
 #include <objidl.h>
 #include <gdiplus.h>
@@ -32,8 +36,9 @@ using namespace Gdiplus;
 #include "../optitrk/optitrk.h"
 #include "naviHelpers.hpp"
 #include "rapidcsv/rapidcsv.h"
+#include "CArmCalibration.h"
 
-//#define USE_MOTIVE
+#define USE_MOTIVE
 #define DESIRED_SCREEN_W 1000
 #define DESIRED_SCREEN_H 1000
 #define USE_WHND true
@@ -42,6 +47,9 @@ std::map<std::string, glm::fmat4x4> rbMapTrAvr;
 std::map<std::string, glm::fvec3> mkPosTest1Avr;
 
 #define MAX_LOADSTRING 100
+typedef unsigned long long u64;
+
+static int testFileIdx = 1000;
 
 // 전역 변수:
 HWND g_hWnd;
@@ -455,160 +463,6 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	Render();
 }
 
-
-int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName)
-{
-	int aidGroupCArmCam = 0;
-	vzm::ActorParameters apGroupCams;
-	vzm::NewActor(apGroupCams, "Tracking CAM Group:scanName", aidGroupCArmCam);
-	vzm::AppendSceneItemToSceneTree(aidGroupCArmCam, sidScene);
-
-	cv::FileStorage fs(carmScanParams, cv::FileStorage::Mode::READ);
-	cv::Mat K;
-	fs["K"] >> K;
-	cv::Mat DistCoeffs;
-	fs["DistCoeffs"] >> DistCoeffs;
-	cv::Mat rvec, tvec;
-	fs["rvec"] >> rvec;
-	fs["tvec"] >> tvec;
-	cv::Mat rb2wsMat;
-	fs["rb2wsMat"] >> rb2wsMat;
-	std::string imgFileName;
-	fs["imgFile"] >> imgFileName;
-	fs.release();
-
-	///////////////////////////////////
-	// preprocessing information
-	// *** IMPORTANT NOTE:
-	// the C-arm image (Genoray) is aligned w.r.t. detector's view
-	// the calibration image must be aligned w.r.t. source's view (view frustum's origin point)
-	// therefore, the position mirrored horizontally
-	cv::Mat imgCArm = cv::imread(imgFileName);
-
-	double arrayMatK[9] = {};
-	double arrayDistCoeffs[5] = {};
-	memcpy(arrayMatK, K.ptr(), sizeof(double) * 9);
-	memcpy(arrayDistCoeffs, DistCoeffs.ptr(), sizeof(double) * 5);
-
-	cv::Mat matR;
-	cv::Rodrigues(rvec, matR);
-	// note, here camera frame (notation 'CA', opencv convention) is defined with
-	// z axis as viewing direction
-	// -y axis as up vector
-	glm::fmat4x4 matRB2CA = glm::fmat4x4(1);
-	matRB2CA[0][0] = (float)matR.at<double>(0, 0);
-	matRB2CA[0][1] = (float)matR.at<double>(1, 0);
-	matRB2CA[0][2] = (float)matR.at<double>(2, 0);
-	matRB2CA[1][0] = (float)matR.at<double>(0, 1);
-	matRB2CA[1][1] = (float)matR.at<double>(1, 1);
-	matRB2CA[1][2] = (float)matR.at<double>(2, 1);
-	matRB2CA[2][0] = (float)matR.at<double>(0, 2);
-	matRB2CA[2][1] = (float)matR.at<double>(1, 2);
-	matRB2CA[2][2] = (float)matR.at<double>(2, 2);
-	matRB2CA[3][0] = (float)((double*)tvec.data)[0];
-	matRB2CA[3][1] = (float)((double*)tvec.data)[1];
-	matRB2CA[3][2] = (float)((double*)tvec.data)[2];
-
-	glm::fmat4x4 matCA2RB = glm::inverse(matRB2CA);
-	glm::fmat4x4 matRB2WS;
-	memcpy(glm::value_ptr(matRB2WS), rb2wsMat.ptr(), sizeof(float) * 16);
-
-	glm::fmat4x4 matCA2WS = matRB2WS * matCA2RB;
-	int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
-	navihelpers::CamOcv_Gen(matCA2WS, "C-Arm Source:" + scanName, oidCamTris, oidCamLines, oidCamLabel);
-	vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
-	apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
-	apCamTris.color[3] = 0.5f;
-	apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
-	*(glm::fvec4*)apCamLines.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-	apCamLines.line_thickness = 2;
-	apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
-	*(glm::fvec4*)apCamLabel.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-	int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
-	vzm::NewActor(apCamTris, "C-Arm Cam Tris:" + scanName, aidCamTris);
-	vzm::NewActor(apCamLines, "C-Arm Lines:" + scanName, aidCamLines);
-	vzm::NewActor(apCamLabel, "C-Arm Label:" + scanName, aidCamLabel);
-	vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCArmCam);
-	vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCArmCam);
-	vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCArmCam);
-
-
-	auto computeMatCS2PS = [](const float _fx, const float _fy, const float _s, const float _cx, const float _cy,
-		const float widthPix, const float heightPix,
-		const float near_p, const float far_p, glm::fmat4x4& matCS2PS)
-	{
-		double q = far_p / (near_p - far_p);
-		double qn = far_p * near_p / (near_p - far_p);
-
-		double fx = (double)_fx;
-		double fy = (double)_fy;
-		double sc = (double)_s;
-		double cx = (double)_cx;
-		double cy = (double)_cy;
-		double width = (double)widthPix;
-		double height = (double)heightPix;
-		double x0 = 0, y0 = 0;
-
-		matCS2PS[0][0] = 2.0 * fx / width;
-		matCS2PS[1][0] = -2.0 * sc / width;
-		matCS2PS[2][0] = (width + 2.0 * x0 - 2.0 * cx) / width;
-		matCS2PS[3][0] = 0;
-		matCS2PS[0][1] = 0;
-		matCS2PS[1][1] = 2.0 * fy / height;
-		matCS2PS[2][1] = -(height + 2.0 * y0 - 2.0 * cy) / height;
-		matCS2PS[3][1] = 0;
-		matCS2PS[0][2] = 0;
-		matCS2PS[1][2] = 0;
-		matCS2PS[2][2] = q;
-		matCS2PS[3][2] = qn;
-		matCS2PS[0][3] = 0;
-		matCS2PS[1][3] = 0;
-		matCS2PS[2][3] = -1.0;
-		matCS2PS[3][3] = 0;
-		//mat_cs2ps = glm::transpose(mat_cs2ps);
-		//fmat_cs2ps = mat_cs2ps;
-	};
-
-	glm::fmat4x4 matCS2PS;
-	computeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
-		(float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCS2PS);
-	// here, CS is defined with
-	// -z axis as viewing direction
-	// y axis as up vector
-	glm::fmat4x4 matPS2CS = glm::inverse(matCS2PS);
-	// so, we need to convert CS to OpenCV's Camera Frame by rotating 180 deg w.r.t. x axis
-	glm::fmat4x4 matCS2CA = glm::rotate(glm::pi<float>(), glm::fvec3(1, 0, 0));
-	glm::fmat4x4 matPS2WS = matCA2WS * matCS2CA * matPS2CS;
-
-
-	// mapping the carm image to far plane
-	glm::fvec3 ptsCArmPlanes[4] = { glm::fvec3(-1, 1, 1), glm::fvec3(1, 1, 1), glm::fvec3(1, -1, 1), glm::fvec3(-1, -1, 1) };
-	for (int i = 0; i < 4; i++) {
-		ptsCArmPlanes[i] = vzmutils::transformPos(ptsCArmPlanes[i], matPS2WS);
-	}
-	//glm::fvec2 ptsTexCoords[4] = { glm::fvec2(0, 0), glm::fvec2(1, 0), glm::fvec2(1, 1), glm::fvec2(0, 1) };
-	glm::fvec3 ptsTexCoords[4] = { glm::fvec3(0, 0, 0), glm::fvec3(1, 0, 0), glm::fvec3(1, 1, 0), glm::fvec3(0, 1, 0) };
-	//std::vector<glm::fvec3> posBuffer(6);
-	//std::vector<glm::fvec2> texBuffer(6);
-	unsigned int idxList[6] = { 0, 1, 3, 1, 2, 3 };
-
-	int oidImage = 0;
-	vzm::LoadImageFile(imgFileName, oidImage, true, true);
-	int oidCArmPlane = 0;
-	vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
-	vzm::ActorParameters apCArmPlane;
-	apCArmPlane.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCArmPlane);
-	apCArmPlane.SetResourceID(vzm::ActorParameters::TEXTURE_2D, oidImage);
-	apCArmPlane.script_params.SetParam("matCA2WS", matCA2WS); // temporal storage :)
-	apCArmPlane.script_params.SetParam("imageWH", glm::ivec2(imgCArm.cols, imgCArm.rows)); // temporal storage :)
-	*(glm::fvec4*)apCArmPlane.phong_coeffs = glm::fvec4(1, 0, 0, 0);
-	int aidCArmPlane = 0;
-	vzm::NewActor(apCArmPlane, "CArm Plane:" + scanName, aidCArmPlane);
-	vzm::AppendSceneItemToSceneTree(aidCArmPlane, aidGroupCArmCam);
-
-	return aidGroupCArmCam;
-}
-
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
                      _In_opt_ HINSTANCE hPrevInstance,
                      _In_ LPWSTR    lpCmdLine,
@@ -683,7 +537,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				vector<float> posMKs;
 				vector<float> mkQualities;
 				bitset<128> rbCid;
-				if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, &rbCid, &rbMSE, &posMKs, NULL, &mkQualities, &rbName)) {
+				fquat qvec;
+				fvec3 tvec;
+				if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, &rbCid, &rbMSE, &posMKs, NULL, &mkQualities, &rbName, (float*)&qvec, (float*)&tvec)) {
 					int numRbMks = (int)posMKs.size() / 3;
 					vector<fvec3> mkPts(numRbMks);
 					memcpy(&mkPts[0], &posMKs[0], sizeof(fvec3) * numRbMks);
@@ -700,7 +556,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 						pt[track_info::MKINFO::MK_NAME] = mkName;
 						pt[track_info::MKINFO::MK_QUALITY] = mkQualities[j];
 					}
-					trk_info.AddRigidBody(rbName, matLS2WS, rbMSE, rbmkSet);
+					trk_info.AddRigidBody(rbName, matLS2WS, qvec, tvec, rbMSE, rbmkSet);
 				}
 			}
 			vector<float> mkPts;
@@ -715,6 +571,97 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			}
 			track_que.push(trk_info);
 		}
+	});
+
+
+	/////////////////////////////////////////
+#define BUF_SIZE 5000
+
+	auto printError = [](std::string message) {
+		std::cout << message << std::endl;
+		fputc('\n', stderr);
+		exit(1);
+	};
+	auto GetMicroCounter = []()
+	{
+		u64 Counter;
+
+#if defined(_WIN32)
+		u64 Frequency;
+		QueryPerformanceFrequency((LARGE_INTEGER*)&Frequency);
+		QueryPerformanceCounter((LARGE_INTEGER*)&Counter);
+		Counter = 1000000 * Counter / Frequency;
+#elif defined(__linux__) 
+		struct timeval t;
+		gettimeofday(&t, 0);
+		Counter = 1000000 * t.tv_sec + t.tv_usec;
+#endif
+
+		return Counter;
+	};
+	/*
+	u64 start, end;
+	WSADATA wsaData;
+	struct sockaddr_in local_addr;
+	SOCKET s;
+	WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+	if ((s = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
+		printf("Socket Creat Error.\n");
+		exit(1);
+	}
+
+	memset(&local_addr, 0, sizeof(local_addr));
+	local_addr.sin_family = AF_INET;
+	local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	local_addr.sin_port = htons(atoi("22222"));
+
+	if (bind(s, (SOCKADDR*)&local_addr, sizeof(local_addr)) == SOCKET_ERROR)
+		printError("BIND ERROR");
+
+	printf("This server is waiting... \n");
+
+	struct sockaddr_in client_addr;
+	int len_addr = sizeof(client_addr);
+	int totalBufferNum;
+	int BufferNum;
+	int readBytes;
+	long file_size;
+	long totalReadBytes;
+
+	char buf[BUF_SIZE];
+
+	start = GetMicroCounter();
+
+	readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
+	file_size = atol(buf);
+	totalBufferNum = file_size / BUF_SIZE + 1;
+	BufferNum = 0;
+	totalReadBytes = 0;
+	/**/
+	std::atomic_bool udp_alive{ true };
+	std::thread udp_processing_thread([&]() {
+		/*
+		FILE* fp;
+		fopen_s(&fp, "../data/Tracking Test 2023-05-09/test.png", "wb");
+
+		while (BufferNum != totalBufferNum) {
+			readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
+			BufferNum++;
+			totalReadBytes += readBytes;
+			printf("In progress: %d/%dByte(s) [%d%%]\n", totalReadBytes, file_size, ((BufferNum * 100) / totalBufferNum));
+			if (readBytes > 0) {
+				fwrite(buf, sizeof(char), readBytes, fp);
+				readBytes = sendto(s, buf, 10, 0, (SOCKADDR*)&client_addr, sizeof(client_addr));
+			}
+			if (readBytes == SOCKET_ERROR)
+			{
+				printError("ERROR");
+				break;
+			}
+		}
+		fclose(fp);
+		/**/
 	});
 
 	UINT_PTR customData = (UINT_PTR)&track_que;
@@ -846,7 +793,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 					v[navihelpers::track_info::MKINFO::CID] = _cid;
 				}
 
-				trackInfo.AddRigidBody(name, mat_ls2ws, mkMSE, rbmkSet);
+				trackInfo.AddRigidBody(name, mat_ls2ws, q, t, mkMSE, rbmkSet);
 			}
 			if (type == "Marker") {
 				if (rowIdx == startRowIdx) numAllFramesMKs++;
@@ -1291,6 +1238,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
 	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
 	tracker_processing_thread.join();
+	udp_alive = false;
+	udp_processing_thread.join();
+
+	//end = GetMicroCounter();
+	//printf("Elapsed Time (micro seconds) : %d", end - start);
+	//
+	//closesocket(s);
+	//WSACleanup();
+
 	optitrk::DeinitOptiTrackLib();
 #endif
 	vzm::DeinitEngineLib();
@@ -1344,10 +1300,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
-   //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	//   -1200, 10, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
+	   -1200, 10, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
+   //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+	//   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
    {
       return FALSE;
@@ -1612,16 +1568,46 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 #ifdef USE_MOTIVE
 			static char SAVEKEYS[10] = { 'Q' , 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P' };
-			navihelpers::track_info trackInfo;
-			g_track_que->wait_and_pop(trackInfo);
-			glm::fmat4x4 matRB2WS;
-			if (trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL)) {
-				for (int i = 0; i < 10; i++) {
-					if (wParam == SAVEKEYS[i]) {
-						StoreParams("test" + to_string(i) + ".txt", matRB2WS, "../data/c-arm 2023-04-19/7084.png");
-						break;
-					}
+			const int maxSamples = 30;
+			const float normalizedNum = 1.f / (float)maxSamples;
 
+			for (int i = 0; i < 10; i++) {
+				if (wParam == SAVEKEYS[i]) {
+					glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
+					float rotAngleAvr = 0;
+					glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
+					int captureCount = 0;
+					while (captureCount < maxSamples) {
+						navihelpers::track_info trackInfo;
+						g_track_que->wait_and_pop(trackInfo);
+						Sleep(50);
+						glm::fquat q;
+						glm::fvec3 t;
+						if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+							float quatMagnitude = glm::length(q);
+							q /= quatMagnitude;
+
+							float rotationAngle = 2.0f * acos(q.w);
+
+							float sinAngle = sin(rotationAngle / 2.0f);
+							glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
+
+							rotAngleAvr += rotationAngle * normalizedNum;
+							rotAxisAvr += rotationAxis * normalizedNum;
+
+							trAvr += t * normalizedNum;
+							captureCount++;
+						}
+						std::cout << "Capturing... " << captureCount << std::endl;
+					}
+					std::cout << "Capturing... DONE!" << std::endl;
+					rotAxisAvr = glm::normalize(rotAxisAvr);
+					glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
+					glm::fmat4x4 mat_t = glm::translate(trAvr);
+					glm::fmat4x4 matRB2WS = mat_t * mat_r;
+
+					StoreParams("test" + to_string(i) + ".txt", matRB2WS, "../data/Tracking Test 2023-05-09/test.png");
+					break;
 				}
 			}
 #endif
@@ -1635,6 +1621,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					if (it != mapAidGroupCArmCam.end())
 						vzm::RemoveSceneItem(it->second);
 					int aidGroup = RegisterCArmImage(sidScene, string("../data/Tracking Test 2023-04-30/") + "test" + to_string(i) + ".txt", "test" + to_string(i));
+					if (aidGroup == -1)
+						break;
 					mapAidGroupCArmCam[i + 1] = aidGroup;
 					activeCarmIdx = i;
 					break;

@@ -36,21 +36,21 @@ namespace navihelpers {
 	using namespace std;
 	using namespace cv;
 
-	glm::fvec3 tr_pt(const glm::fmat4x4& mat, const glm::fvec3& p)
+	inline glm::fvec3 tr_pt(const glm::fmat4x4& mat, const glm::fvec3& p)
 	{
 		glm::fvec4 _p(p, 1.f);
 		_p = mat * _p;
 		return glm::fvec3(_p.x / _p.w, _p.y / _p.w, _p.z / _p.w);
 	}
 
-	glm::fvec3 tr_vec(const glm::fmat4x4& mat, const glm::fvec3& v)
+	inline glm::fvec3 tr_vec(const glm::fmat4x4& mat, const glm::fvec3& v)
 	{
 		glm::fmat3x3 r = mat;
 		glm::fvec3 _v = r * v;
 		return _v;
 	}
 
-	glm::fvec3 tr_vec2(const glm::fmat4x4& mat, const glm::fvec3& v)
+	inline glm::fvec3 tr_vec2(const glm::fmat4x4& mat, const glm::fvec3& v)
 	{
 		glm::fvec3 _p0 = tr_pt(mat, glm::fvec3(0));
 		glm::fvec3 _p1 = tr_pt(mat, glm::fvec3(0) + v);
@@ -59,7 +59,7 @@ namespace navihelpers {
 	}
 
 	// http://stackoverflow.com/questions/236129/how-to-split-a-string-in-c
-	std::vector<std::string> split(const std::string& text, char sep) {
+	inline std::vector<std::string> split(const std::string& text, char sep) {
 		std::vector<std::string> tokens;
 		int start = 0, end = 0;
 		while ((end = text.find(sep, start)) != std::string::npos) {
@@ -305,6 +305,8 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			LS2WS = 0, // glm::fmat4x4
 			MK_MSE = 1, // float
 			RB_MKSET = 2, // map<string, map<MKINFO, any>>
+			QT_LS2WS = 3, // glm::fquat
+			TV_LS2WS = 4, // glm::fvec3
 		};
 
 		std::map<string, map<RBINFO, std::any>> __rbinfo;
@@ -365,13 +367,27 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			return true;
 		}
 
-		void AddRigidBody(const string& rbName, const glm::fmat4x4& matLS2WS, const float mkMSE,
+		bool GetRigidBodyQuatTVecByName(const string& rbName, glm::fquat* q, glm::fvec3* t) {
+			auto it = __rbinfo.find(rbName);
+			if (it == __rbinfo.end())
+				return false;
+
+			auto& v = it->second;
+			if (q)
+				*q = std::any_cast<glm::fquat>(v[QT_LS2WS]);
+			if (t)
+				*t = std::any_cast<glm::fvec3>(v[TV_LS2WS]);
+		}
+
+		void AddRigidBody(const string& rbName, const glm::fmat4x4& matLS2WS, const glm::fquat& qtLS2WS, const glm::fvec3& tvec, const float mkMSE,
 			const map<string, map<MKINFO, std::any>>& rbmkSet)
 		{
 			map<RBINFO, std::any>& v = __rbinfo[rbName];
 			v[LS2WS] = matLS2WS;
 			v[MK_MSE] = mkMSE;
 			v[RB_MKSET] = rbmkSet;
+			v[QT_LS2WS] = qtLS2WS;
+			v[TV_LS2WS] = tvec;
 		}
 
 		bool GetMarkerByName(const string& mkName, map<MKINFO, std::any>& mk)
@@ -432,7 +448,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		}
 	};
 
-	void Make_Viewport(std::vector<glm::fvec3>& pos_tris, std::vector<glm::fvec3>& clr_tris, std::vector<glm::fvec3>& pos_lines, std::vector<glm::fvec3>& clr_lines,
+	inline void Make_Viewport(std::vector<glm::fvec3>& pos_tris, std::vector<glm::fvec3>& clr_tris, std::vector<glm::fvec3>& pos_lines, std::vector<glm::fvec3>& clr_lines,
 		const glm::fvec3 clr_tri, const glm::fvec3 clr_line,
 		const glm::fvec3 pos_c, const glm::fvec3 view, const glm::fvec3 up, const float fov_hor, const float fov_ver, const float max_length)
 	{
@@ -498,7 +514,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			clr_lines.push_back(clr_line);
 	}
 
-	void Cam_Gen(const glm::vec3& pos_cam_ws, const glm::vec3& view_ws, const glm::vec3& up_ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
+	inline void Cam_Gen(const glm::vec3& pos_cam_ws, const glm::vec3& view_ws, const glm::vec3& up_ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
 	{
 		std::vector<glm::fvec3> pos_tris, pos_lines, clr_tris, clr_lines;
 		Make_Viewport(pos_tris, clr_tris, pos_lines, clr_lines, glm::fvec3(1, 0.3, 0.5), glm::fvec3(1, 0.3, 0.5),
@@ -513,7 +529,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		vzm::GenerateTextObject((float*)&pinfo[0], cam_label, 0.05, true, false, cam_label_id);
 	}
 
-	void Cam_Gen(const glm::fmat4x4& mat_cs2ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
+	inline void Cam_Gen(const glm::fmat4x4& mat_cs2ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
 	{
 		glm::fvec3 pos_cam_ws = tr_pt(mat_cs2ws, glm::fvec3());
 		glm::fvec3 view_ws = tr_vec(mat_cs2ws, glm::fvec3(0, 0, -1));
@@ -521,7 +537,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		Cam_Gen(pos_cam_ws, view_ws, up_ws, cam_label, cam_tris_is, cam_lines_id, cam_label_id);
 	}
 
-	void CamOcv_Gen(const glm::fmat4x4& mat_cs2ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
+	inline void CamOcv_Gen(const glm::fmat4x4& mat_cs2ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
 	{
 		glm::fvec3 pos_cam_ws = tr_pt(mat_cs2ws, glm::fvec3());
 		glm::fvec3 view_ws = tr_vec(mat_cs2ws, glm::fvec3(0, 0, 1));
@@ -529,7 +545,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		Cam_Gen(pos_cam_ws, view_ws, up_ws, cam_label, cam_tris_is, cam_lines_id, cam_label_id);
 	}
 
-	void World_GridAxis_Gen(int& coord_grid_obj_id, int& axis_lines_obj_id, int& axis_texX_obj_id, int& axis_texZ_obj_id)
+	inline void World_GridAxis_Gen(int& coord_grid_obj_id, int& axis_lines_obj_id, int& axis_texX_obj_id, int& axis_texZ_obj_id)
 		// make world coordinate grid objects
 	{
 		std::vector<glm::fvec3> xyz_coord_grid;
@@ -592,7 +608,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		vzm::GenerateTextObject((float*)&pinfo[0], "Z", 0.1, true, false, axis_texZ_obj_id);
 	}
 
-	void ComputeClosestPointBetweenLineAndPoint(const glm::fvec3& pos_line, const glm::fvec3& dir_line, const glm::fvec3& pos_point, glm::fvec3& pos_closest_point)
+	inline void ComputeClosestPointBetweenLineAndPoint(const glm::fvec3& pos_line, const glm::fvec3& dir_line, const glm::fvec3& pos_point, glm::fvec3& pos_closest_point)
 	{
 		float len = glm::length(dir_line);
 		if (len <= 0.000001f) return;
@@ -610,7 +626,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 	}
 
 	//void MakeTrackeffect(const int track_fade_num, const glm::fvec3& pos_dst, int& track_spheres_id, std::vector<glm::fvec3>& track_points)
-	void MakeTrackeffect(const int track_fade_num, const float min_move_dist, const glm::fvec3& pos_dst, int& track_spheres_id)
+	inline void MakeTrackeffect(const int track_fade_num, const float min_move_dist, const glm::fvec3& pos_dst, int& track_spheres_id)
 	{
 		//const int track_fade_num = 100;
 		//static int track_spheres_id = 0;
@@ -637,8 +653,9 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		}
 	}
 
-	int GL_CLR_CHANNELS = 4;
-	void copy_back_ui_buffer(unsigned char* data_ui, unsigned char* data_render_bf, int w, int h, bool v_flib)
+#define GL_CLR_CHANNELS 4
+
+	inline void copy_back_ui_buffer(unsigned char* data_ui, unsigned char* data_render_bf, int w, int h, bool v_flib)
 	{
 		// cpu mem ==> dataPtr
 		int width_uibuf_pitch = w * 3;
@@ -690,7 +707,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			}
 	};
 
-	void copy_back_ui_buffer_local(unsigned char* data_ui, int w, int h, unsigned char* data_render_bf, int w_bf, int h_bf, int offset_x, int offset_y, bool v_flib, bool smooth_mask, float _a, float _b, bool opaque_bg)
+	inline void copy_back_ui_buffer_local(unsigned char* data_ui, int w, int h, unsigned char* data_render_bf, int w_bf, int h_bf, int offset_x, int offset_y, bool v_flib, bool smooth_mask, float _a, float _b, bool opaque_bg)
 	{
 		auto alpha_mask = [&smooth_mask, &_a, &_b](float r) -> float
 		{
@@ -756,7 +773,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 
 #define PAIR_MAKE(P2D, P3D) std::pair<cv::Point2f, cv::Point3f>(cv::Point2f(P2D.x, P2D.y), cv::Point3f(P3D.x, P3D.y, P3D.z))
 #define double_vec3(D) ((double*)D.data)[0], ((double*)D.data)[1], ((double*)D.data)[2]
-	bool CalibrteCamLocalFrame(const vector<glm::fvec2>& points_2d, const vector<glm::fvec3>& points_3dws, const glm::fmat4x4& mat_ws2clf,
+	inline bool CalibrteCamLocalFrame(const vector<glm::fvec2>& points_2d, const vector<glm::fvec3>& points_3dws, const glm::fmat4x4& mat_ws2clf,
 		const float fx, const float fy, const float cx, const float cy, glm::fmat4x4& mat_rscs2clf, float* err, int* num_samples,
 		vector<pair<Point2f, Point3f>>& pair_pts)//, const int img_w, const int img_h
 
@@ -903,7 +920,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		return true;
 	};
 
-	void ComputeCameraStates(const glm::fmat4x4& mat_rscs2clf, // computed through calibration using CalibrteCamLocalFrame
+	inline void ComputeCameraStates(const glm::fmat4x4& mat_rscs2clf, // computed through calibration using CalibrteCamLocalFrame
 		const glm::fmat4x4& mat_clf2ws, // at every frame, stereo IR cams gives this matrix by tracking rs's rigid IR markers
 		vzm::CameraParameters& cam_state // only update CameraParameters::pos, up, view
 	)

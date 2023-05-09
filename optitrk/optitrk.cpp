@@ -273,7 +273,7 @@ bool optitrk::Test(float* v) {
 	return true;
 }
 
-bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::vector<float>* mk_quality_list, std::string* rb_name)
+bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::vector<float>* mk_quality_list, std::string* rb_name, float* qvec, float* tvec)
 {
 	if (!is_initialized) return false;
 	if (rb_name) *rb_name = TT_RigidBodyName(rb_idx);
@@ -333,6 +333,11 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 	//fmat4x4 mat_ws2ls = inverse(_mat_ls2ws);
 	//_mat_ls2ws = inverse(_mat_ls2ws);
 	*(fmat4x4*)mat_ls2ws = _mat_ls2ws;
+
+	if (qvec)
+		*(glm::fquat*)qvec = qt;
+	if (tvec)
+		*(glm::fvec3*)tvec = fvec3(x, y, z);
 
 	//fvec4 localpt(1, 2, 3, 1);
 	//fvec4 worldpt = _mat_ls2ws * localpt;
