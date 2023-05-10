@@ -38,7 +38,7 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 #include "CArmCalibration.h"
 
-#define USE_MOTIVE
+//#define USE_MOTIVE
 #define DESIRED_SCREEN_W 1000
 #define DESIRED_SCREEN_H 1000
 #define USE_WHND true
