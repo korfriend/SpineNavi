@@ -315,19 +315,6 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 	public:
 		track_info() { }
 
-		bool GetRigidBody(const string& rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet) {
-			auto it = __rbinfo.find(rbName);
-			if (it == __rbinfo.end()) return false;
-			auto& v = it->second;
-			if (matLS2WS)
-				*matLS2WS = std::any_cast<glm::fmat4x4>(v[LS2WS]);
-			if (mkMSE)
-				*mkMSE = std::any_cast<float>(v[MK_MSE]);
-			if (rbmkSet)
-				*rbmkSet = std::any_cast<map<string, map<MKINFO, std::any>>>(v[RB_MKSET]);
-			return true;
-		}
-
 		int NumRigidBodies() {
 			return (int)__rbinfo.size();
 		}
