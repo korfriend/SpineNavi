@@ -257,50 +257,6 @@ struct avr_trk
 	}
 };
 
-void UpdateAvrTrackInfo2Scene(const avr_trk& avrTrack) 
-{
-	{
-		glm::fmat4x4 matLS2WS = avrTrack.mat_rb2ws;
-			int aidAxis = vzmutils::GetSceneItemIdByName(rbName);
-			vzm::ActorParameters apAxis;
-			vzm::GetActorParams(aidAxis, apAxis);
-			apAxis.is_visible = true;
-
-			//if (storeAvrCarmTrackinfo)
-			//	matLS2WS = rbMapTrAvr[rbName];
-
-			apAxis.SetLocalTransform(__FP matLS2WS);
-			vzm::SetActorParams(aidAxis, apAxis);
-	
-	}
-
-	for (int i = 0; i < numMKs; i++) {
-		std::map<navihelpers::track_info::MKINFO, std::any> mk;
-		if (trackInfo.GetMarkerByIdx(i, mk)) {
-			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
-			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
-
-			//if (storeAvrCarmTrackinfo)
-			//{
-			//	auto mkp = mkPosTest1Avr.find(mkName);
-			//	if (mkp != mkPosTest1Avr.end())
-			//		pos = mkPosTest1Avr[mkName];
-			//}
-
-			glm::fmat4x4 matLS2WS = glm::translate(pos);
-			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
-			matLS2WS = matLS2WS * matScale;
-			int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
-			vzm::ActorParameters apMarker;
-			vzm::GetActorParams(aidMarker, apMarker);
-			apMarker.is_visible = true;
-			apMarker.is_pickable = true;
-			apMarker.SetLocalTransform(__FP matLS2WS);
-			vzm::SetActorParams(aidMarker, apMarker);
-		}
-	}
-}
-
 void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 {
 	static int frameCount = 0;
@@ -355,27 +311,27 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 	memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
 
 	map<string, avr_trk> cArmCalibScans; // string ... tracking csv file
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/7802.png", "../data/c-arm 2023-05-09/7802");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/7803.png", "../data/c-arm 2023-05-09/7803");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/7802.png", "../data/c-arm 2023-05-09/7802");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/7803.png", "../data/c-arm 2023-05-09/7803");
 	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/7804.png", "../data/c-arm 2023-05-09/7804");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/7805.png", "../data/c-arm 2023-05-09/7805");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/7806.png", "../data/c-arm 2023-05-09/7806");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/7807.png", "../data/c-arm 2023-05-09/7807");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/7808.png", "../data/c-arm 2023-05-09/7808");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/7809.png", "../data/c-arm 2023-05-09/7809");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/7810.png", "../data/c-arm 2023-05-09/7810");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/7811.png", "../data/c-arm 2023-05-09/7811");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/7812.png", "../data/c-arm 2023-05-09/7812");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/7813.png", "../data/c-arm 2023-05-09/7813");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/7814.png", "../data/c-arm 2023-05-09/7814");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/7815.png", "../data/c-arm 2023-05-09/7815");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/7817.png", "../data/c-arm 2023-05-09/7817");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/7818.png", "../data/c-arm 2023-05-09/7818");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/7819.png", "../data/c-arm 2023-05-09/7819");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/7820.png", "../data/c-arm 2023-05-09/7820");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/7821.png", "../data/c-arm 2023-05-09/7821");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/7822.png", "../data/c-arm 2023-05-09/7822");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/7823.png", "../data/c-arm 2023-05-09/7823");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/7805.png", "../data/c-arm 2023-05-09/7805");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/7806.png", "../data/c-arm 2023-05-09/7806");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/7807.png", "../data/c-arm 2023-05-09/7807");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/7808.png", "../data/c-arm 2023-05-09/7808");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/7809.png", "../data/c-arm 2023-05-09/7809");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/7810.png", "../data/c-arm 2023-05-09/7810");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/7811.png", "../data/c-arm 2023-05-09/7811");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/7812.png", "../data/c-arm 2023-05-09/7812");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/7813.png", "../data/c-arm 2023-05-09/7813");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/7814.png", "../data/c-arm 2023-05-09/7814");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/7815.png", "../data/c-arm 2023-05-09/7815");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/7817.png", "../data/c-arm 2023-05-09/7817");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/7818.png", "../data/c-arm 2023-05-09/7818");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/7819.png", "../data/c-arm 2023-05-09/7819");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/7820.png", "../data/c-arm 2023-05-09/7820");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/7821.png", "../data/c-arm 2023-05-09/7821");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/7822.png", "../data/c-arm 2023-05-09/7822");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/7823.png", "../data/c-arm 2023-05-09/7823");
 
 	auto string2cid = [](const std::string id) {
 		std::bitset<128> cid;
@@ -618,75 +574,87 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		avrTrkInfo.mat_ws2rb = glm::inverse(avrTrkInfo.mat_rb2ws);
 
 		// Add a capture Scene
+		int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
+		if(sidScene != 0)
 		{
-			int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
 			int aidGroupCArmCam = 0;
 			vzm::ActorParameters apGroupCams;
 			vzm::NewActor(apGroupCams, "Tracking C-Arm Group {" + to_string(scanCount + 1) + "}", aidGroupCArmCam);
 			vzm::AppendSceneItemToSceneTree(aidGroupCArmCam, sidScene);
-			{
-				navihelpers::track_info& trackInfo = trackingFrames[0];
+			
+			vzm::ActorParameters apAxis;
+			apAxis.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
+			apAxis.is_visible = true;
+			apAxis.line_thickness = 3;
+			apAxis.SetLocalTransform(__FP avrTrkInfo.mat_rb2ws);
+			int aidRbAxis = 0;
+			string actorName = cArmRbName + ":Scan" + to_string(scanCount + 1);
+			vzm::NewActor(apAxis, actorName, aidRbAxis);
+			vzm::AppendSceneItemToSceneTree(aidRbAxis, aidGroupCArmCam);
 
-				for (int i = 0; i < numAllFramesRBs; i++) {
-					std::string rbName;
-					if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, NULL, NULL)) {
-						vzm::ActorParameters apAxis;
-						apAxis.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
-						apAxis.is_visible = false;
-						apAxis.line_thickness = 3;
-						int aidRbAxis = 0;
-						vzm::NewActor(apAxis, rbName + ":Scan" + to_string(scanCount + 1), aidRbAxis);
-						vzm::AppendSceneItemToSceneTree(aidRbAxis, aidGroupCArmCam);
+			std::vector<glm::fvec3> pinfo(3);
+			pinfo[0] = glm::fvec3(0, 0, 0);
+			pinfo[1] = glm::fvec3(-1, 0, 0);
+			pinfo[2] = glm::fvec3(0, -1, 0);
+			int oidLabelText = 0;
+			vzm::GenerateTextObject((float*)&pinfo[0], actorName, 0.07, true, false, oidLabelText);
+			vzm::ActorParameters apLabelText;
+			apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
+			*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+			int aidLabelText = 0;
+			vzm::NewActor(apLabelText, actorName + ":Label", aidLabelText);
+			vzm::AppendSceneItemToSceneTree(aidLabelText, aidRbAxis);
+			
+			for (int i = 0; i < numCalibRbMKs; i++) {
+				vzm::ActorParameters apMarker;
+				apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+				apMarker.is_visible = true;
+				apMarker.is_pickable = true;
 
-						std::vector<glm::fvec3> pinfo(3);
-						pinfo[0] = glm::fvec3(0, 0, 0);
-						pinfo[1] = glm::fvec3(-1, 0, 0);
-						pinfo[2] = glm::fvec3(0, -1, 0);
-						int oidLabelText = 0;
-						vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.07, true, false, oidLabelText);
-						vzm::ActorParameters apLabelText;
-						apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
-						*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-						int aidLabelText = 0;
-						vzm::NewActor(apLabelText, rbName + ":Label" + ":Scan" + to_string(scanCount + 1), aidLabelText);
-						vzm::AppendSceneItemToSceneTree(aidLabelText, aidRbAxis);
-					}
-				}
+				glm::fvec3 posRb = avrTrkInfo.rbMarkers_calibRb[i];
+				glm::fvec3 posWs = avrTrkInfo.wsMarkers_calibRb[i];
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
+				glm::fmat4x4 matLS2WS_Rb = glm::translate(posRb);
+				glm::fmat4x4 matLS2WS_Ws = glm::translate(posWs);
+				matLS2WS_Rb = matLS2WS_Rb * matScale;
+				matLS2WS_Ws = matLS2WS_Ws * matScale;
 
-				for (int i = 0; i < numAllFramesMKs; i++) {
-					std::map<navihelpers::track_info::MKINFO, std::any> mk;
-					if (trackInfo.GetMarkerByIdx(i, mk)) {
-						vzm::ActorParameters apMarker;
-						apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-						apMarker.is_visible = false;
-						*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
-						int aidMarker = 0;
-						std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
-						vzm::NewActor(apMarker, mkName + ":Scan" + to_string(scanCount + 1), aidMarker);
-						vzm::AppendSceneItemToSceneTree(aidMarker, aidGroupCArmCam);
+				*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 0, 1.f); // rgba
+				apMarker.SetLocalTransform(__FP matLS2WS_Rb);
+				int aidMarker_Rb = 0;
+				vzm::NewActor(apMarker, "Rb" + to_string(i) + ":Scan" + to_string(scanCount + 1), aidMarker_Rb);
+				vzm::AppendSceneItemToSceneTree(aidMarker_Rb, aidGroupCArmCam);
 
-						if (mkName.find("test1") != std::string::npos) {
-							std::vector<glm::fvec3> pinfo(3);
-							pinfo[0] = glm::fvec3(0, 1, 0);
-							pinfo[1] = glm::fvec3(0, 0, -1);
-							pinfo[2] = glm::fvec3(0, -1, 0);
-							int oidLabelText = 0;
-							vzm::GenerateTextObject((float*)&pinfo[0], mkName.substr(6, mkName.length() - 1), 2, true, false, oidLabelText, true);
-							vzm::ActorParameters apLabelText;
-							//apLabelText.is_visible = true;
-							apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
-							//apLabelText.script_params.SetParam("_bool_IsScaleFree", true);
-							*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-							int aidLabelText = 0;
-							vzm::NewActor(apLabelText, mkName + ":Label", aidLabelText);
-							vzm::AppendSceneItemToSceneTree(aidLabelText, aidMarker);
-						}
-					}
-				}
+				*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1.f, 1.f, 1.f); // rgba
+				apMarker.SetLocalTransform(__FP matLS2WS_Ws);
+				int aidMarker_Ws = 0;
+				vzm::NewActor(apMarker, "Ws" + to_string(i) + ":Scan" + to_string(scanCount + 1), aidMarker_Ws);
+				vzm::AppendSceneItemToSceneTree(aidMarker_Ws, aidGroupCArmCam);
+
+				std::vector<glm::fvec3> pinfo(3);
+				pinfo[0] = glm::fvec3(0, 1, 0);
+				pinfo[1] = glm::fvec3(0, 0, -1);
+				pinfo[2] = glm::fvec3(0, -1, 0);
+				int oidLabelText_Rb = 0, oidLabelText_Ws = 0;
+				vzm::GenerateTextObject((float*)&pinfo[0], "Rb" + to_string(i) + ":Scan" + to_string(scanCount + 1), 2, true, false, oidLabelText_Rb, true);
+				vzm::GenerateTextObject((float*)&pinfo[0], "Ws" + to_string(i) + ":Scan" + to_string(scanCount + 1), 2, true, false, oidLabelText_Ws, true);
+				
+				vzm::ActorParameters apLabelText;
+				*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+				//apLabelText.script_params.SetParam("_bool_IsScaleFree", true);
+
+				apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText_Rb);
+				int aidLabelText_Rb = 0;
+				vzm::NewActor(apLabelText, "Rb" + to_string(i) + ":Scan" + to_string(scanCount + 1) + ":Label", aidLabelText_Rb);
+				vzm::AppendSceneItemToSceneTree(aidLabelText_Rb, aidMarker_Rb);
+
+				apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText_Ws);
+				int aidLabelText_Ws = 0;
+				vzm::NewActor(apLabelText, "Ws" + to_string(i) + ":Scan" + to_string(scanCount + 1) + ":Label", aidLabelText_Ws);
+				vzm::AppendSceneItemToSceneTree(aidLabelText_Ws, aidMarker_Ws);
 			}
+
 		}
-
-
 
 		// compute calibation
 		const bool mirrorHorizontal = true;
@@ -809,8 +777,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	vzm::InitEngineLib("SpineNavi");
 	vzm::SetLogConfiguration(true, 4);
 
-	CalibrateCamPoseForCArmRB("../data/Tracking 2023-04-19/carm_intrinsics.txt", "c-arm", "test1", 7);
-
 	// Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_SCALIBRATORWIN, szWindowClass, MAX_LOADSTRING);
@@ -823,6 +789,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
 	SceneInit();
+	CalibrateCamPoseForCArmRB("../data/Tracking 2023-05-09/carm_intrinsics.txt", "c-arm", "test1", 7);
 
 	SetTimer(g_hWnd, NULL, 10, TimerProc);
 
