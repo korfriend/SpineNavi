@@ -200,8 +200,8 @@ int arAnimationKeyFrame = -1;
 std::vector<vzm::CameraParameters> cpInterCams(numAnimationCount);
 
 void Render() {
-	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
-	int cidCam1 = vzmutils::GetSceneItemIdByName("World Camera");
+	int sidScene = vzmutils::GetSceneItemIdByName("Scene2"); // Scene1
+	int cidCam1 = vzmutils::GetSceneItemIdByName("CArm Camera"); // World Camera
 
 	if (sidScene != 0 && cidCam1 != 0) {
 		// show case
@@ -282,7 +282,6 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	Render();
 }
 
-
 void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::string& cArmRbName, const std::string& calibRbName, const int numCalibRbMKs)
 {
 	using namespace std;
@@ -311,27 +310,27 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 	memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
 
 	map<string, avr_trk> cArmCalibScans; // string ... tracking csv file
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/7802.png", "../data/c-arm 2023-05-09/7802");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/7803.png", "../data/c-arm 2023-05-09/7803");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/7804.png", "../data/c-arm 2023-05-09/7804");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/7802.png", "../data/c-arm 2023-05-09/7802");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/7803.png", "../data/c-arm 2023-05-09/7803");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/7804.png", "../data/c-arm 2023-05-09/7804");
 	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/7805.png", "../data/c-arm 2023-05-09/7805");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/7806.png", "../data/c-arm 2023-05-09/7806");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/7807.png", "../data/c-arm 2023-05-09/7807");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/7808.png", "../data/c-arm 2023-05-09/7808");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/7809.png", "../data/c-arm 2023-05-09/7809");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/7810.png", "../data/c-arm 2023-05-09/7810");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/7811.png", "../data/c-arm 2023-05-09/7811");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/7812.png", "../data/c-arm 2023-05-09/7812");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/7813.png", "../data/c-arm 2023-05-09/7813");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/7814.png", "../data/c-arm 2023-05-09/7814");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/7815.png", "../data/c-arm 2023-05-09/7815");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/7817.png", "../data/c-arm 2023-05-09/7817");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/7818.png", "../data/c-arm 2023-05-09/7818");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/7819.png", "../data/c-arm 2023-05-09/7819");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/7820.png", "../data/c-arm 2023-05-09/7820");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/7821.png", "../data/c-arm 2023-05-09/7821");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/7822.png", "../data/c-arm 2023-05-09/7822");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/7823.png", "../data/c-arm 2023-05-09/7823");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/7806.png", "../data/c-arm 2023-05-09/7806");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/7807.png", "../data/c-arm 2023-05-09/7807");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/7808.png", "../data/c-arm 2023-05-09/7808");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/7809.png", "../data/c-arm 2023-05-09/7809");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/7810.png", "../data/c-arm 2023-05-09/7810");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/7811.png", "../data/c-arm 2023-05-09/7811");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/7812.png", "../data/c-arm 2023-05-09/7812");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/7813.png", "../data/c-arm 2023-05-09/7813");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/7814.png", "../data/c-arm 2023-05-09/7814");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/7815.png", "../data/c-arm 2023-05-09/7815");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/7817.png", "../data/c-arm 2023-05-09/7817");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/7818.png", "../data/c-arm 2023-05-09/7818");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/7819.png", "../data/c-arm 2023-05-09/7819");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/7820.png", "../data/c-arm 2023-05-09/7820");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/7821.png", "../data/c-arm 2023-05-09/7821");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/7822.png", "../data/c-arm 2023-05-09/7822");
+	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/7823.png", "../data/c-arm 2023-05-09/7823");
 
 	auto string2cid = [](const std::string id) {
 		std::bitset<128> cid;
@@ -362,6 +361,8 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 	vector<cv::Point3f> ptsWsMk3ds(numCalibRbMKs* cArmCalibScans.size());
 	vector<cv::Point3f> ptsRbMk3ds(numCalibRbMKs* cArmCalibScans.size());
 	int scanCount = 0;
+
+	glm::ivec2 imageWH;
 
 	for (auto& calibScan : cArmCalibScans) {
 		rapidcsv::Document trackingData(calibScan.first, rapidcsv::LabelParams(0, 0));
@@ -670,6 +671,9 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		vector<cv::Point3f> ptsWs3d_single(numCalibRbMKs);
 
 		cv::Mat imgCArm = cv::imread(avrTrkInfo.xRayScanImg);
+		{
+			imageWH = glm::ivec2(imgCArm.cols, imgCArm.rows);
+		}
 		for (int i = 0; i < numCalibRbMKs; i++) {
 			float x = mirrorHorizontal? imgCArm.cols - (float)pos2Ds.at<int>(i, 0) : (float)pos2Ds.at<int>(i, 0);
 			float y = (float)pos2Ds.at<int>(i, 1);
@@ -724,7 +728,9 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		cv::Mat rvec, tvec;
 		vector<cv::Point3f>& pts3d = i == 0 ? ptsRbMk3ds : ptsWsMk3ds;
 		cv::solvePnP(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
-
+		cv::solvePnPRefineLM(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
+		cv::solvePnPRefineVVS(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
+		
 		{
 			// Reproject the 3D points onto the image plane using the camera calibration
 			std::vector<cv::Point2f> imagePointsReprojected;
@@ -740,6 +746,128 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 			fs.write("rvec", rvec);
 			fs.write("tvec", tvec);
 			fs.release();
+		}
+	}
+
+	// scene 2
+	{
+		int sidScene2 = 0;
+		vzm::NewScene("Scene2", sidScene2);
+
+		for (int i = 0; i < 2; i++) { // Rb and then Ws
+
+			cv::Mat rvec, tvec;
+			cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::READ);
+			fs["rvec"] >> rvec;
+			fs["tvec"] >> tvec;
+			fs.release();
+
+			cv::Mat matR;
+			cv::Rodrigues(rvec, matR);
+
+			// note, here camera frame (notation 'CA', opencv convention) is defined with
+			// z axis as viewing direction
+			// -y axis as up vector
+			glm::fmat4x4 matRB2CA = glm::fmat4x4(1);
+			matRB2CA[0][0] = (float)matR.at<double>(0, 0);
+			matRB2CA[0][1] = (float)matR.at<double>(1, 0);
+			matRB2CA[0][2] = (float)matR.at<double>(2, 0);
+			matRB2CA[1][0] = (float)matR.at<double>(0, 1);
+			matRB2CA[1][1] = (float)matR.at<double>(1, 1);
+			matRB2CA[1][2] = (float)matR.at<double>(2, 1);
+			matRB2CA[2][0] = (float)matR.at<double>(0, 2);
+			matRB2CA[2][1] = (float)matR.at<double>(1, 2);
+			matRB2CA[2][2] = (float)matR.at<double>(2, 2);
+			matRB2CA[3][0] = (float)((double*)tvec.data)[0];
+			matRB2CA[3][1] = (float)((double*)tvec.data)[1];
+			matRB2CA[3][2] = (float)((double*)tvec.data)[2];
+
+			glm::fmat4x4 matCA2RB = glm::inverse(matRB2CA);
+			//glm::fmat4x4 matRB2WS;
+
+			assert(pts2ds.size() == ptsRbMk3ds.size() && pts2ds.size() == ptsWsMk3ds.size());
+			int numSamples = (int)pts2ds.size();
+			for (int j = 0; j < numSamples; j++) {
+				vzm::ActorParameters apMarker;
+				apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+				apMarker.is_visible = true;
+				apMarker.is_pickable = true;
+
+				glm::fvec3 pos3d = *(glm::fvec3*)&(i == 0 ? ptsRbMk3ds[i] : ptsWsMk3ds[i]);
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
+				glm::fmat4x4 matLS2RB = glm::translate(pos3d);
+				matLS2RB = matLS2RB * matScale;
+
+				*(glm::fvec4*)apMarker.color = i == 0? glm::fvec4(1.f, 0, 0, 1.f) : glm::fvec4(0, 1.f, 0, 1.f); // rgba
+				apMarker.SetLocalTransform(__FP matLS2RB);
+				int aidMarker = 0;
+				string actorMkName = (i == 0 ? "Rb" : "Ws") + to_string(j);
+				vzm::NewActor(apMarker, actorMkName, aidMarker);
+				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene2);
+
+				std::vector<glm::fvec3> pinfo(3);
+				pinfo[0] = glm::fvec3(0, 1, 0);
+				pinfo[1] = glm::fvec3(0, 0, -1);
+				pinfo[2] = glm::fvec3(0, -1, 0);
+				int oidLabelText = 0;
+				string labeMkName = (i == 0 ? "Rb:" : "Ws:") + to_string(j);
+				vzm::GenerateTextObject((float*)&pinfo[0], labeMkName, 2, true, false, oidLabelText, true);
+
+				vzm::ActorParameters apLabelText;
+				*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+				//apLabelText.script_params.SetParam("_bool_IsScaleFree", true);
+
+				apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
+				int aidLabelText = 0;
+				vzm::NewActor(apLabelText, labeMkName + ":Label", aidLabelText);
+				vzm::AppendSceneItemToSceneTree(aidLabelText, aidMarker);
+			}
+
+			if (i == 0) {
+				int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
+				int cidCam1 = vzmutils::GetSceneItemIdByName("World Camera");
+
+				vzm::CameraParameters cpCam1;
+				vzm::GetCameraParams(cidCam1, cpCam1);
+				
+				vzm::CameraParameters cpCam2 = cpCam1;
+
+				RECT rc;
+				GetClientRect(g_hWnd, &rc);
+				UINT widthWindow = rc.right - rc.left;
+				UINT heightWindow = rc.bottom - rc.top;
+
+				const float intrinsicRatioX = (float)imageWH.x / widthWindow;
+				const float intrinsicRatioY = (float)imageWH.y / heightWindow;
+
+				cpCam2.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
+				glm::fvec3 pos(0, 0, 0);
+				glm::fvec3 view(0, 0, 1);
+				glm::fvec3 up(0, -1, 0);
+				pos = *(glm::fvec3*)cpCam2.pos = vzmutils::transformPos(pos, matCA2RB);
+				view = *(glm::fvec3*)cpCam2.view = vzmutils::transformVec(view, matCA2RB);
+				up = *(glm::fvec3*)cpCam2.up = vzmutils::transformVec(up, matCA2RB);
+				cpCam2.fx = arrayMatK[0] / intrinsicRatioX;
+				cpCam2.fy = arrayMatK[4] / intrinsicRatioY;
+				cpCam2.sc = arrayMatK[1];
+				cpCam2.cx = arrayMatK[2] / intrinsicRatioX;
+				cpCam2.cy = arrayMatK[5] / intrinsicRatioY;
+				cpCam2.np = 0.2;
+				int cidCam2 = 0;
+				vzm::NewCamera(cpCam2, "CArm Camera", cidCam2);
+
+				vzm::LightParameters lpLight2;
+				lpLight2.is_on_camera = true;
+				lpLight2.is_pointlight = false;
+				*(glm::fvec3*)lpLight2.pos = *(glm::fvec3*)cpCam1.pos;
+				*(glm::fvec3*)lpLight2.dir = *(glm::fvec3*)cpCam1.view;
+				*(glm::fvec3*)lpLight2.up = *(glm::fvec3*)cpCam1.up;
+				int lidLight2 = 0;
+				vzm::NewLight(lpLight2, "World Light 2", lidLight2);
+
+				vzm::AppendSceneItemToSceneTree(cidCam2, sidScene2);
+				vzm::AppendSceneItemToSceneTree(lidLight2, sidScene2);
+			}
 		}
 	}
 
@@ -788,7 +916,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         return FALSE;
     }
 
-	SceneInit();
+	SceneInit();	// camera setting inside SceneInit should be called after InitInstance (which sets windows properties)
 	CalibrateCamPoseForCArmRB("../data/Tracking 2023-05-09/carm_intrinsics.txt", "c-arm", "test1", 7);
 
 	SetTimer(g_hWnd, NULL, 10, TimerProc);
@@ -881,8 +1009,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
-	int cidCam1 = vzmutils::GetSceneItemIdByName("World Camera");
+	static std::string sceneName = "Scene1";
+	static std::string camName = "World Camera";
+	int sidScene = vzmutils::GetSceneItemIdByName("Scene2");
+	int cidCam1 = vzmutils::GetSceneItemIdByName("CArm Camera");
 	float scene_stage_scale = 5.f;
 #ifdef USE_MOTIVE
 	static int activeCarmIdx = -1;
