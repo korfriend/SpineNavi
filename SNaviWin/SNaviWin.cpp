@@ -39,8 +39,8 @@ using namespace Gdiplus;
 #include "CArmCalibration.h"
 
 //#define USE_MOTIVE
-#define DESIRED_SCREEN_W 1000
-#define DESIRED_SCREEN_H 1000
+#define DESIRED_SCREEN_W 700
+#define DESIRED_SCREEN_H 700
 #define USE_WHND true
 bool storeAvrCarmTrackinfo = false;
 std::map<std::string, glm::fmat4x4> rbMapTrAvr;
@@ -470,6 +470,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
+
+
+	//cv::Mat imgCArm = cv::imread("../data/c-arm 2023-04-19/7084.png");
+	//cv::FileStorage fs("../data/Tracking 2023-04-19/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	//cv::Mat _matK;
+	//fs["K"] >> _matK;
+	//cv::Mat _distCoeffs;
+	//fs["DistCoeffs"] >> _distCoeffs;
+	//cv::Mat undistImg;
+	//cv::undistort(imgCArm, undistImg, _matK, _distCoeffs);
+	//cv::imwrite("../data/c-arm 2023-04-19/undist_7084.png", undistImg);
+
+
+
 
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
@@ -946,7 +960,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			}
 		}
 
-		if(0)
+		if(1)
 		{
 			int aidGroupCArmCam = 0;
 			vzm::ActorParameters apGroupCams;
@@ -976,6 +990,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			memcpy(arrayDistCoeffs, _distCoeffs.ptr(), sizeof(double) * 5);
 
 
+			//cv::Mat undistImg;
+			//cv::undistort(imgCArm, undistImg, _matK, _distCoeffs);
+			//
+			////std::string imgFile = "../data/c-arm 2023-04-19/7084.png";
+			//cv::imwrite("../data/c-arm 2023-04-19/undist_7084.png", undistImg);
 			///////////////////////////////////
 
 			cv::Mat rvec, tvec;
@@ -1068,7 +1087,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				fs.release();
 			}
 			else {
-				cv::FileStorage fs("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::READ);
+				//cv::FileStorage fs("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::READ);
+				cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm0.txt", cv::FileStorage::Mode::READ);
 				fs["rvec"] >> rvec;
 				fs["tvec"] >> tvec;
 				__fs << "rvec" << rvec;
@@ -1199,7 +1219,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			unsigned int idxList[6] = { 0, 1, 3, 1, 2, 3 };
 
 			int oidImage = 0;
-			vzm::LoadImageFile(imgFile, oidImage, true, true);
+			vzm::LoadImageFile("../data/c-arm 2023-04-19/undist_7084.png", oidImage, true, true);
 			int oidCArmPlane = 0;
 			vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
 			vzm::ActorParameters apCArmPlane;
@@ -1300,10 +1320,10 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+   //HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+	//   -1200, 10, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	   -1200, 10, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
-   //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	//   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
+	   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
    {
       return FALSE;

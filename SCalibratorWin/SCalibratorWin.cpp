@@ -30,8 +30,8 @@
 #include "../SNaviWin/CArmCalibration.h"
 //#include "tinyxml2.h"
 
-#define DESIRED_SCREEN_W 1000
-#define DESIRED_SCREEN_H 1000
+#define DESIRED_SCREEN_W 700
+#define DESIRED_SCREEN_H 700
 #define USE_WHND true
 
 #define MAX_LOADSTRING 100
@@ -198,10 +198,12 @@ void SceneInit() {
 int numAnimationCount = 50;
 int arAnimationKeyFrame = -1;
 std::vector<vzm::CameraParameters> cpInterCams(numAnimationCount);
+std::string g_sceneName = "Scene1"; // Scene2
+std::string g_camName = "World Camera"; // CArm Camera
 
 void Render() {
-	int sidScene = vzmutils::GetSceneItemIdByName("Scene2"); // Scene1
-	int cidCam1 = vzmutils::GetSceneItemIdByName("CArm Camera"); // World Camera
+	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName); 
+	int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName); 
 
 	if (sidScene != 0 && cidCam1 != 0) {
 		// show case
@@ -282,18 +284,18 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	Render();
 }
 
+std::map<std::string, avr_trk> cArmCalibScans; // string ... tracking csv file
 void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::string& cArmRbName, const std::string& calibRbName, const int numCalibRbMKs)
 {
 	using namespace std;
 
 	double arrayMatK[9] = {};
 	double arrayDistCoeffs[5] = {};
+	cv::Mat _matK, _distCoeffs;
 	{
 		cv::FileStorage fs(intrinsicsFile, cv::FileStorage::Mode::READ);
-		cv::Mat _matK;
 		fs["K"] >> _matK;
 		memcpy(arrayMatK, _matK.ptr(), sizeof(double) * 9);
-		cv::Mat _distCoeffs;
 		fs["DistCoeffs"] >> _distCoeffs;
 		memcpy(arrayDistCoeffs, _distCoeffs.ptr(), sizeof(double) * 5);
 		fs.release();
@@ -309,28 +311,50 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 	cv::Mat distCoeffs(5, 1, CV_64FC1);
 	memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
 
-	map<string, avr_trk> cArmCalibScans; // string ... tracking csv file
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/7802.png", "../data/c-arm 2023-05-09/7802");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/7803.png", "../data/c-arm 2023-05-09/7803");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/7804.png", "../data/c-arm 2023-05-09/7804");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/7805.png", "../data/c-arm 2023-05-09/7805");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/7806.png", "../data/c-arm 2023-05-09/7806");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/7807.png", "../data/c-arm 2023-05-09/7807");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/7808.png", "../data/c-arm 2023-05-09/7808");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/7809.png", "../data/c-arm 2023-05-09/7809");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/7810.png", "../data/c-arm 2023-05-09/7810");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/7811.png", "../data/c-arm 2023-05-09/7811");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/7812.png", "../data/c-arm 2023-05-09/7812");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/7813.png", "../data/c-arm 2023-05-09/7813");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/7814.png", "../data/c-arm 2023-05-09/7814");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/7815.png", "../data/c-arm 2023-05-09/7815");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/7817.png", "../data/c-arm 2023-05-09/7817");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/7818.png", "../data/c-arm 2023-05-09/7818");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/7819.png", "../data/c-arm 2023-05-09/7819");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/7820.png", "../data/c-arm 2023-05-09/7820");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/7821.png", "../data/c-arm 2023-05-09/7821");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/7822.png", "../data/c-arm 2023-05-09/7822");
-	//cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/7823.png", "../data/c-arm 2023-05-09/7823");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7802.png", "../data/c-arm 2023-05-09/7802.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7803.png", "../data/c-arm 2023-05-09/7803.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7804.png", "../data/c-arm 2023-05-09/7804.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7805.png", "../data/c-arm 2023-05-09/7805.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7806.png", "../data/c-arm 2023-05-09/7806.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7807.png", "../data/c-arm 2023-05-09/7807.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7808.png", "../data/c-arm 2023-05-09/7808.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7809.png", "../data/c-arm 2023-05-09/7809.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7810.png", "../data/c-arm 2023-05-09/7810.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7811.png", "../data/c-arm 2023-05-09/7811.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7812.png", "../data/c-arm 2023-05-09/7812.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7813.png", "../data/c-arm 2023-05-09/7813.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7814.png", "../data/c-arm 2023-05-09/7814.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7815.png", "../data/c-arm 2023-05-09/7815.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7817.png", "../data/c-arm 2023-05-09/7817.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7818.png", "../data/c-arm 2023-05-09/7818.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7819.png", "../data/c-arm 2023-05-09/7819.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7820.png", "../data/c-arm 2023-05-09/7820.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7821.png", "../data/c-arm 2023-05-09/7821.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7822.png", "../data/c-arm 2023-05-09/7822.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7823.png", "../data/c-arm 2023-05-09/7823.txt");
+	
+	set<string> cArmCalibScansExcluded;
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv");
+	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv");
 
 	auto string2cid = [](const std::string id) {
 		std::bitset<128> cid;
@@ -356,15 +380,49 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		}
 		return cid;
 	};
+	auto computeReprojErr = [](const vector<cv::Point2f>& pts2d, const vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
+		float avrDiff = 0;
+		maxErr = 0;
+		int numPts = (int)pts2d.size();
+		for (int i = 0; i < (int)pts2d.size(); i++) {
+			float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
+			maxErr = max(maxErr, diff);
+			avrDiff += diff / (float)numPts;
+		}
+		return avrDiff;
+	};
 
-	vector<cv::Point2f> pts2ds(numCalibRbMKs* cArmCalibScans.size());
-	vector<cv::Point3f> ptsWsMk3ds(numCalibRbMKs* cArmCalibScans.size());
-	vector<cv::Point3f> ptsRbMk3ds(numCalibRbMKs* cArmCalibScans.size());
+	int numValidScan = (int)(cArmCalibScans.size() - cArmCalibScansExcluded.size());
+	vector<cv::Point2f> pts2ds(numCalibRbMKs* numValidScan);
+	vector<cv::Point3f> ptsWsMk3ds(numCalibRbMKs* numValidScan);
+	vector<cv::Point3f> ptsRbMk3ds(numCalibRbMKs* numValidScan);
+
+	vector<cv::Point2f> pts2ds_test(numCalibRbMKs* cArmCalibScans.size());
+	vector<cv::Point3f> ptsWsMk3ds_test(numCalibRbMKs* cArmCalibScans.size());
+	vector<cv::Point3f> ptsRbMk3ds_test(numCalibRbMKs* cArmCalibScans.size());
 	int scanCount = 0;
+	int scanCount_test = 0;
 
 	glm::ivec2 imageWH;
+	cv::Mat imgCArm = cv::imread(cArmCalibScans.begin()->second.xRayScanImg);
+	imageWH = glm::ivec2(imgCArm.cols, imgCArm.rows);
+
+	// https://docs.opencv.org/4.x/d4/d94/tutorial_camera_calibration.html
+	//cameraMatrix = cv::getOptimalNewCameraMatrix(cameraMatrix, distCoeffs, cv::Size(imageWH.x, imageWH.y))
 
 	for (auto& calibScan : cArmCalibScans) {
+
+		//{
+		//	cv::Mat img = cv::imread(calibScan.second.xRayScanImg);
+		//	cv::Mat imgUndist;
+		//	cv::undistort(img, imgUndist, _matK, _distCoeffs);
+		//	string fileName = calibScan.second.xRayScanImg;
+		//	size_t lastindex = fileName.find_last_of("/");
+		//	string path = fileName.substr(0, lastindex + 1);
+		//	string name = fileName.substr(lastindex + 1, fileName.length() - 1);
+		//	cv::imwrite(path + "undist_" + name, imgUndist);
+		//}
+
 		rapidcsv::Document trackingData(calibScan.first, rapidcsv::LabelParams(0, 0));
 		
 		// trackingData
@@ -663,32 +721,35 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		cv::FileStorage fs(avrTrkInfo.xRayCirclesResult, cv::FileStorage::Mode::READ | cv::FileStorage::Mode::FORMAT_YAML);
 		assert(fs.isOpened());
 		cv::Mat pos2Ds;
-		fs["my_data"] >> pos2Ds;
+		fs["circle_center_pos"] >> pos2Ds;
 		fs.release();
 
 		vector<cv::Point2f> pts2d_single(numCalibRbMKs);
 		vector<cv::Point3f> ptsRb3d_single(numCalibRbMKs);
 		vector<cv::Point3f> ptsWs3d_single(numCalibRbMKs);
 
-		cv::Mat imgCArm = cv::imread(avrTrkInfo.xRayScanImg);
-		{
-			imageWH = glm::ivec2(imgCArm.cols, imgCArm.rows);
-		}
+		bool isCalibScan = cArmCalibScansExcluded.find(calibScan.first) == cArmCalibScansExcluded.end();
 		for (int i = 0; i < numCalibRbMKs; i++) {
-			float x = mirrorHorizontal? imgCArm.cols - (float)pos2Ds.at<int>(i, 0) : (float)pos2Ds.at<int>(i, 0);
-			float y = (float)pos2Ds.at<int>(i, 1);
-			pts2ds[(scanCount)*numCalibRbMKs + i] = cv::Point2f((float)pos2Ds.at<int>(i, 0), (float)pos2Ds.at<int>(i, 1));
+			float x = mirrorHorizontal? imageWH.x - (float)pos2Ds.at<double>(i, 0) : (float)pos2Ds.at<double>(i, 0);
+			float y = (float)pos2Ds.at<double>(i, 1);
+			pts2ds_test[(scanCount_test)*numCalibRbMKs + i] = cv::Point2f(x, y);
+			if(isCalibScan) pts2ds[(scanCount)*numCalibRbMKs + i] = cv::Point2f(x, y);
 		}
-		memcpy(&pts2d_single[0], &pts2ds[(scanCount)*numCalibRbMKs], sizeof(cv::Point2f) * numCalibRbMKs);
+		memcpy(&pts2d_single[0], &pts2ds_test[(scanCount_test)*numCalibRbMKs], sizeof(cv::Point2f) * numCalibRbMKs);
 
 		for (int i = 0; i < numCalibRbMKs; i++) {
 			glm::fvec3 p1 = vzmutils::transformPos(avrTrkInfo.rbMarkers_calibRb[i], avrTrkInfo.mat_ws2rb);
 			glm::fvec3 p2 = vzmutils::transformPos(avrTrkInfo.wsMarkers_calibRb[i], avrTrkInfo.mat_ws2rb);
-			memcpy(&ptsRbMk3ds[(scanCount)*numCalibRbMKs + i], &p1, sizeof(glm::fvec3));
-			memcpy(&ptsWsMk3ds[(scanCount)*numCalibRbMKs + i], &p2, sizeof(glm::fvec3));
+			memcpy(&ptsRbMk3ds_test[(scanCount_test)*numCalibRbMKs + i], &p1, sizeof(glm::fvec3));
+			memcpy(&ptsWsMk3ds_test[(scanCount_test)*numCalibRbMKs + i], &p2, sizeof(glm::fvec3));
+			if (isCalibScan) {
+				memcpy(&ptsRbMk3ds[(scanCount)*numCalibRbMKs + i], &p1, sizeof(glm::fvec3));
+				memcpy(&ptsWsMk3ds[(scanCount)*numCalibRbMKs + i], &p2, sizeof(glm::fvec3));
+			}
 		}
-		memcpy(&ptsRb3d_single[0], &ptsRbMk3ds[(scanCount)*numCalibRbMKs], sizeof(cv::Point3f) * numCalibRbMKs);
-		memcpy(&ptsWs3d_single[0], &ptsWsMk3ds[(scanCount)*numCalibRbMKs], sizeof(cv::Point3f) * numCalibRbMKs);
+		memcpy(&ptsRb3d_single[0], &ptsRbMk3ds_test[(scanCount_test)*numCalibRbMKs], sizeof(cv::Point3f) * numCalibRbMKs);
+		memcpy(&ptsWs3d_single[0], &ptsWsMk3ds_test[(scanCount_test)*numCalibRbMKs], sizeof(cv::Point3f) * numCalibRbMKs);
+
 
 		for (int i = 0; i < 2; i++) {
 			cv::Mat rvec, tvec;
@@ -701,8 +762,11 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 				cv::projectPoints(pts3d_single, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
 
 				// Compute the reprojection error
-				double reprojectionError = cv::norm(pts2d_single, imagePointsReprojected, cv::NORM_L2) / pts2d_single.size();
-				cout << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << endl;
+				float maxErr = 0;
+				float reprojectionError = computeReprojErr(pts2d_single, imagePointsReprojected, maxErr);
+				//double reprojectionError = cv::norm(cv::Mat(pts2d_single), cv::Mat(imagePointsReprojected), cv::NORM_L2) / pts2d_single.size();
+				//cout << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << endl;
+				cout << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
 			}
 
 			{
@@ -713,7 +777,10 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 			}
 		}
 
-
+		if (isCalibScan) {
+			scanCount++;
+		}
+		scanCount_test++;
 
 		//vector<cv::Point2i> points2Ds(numCalibRbMKs);
 		//memcpy(&points2Ds[0], pos2Ds.ptr(), sizeof(cv::Point2f) * 7);
@@ -721,24 +788,27 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		//std::map<int, cv::Point2f> pts2dMap; 
 		//for(int i = 0; i < numCalibRbMKs; i++)
 		//	pts2dMap[(1 + scanCount) * 100 + i] = cv::Point2f((float)pos2Ds.at<int>(i, 0), (float)pos2Ds.at<int>(i, 1));
-		scanCount++;
 	}
 
 	for (int i = 0; i < 2; i++) {
 		cv::Mat rvec, tvec;
 		vector<cv::Point3f>& pts3d = i == 0 ? ptsRbMk3ds : ptsWsMk3ds;
 		cv::solvePnP(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
-		cv::solvePnPRefineLM(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
-		cv::solvePnPRefineVVS(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
+		//cv::solvePnPRansac(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec, false, 100, 10.f);
+		//cv::solvePnPRefineLM(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
+		//cv::solvePnPRefineVVS(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
 		
 		{
 			// Reproject the 3D points onto the image plane using the camera calibration
+			vector<cv::Point3f>& pts3d_test = i == 0 ? ptsRbMk3ds_test : ptsWsMk3ds_test;
 			std::vector<cv::Point2f> imagePointsReprojected;
-			cv::projectPoints(pts3d, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+			cv::projectPoints(pts3d_test, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
 
 			// Compute the reprojection error
-			double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
-			cout << "************* " << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << endl;
+			float maxErr = 0;
+			float reprojectionError = computeReprojErr(pts2ds_test, imagePointsReprojected, maxErr);
+			//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
+			cout << "************* " << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
 		}
 
 		{
@@ -753,6 +823,14 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 	{
 		int sidScene2 = 0;
 		vzm::NewScene("Scene2", sidScene2);
+
+		vzm::ActorParameters apAxis;
+		apAxis.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
+		apAxis.is_visible = true;
+		apAxis.line_thickness = 5;
+		int aidRbAxis = 0;
+		vzm::NewActor(apAxis, "Scene2 Axis", aidRbAxis);
+		vzm::AppendSceneItemToSceneTree(aidRbAxis, sidScene2);
 
 		for (int i = 0; i < 2; i++) { // Rb and then Ws
 
@@ -793,7 +871,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 				apMarker.is_visible = true;
 				apMarker.is_pickable = true;
 
-				glm::fvec3 pos3d = *(glm::fvec3*)&(i == 0 ? ptsRbMk3ds[i] : ptsWsMk3ds[i]);
+				glm::fvec3 pos3d = *(glm::fvec3*)&(i == 0 ? ptsRbMk3ds[j] : ptsWsMk3ds[j]);
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
 				glm::fmat4x4 matLS2RB = glm::translate(pos3d);
 				matLS2RB = matLS2RB * matScale;
@@ -806,9 +884,9 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene2);
 
 				std::vector<glm::fvec3> pinfo(3);
-				pinfo[0] = glm::fvec3(0, 1, 0);
-				pinfo[1] = glm::fvec3(0, 0, -1);
-				pinfo[2] = glm::fvec3(0, -1, 0);
+				pinfo[0] = glm::fvec3(0, 0, 1);
+				pinfo[1] = glm::fvec3(1, 0, 0);
+				pinfo[2] = glm::fvec3(0, 0, 1);
 				int oidLabelText = 0;
 				string labeMkName = (i == 0 ? "Rb:" : "Ws:") + to_string(j);
 				vzm::GenerateTextObject((float*)&pinfo[0], labeMkName, 2, true, false, oidLabelText, true);
@@ -852,7 +930,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 				cpCam2.sc = arrayMatK[1];
 				cpCam2.cx = arrayMatK[2] / intrinsicRatioX;
 				cpCam2.cy = arrayMatK[5] / intrinsicRatioY;
-				cpCam2.np = 0.2;
+				cpCam2.np = 0.1;
 				int cidCam2 = 0;
 				vzm::NewCamera(cpCam2, "CArm Camera", cidCam2);
 
@@ -870,27 +948,6 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 			}
 		}
 	}
-
-
-	/*
-	vector<cv::Point3f> pts3Ds(ptsRBS.size());
-	vector<cv::Point2f> pts2Ds(pts2Dmap.size());
-	memcpy(&pts3Ds[0], &ptsRBS[0], sizeof(fvec3)* numCalPts* numCalScans);
-	int i = 0;
-	for (auto it = pts2Dmap.begin(); it != pts2Dmap.end(); it++)
-		pts2Ds[i++] = it->second;
-
-	cv::Mat cameraMatrix(3, 3, CV_64FC1);
-	memcpy(cameraMatrix.ptr(), arrayMatK, sizeof(double) * 9);
-	cv::Mat distCoeffs(5, 1, CV_64FC1);
-	memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
-	cv::solvePnP(pts3Ds, pts2Ds, cameraMatrix, distCoeffs, rvec, tvec);
-
-	cv::FileStorage fs("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::WRITE);
-	fs.write("rvec", rvec);
-	fs.write("tvec", tvec);
-	fs.release();
-	/**/
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -981,8 +1038,11 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
+   //HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+   //   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+	   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
 
    g_hWnd = hWnd;
 
@@ -1009,10 +1069,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-	static std::string sceneName = "Scene1";
-	static std::string camName = "World Camera";
-	int sidScene = vzmutils::GetSceneItemIdByName("Scene2");
-	int cidCam1 = vzmutils::GetSceneItemIdByName("CArm Camera");
+	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
+	int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
 	float scene_stage_scale = 5.f;
 #ifdef USE_MOTIVE
 	static int activeCarmIdx = -1;
@@ -1067,13 +1125,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}break;
 					case char('A') :
 					{
-						double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
-							0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
-							0.00000000e+00, 0.00000000e+00, 1.00000000e+00
-						};
-						double arrayDistCoeffs[5] = { -4.41147907e-02,  1.01898819e+00,  6.79242077e-04,
-							-1.16990433e-02,  3.42748576e-01
-						};
+						//double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
+						//	0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
+						//	0.00000000e+00, 0.00000000e+00, 1.00000000e+00
+						//};
+
+						double arrayMatK[9] = {};
+						cv::FileStorage fs("../data/Tracking 2023-05-09/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+						cv::Mat _matK;
+						fs["K"] >> _matK;
+						memcpy(arrayMatK, _matK.ptr(), sizeof(double) * 9);
+						fs.release();
 
 						int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + to_string(activeCarmIdx));
 
@@ -1213,13 +1275,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						} break;
 		}
 
-		auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
+		auto StoreParams = [](const std::string& targetFolder, const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
 
-			cv::FileStorage __fs("../data/Tracking Test 2023-04-30/" + paramsFileName, cv::FileStorage::Mode::WRITE);
+			cv::FileStorage __fs(targetFolder + paramsFileName, cv::FileStorage::Mode::WRITE);
 
 			double arrayMatK[9] = {};
 			double arrayDistCoeffs[5] = {};
-			cv::FileStorage fs("../data/Tracking 2023-04-19/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+			cv::FileStorage fs(targetFolder + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
 			cv::Mat _matK;
 			fs["K"] >> _matK;
 			__fs << "K" << _matK;
@@ -1228,7 +1290,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			fs["DistCoeffs"] >> _distCoeffs;
 			__fs << "DistCoeffs" << _distCoeffs;
 			memcpy(arrayDistCoeffs, _distCoeffs.ptr(), sizeof(double) * 5);
-			fs.open("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::READ);
+			fs.open(targetFolder + "rb2carm0.txt", cv::FileStorage::Mode::READ);
 			cv::Mat rvec, tvec;
 			fs["rvec"] >> rvec;
 			fs["tvec"] >> tvec;
@@ -1244,18 +1306,38 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			__fs.release();
 		};
 
-		static map<int, int> mapAidGroupCArmCam;
+		static string trkNames[10] = {
+			"../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"
+			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"
+		};
+		//static map<int, int> mapAidGroupCArmCam;
 		static char LOADKEYS[10] = { '1' , '2', '3', '4', '5', '6', '7', '8', '9', '0' };
 		for (int i = 0; i < 10; i++) {
 			if (wParam == LOADKEYS[i]) {
 				// load case
-				auto it = mapAidGroupCArmCam.find(i + 1);
-				if (it != mapAidGroupCArmCam.end())
-					vzm::RemoveSceneItem(it->second);
-				int aidGroup = RegisterCArmImage(sidScene, string("../data/Tracking Test 2023-04-30/") + "test" + to_string(i) + ".txt", "test" + to_string(i));
+				auto itScan = cArmCalibScans.find(trkNames[i]);
+				if (itScan == cArmCalibScans.end())
+					continue;
+				
+				string calibPosInfoFile = "test" + to_string(i) + ".txt";
+				avr_trk& trk = itScan->second;
+				StoreParams("../data/Tracking 2023-05-09/", calibPosInfoFile, trk.mat_rb2ws, trk.xRayScanImg); // key 1
+
+				static int aidGroup = 0;
+				if(aidGroup != 0)
+				vzm::RemoveSceneItem(aidGroup);
+				aidGroup = RegisterCArmImage(sidScene, "../data/Tracking 2023-05-09/" + calibPosInfoFile, "test" + to_string(i));
 				if (aidGroup == -1)
 					break;
-				mapAidGroupCArmCam[i + 1] = aidGroup;
+
 				activeCarmIdx = i;
 				break;
 			}
