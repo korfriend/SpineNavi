@@ -37,7 +37,7 @@
 #define MAX_LOADSTRING 100
 
 // Global Variables:
-HWND g_hWnd;
+HWND g_hWnd, g_hWndDialog1;
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
@@ -46,6 +46,7 @@ WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
 ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK    DiagProc1(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 void UpdateBMP(int cidCam, HWND hWnd) {
@@ -198,8 +199,10 @@ void SceneInit() {
 int numAnimationCount = 50;
 int arAnimationKeyFrame = -1;
 std::vector<vzm::CameraParameters> cpInterCams(numAnimationCount);
-std::string g_sceneName = "Scene1"; // Scene2
-std::string g_camName = "World Camera"; // CArm Camera
+std::string g_sceneName = "Scene1"; // Scene1, Scene2
+std::string g_camName = "World Camera"; // World Camera, CArm Camera
+std::string g_sceneName2 = "Scene2"; // Scene1, Scene2
+std::string g_camName2 = "CArm Camera"; // World Camera, CArm Camera
 
 void Render() {
 	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName); 
@@ -224,6 +227,20 @@ void Render() {
 		else {
 			UpdateBMP(cidCam1, g_hWnd);
 			InvalidateRect(g_hWnd, NULL, FALSE);
+		}
+	}
+
+	int sidScene2 = vzmutils::GetSceneItemIdByName(g_sceneName2);
+	int cidCam2 = vzmutils::GetSceneItemIdByName(g_camName2);
+	if (sidScene2 != 0 && cidCam2 != 0) {
+
+		vzm::RenderScene(sidScene2, cidCam2);
+		
+		if (USE_WHND)
+			vzm::PresentHWND(g_hWndDialog1);
+		else {
+			UpdateBMP(cidCam2, g_hWndDialog1);
+			InvalidateRect(g_hWndDialog1, NULL, FALSE);
 		}
 	}
 }
@@ -284,20 +301,97 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	Render();
 }
 
+std::vector<cv::Point2f> g_pts2ds;
+std::vector<cv::Point3f> g_ptsWsMk3ds;
+std::vector<cv::Point3f> g_ptsRbMk3ds;
+glm::fvec3 g_posCenterMKsRBS = glm::fvec3(0);
+
+void StoreParams(const std::string& targetFolder, const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName, const bool isRb) {
+
+	cv::FileStorage __fs(targetFolder + paramsFileName, cv::FileStorage::Mode::WRITE);
+
+	cv::FileStorage fs(targetFolder + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	cv::Mat _matK;
+	fs["K"] >> _matK;
+	__fs << "K" << _matK;
+	cv::Mat _distCoeffs;
+	fs["DistCoeffs"] >> _distCoeffs;
+	__fs << "DistCoeffs" << _distCoeffs;
+	fs.open(targetFolder + (isRb ? "rb2carm0.txt" : "rb2carm1.txt"), cv::FileStorage::Mode::READ);
+	cv::Mat rvec, tvec;
+	fs["rvec"] >> rvec;
+	fs["tvec"] >> tvec;
+	__fs << "rvec" << rvec;
+	__fs << "tvec" << tvec;
+	fs.release();
+
+
+	cv::Mat ocvRb(4, 4, CV_32FC1);
+	memcpy(ocvRb.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
+	__fs << "rb2wsMat" << ocvRb;
+	__fs << "imgFile" << imgFileName;
+	__fs.release();
+};
+
+float ComputeReprojErr(const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
+	float avrDiff = 0;
+	maxErr = 0;
+	int numPts = (int)pts2d.size();
+	for (int i = 0; i < (int)pts2d.size(); i++) {
+		float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
+		maxErr = std::max(maxErr, diff);
+		avrDiff += diff / (float)numPts;
+	}
+	return avrDiff;
+};
+
+void ComputePose(const std::vector<cv::Point2f>& pts2ds,
+	const std::vector<cv::Point3f>& ptsRbMk3ds, const std::vector<cv::Point3f>& ptsWsMk3ds,
+	const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs,
+	cv::Mat& rvec, cv::Mat& tvec,
+	const std::vector<cv::Point2f>& pts2ds_test,
+	const std::vector<cv::Point3f>& ptsRbMk3ds_test, const std::vector<cv::Point3f>& ptsWsMk3ds_test) {
+	using namespace std;
+	for (int i = 0; i < 2; i++) {
+		cv::Mat rvec, tvec;
+		const vector<cv::Point3f>& pts3d = i == 0 ? ptsRbMk3ds : ptsWsMk3ds;
+		//cv::solvePnP(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
+		cv::solvePnPRansac(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec, false, 100, 10.f);
+		//cv::solvePnPRefineLM(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
+		//cv::solvePnPRefineVVS(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
+
+		{
+			// Reproject the 3D points onto the image plane using the camera calibration
+			const vector<cv::Point3f>& pts3d_test = i == 0 ? ptsRbMk3ds_test : ptsWsMk3ds_test;
+			std::vector<cv::Point2f> imagePointsReprojected;
+			cv::projectPoints(pts3d_test, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+
+			// Compute the reprojection error
+			float maxErr = 0;
+			float reprojectionError = ComputeReprojErr(pts2ds_test, imagePointsReprojected, maxErr);
+			//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
+			cout << "************* " << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
+		}
+
+		{
+			cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::WRITE);
+			fs.write("rvec", rvec);
+			fs.write("tvec", tvec);
+			fs.release();
+		}
+	}
+};
+
 std::map<std::string, avr_trk> cArmCalibScans; // string ... tracking csv file
 void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::string& cArmRbName, const std::string& calibRbName, const int numCalibRbMKs)
 {
 	using namespace std;
 
-	double arrayMatK[9] = {};
-	double arrayDistCoeffs[5] = {};
-	cv::Mat _matK, _distCoeffs;
+	cv::Mat cameraMatrix, distCoeffs;
 	{
 		cv::FileStorage fs(intrinsicsFile, cv::FileStorage::Mode::READ);
-		fs["K"] >> _matK;
-		memcpy(arrayMatK, _matK.ptr(), sizeof(double) * 9);
-		fs["DistCoeffs"] >> _distCoeffs;
-		memcpy(arrayDistCoeffs, _distCoeffs.ptr(), sizeof(double) * 5);
+		fs["K"] >> cameraMatrix;
+		fs["DistCoeffs"] >> distCoeffs;
 		fs.release();
 	}
 	int oidAxis = 0, oidMarker = 0;
@@ -306,32 +400,68 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		glm::fvec4 pos(0, 0, 0, 1.f);
 		vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
 	}
-	cv::Mat cameraMatrix(3, 3, CV_64FC1);
-	memcpy(cameraMatrix.ptr(), arrayMatK, sizeof(double) * 9);
-	cv::Mat distCoeffs(5, 1, CV_64FC1);
-	memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
+	//cv::Mat cameraMatrix(3, 3, CV_64FC1);
+	//memcpy(cameraMatrix.ptr(), arrayMatK, sizeof(double) * 9);
+	//cv::Mat distCoeffs(5, 1, CV_64FC1);
+	//memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
 
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7802.png", "../data/c-arm 2023-05-09/7802.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7803.png", "../data/c-arm 2023-05-09/7803.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7804.png", "../data/c-arm 2023-05-09/7804.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7805.png", "../data/c-arm 2023-05-09/7805.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7806.png", "../data/c-arm 2023-05-09/7806.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7807.png", "../data/c-arm 2023-05-09/7807.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7808.png", "../data/c-arm 2023-05-09/7808.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7809.png", "../data/c-arm 2023-05-09/7809.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7810.png", "../data/c-arm 2023-05-09/7810.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7811.png", "../data/c-arm 2023-05-09/7811.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7812.png", "../data/c-arm 2023-05-09/7812.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7813.png", "../data/c-arm 2023-05-09/7813.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7814.png", "../data/c-arm 2023-05-09/7814.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7815.png", "../data/c-arm 2023-05-09/7815.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7817.png", "../data/c-arm 2023-05-09/7817.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7818.png", "../data/c-arm 2023-05-09/7818.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7819.png", "../data/c-arm 2023-05-09/7819.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7820.png", "../data/c-arm 2023-05-09/7820.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7821.png", "../data/c-arm 2023-05-09/7821.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7822.png", "../data/c-arm 2023-05-09/7822.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/undist_7823.png", "../data/c-arm 2023-05-09/7823.txt");
+	if(0)
+	{
+		cv::Mat img1 = cv::imread("../data/c-arm 2023-05-09/7823.png");
+		cv::Mat undist_img1 = cv::imread("../data/c-arm 2023-05-09/undist_7823.png");
+		cv::Mat undist_img2;
+		cv::undistort(img1, undist_img2, cameraMatrix, distCoeffs);
+		cv::flip(img1, img1, 1);
+		cv::flip(undist_img1, undist_img1, 1);
+		cv::flip(undist_img2, undist_img2, 1);
+
+		cv::FileStorage fs("../data/c-arm 2023-05-09/7823.txt", cv::FileStorage::Mode::READ | cv::FileStorage::Mode::FORMAT_YAML);
+		assert(fs.isOpened());
+		cv::Mat pos2Ds;
+		fs["circle_center_pos"] >> pos2Ds;
+		fs.release();
+
+		vector<cv::Point2f> __pts2ds(7);
+		for (int i = 0; i < 7; i++) {
+			float x = img1.cols - (float)pos2Ds.at<double>(i, 0);
+			float y = (float)pos2Ds.at<double>(i, 1);
+			__pts2ds[i] = cv::Point2f(x, y);
+
+			cv::drawMarker(img1, __pts2ds[i], cv::Scalar(0, 0, 255), cv::MARKER_CROSS);
+			cv::drawMarker(undist_img1, __pts2ds[i], cv::Scalar(0, 0, 255), cv::MARKER_CROSS);
+			//cv::drawMarker(undist_img2, __pts2ds[i], cv::Scalar(0, 0, 255), cv::MARKER_CROSS);
+
+			cv::imshow("img1", img1);
+			cv::imshow("undist_img1", undist_img1);
+			//cv::imshow("undist_img2", undist_img2);
+		}
+
+		cv::waitKey();
+		cv::destroyAllWindows();
+		return;
+	}
+
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/7802.png", "../data/c-arm 2023-05-09/7802.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/7803.png", "../data/c-arm 2023-05-09/7803.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/7804.png", "../data/c-arm 2023-05-09/7804.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/7805.png", "../data/c-arm 2023-05-09/7805.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/7806.png", "../data/c-arm 2023-05-09/7806.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/7807.png", "../data/c-arm 2023-05-09/7807.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/7808.png", "../data/c-arm 2023-05-09/7808.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/7809.png", "../data/c-arm 2023-05-09/7809.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/7810.png", "../data/c-arm 2023-05-09/7810.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/7811.png", "../data/c-arm 2023-05-09/7811.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/7812.png", "../data/c-arm 2023-05-09/7812.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/7813.png", "../data/c-arm 2023-05-09/7813.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/7814.png", "../data/c-arm 2023-05-09/7814.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/7815.png", "../data/c-arm 2023-05-09/7815.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/7817.png", "../data/c-arm 2023-05-09/7817.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/7818.png", "../data/c-arm 2023-05-09/7818.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/7819.png", "../data/c-arm 2023-05-09/7819.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/7820.png", "../data/c-arm 2023-05-09/7820.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/7821.png", "../data/c-arm 2023-05-09/7821.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/7822.png", "../data/c-arm 2023-05-09/7822.txt");
+	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/7823.png", "../data/c-arm 2023-05-09/7823.txt");
 	
 	set<string> cArmCalibScansExcluded;
 	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv");
@@ -380,26 +510,18 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		}
 		return cid;
 	};
-	auto computeReprojErr = [](const vector<cv::Point2f>& pts2d, const vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
-		float avrDiff = 0;
-		maxErr = 0;
-		int numPts = (int)pts2d.size();
-		for (int i = 0; i < (int)pts2d.size(); i++) {
-			float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
-			maxErr = max(maxErr, diff);
-			avrDiff += diff / (float)numPts;
-		}
-		return avrDiff;
-	};
 
 	int numValidScan = (int)(cArmCalibScans.size() - cArmCalibScansExcluded.size());
 	vector<cv::Point2f> pts2ds(numCalibRbMKs* numValidScan);
 	vector<cv::Point3f> ptsWsMk3ds(numCalibRbMKs* numValidScan);
 	vector<cv::Point3f> ptsRbMk3ds(numCalibRbMKs* numValidScan);
 
-	vector<cv::Point2f> pts2ds_test(numCalibRbMKs* cArmCalibScans.size());
-	vector<cv::Point3f> ptsWsMk3ds_test(numCalibRbMKs* cArmCalibScans.size());
-	vector<cv::Point3f> ptsRbMk3ds_test(numCalibRbMKs* cArmCalibScans.size());
+	vector<cv::Point2f>& pts2ds_test = g_pts2ds; 
+	pts2ds_test.assign(numCalibRbMKs* cArmCalibScans.size(), cv::Point2f());
+	vector<cv::Point3f>& ptsWsMk3ds_test = g_ptsWsMk3ds;
+	ptsWsMk3ds_test.assign(numCalibRbMKs * cArmCalibScans.size(), cv::Point3f());
+	vector<cv::Point3f>& ptsRbMk3ds_test = g_ptsRbMk3ds;
+	ptsRbMk3ds_test.assign(numCalibRbMKs* cArmCalibScans.size(), cv::Point3f());
 	int scanCount = 0;
 	int scanCount_test = 0;
 
@@ -763,7 +885,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 
 				// Compute the reprojection error
 				float maxErr = 0;
-				float reprojectionError = computeReprojErr(pts2d_single, imagePointsReprojected, maxErr);
+				float reprojectionError = ComputeReprojErr(pts2d_single, imagePointsReprojected, maxErr);
 				//double reprojectionError = cv::norm(cv::Mat(pts2d_single), cv::Mat(imagePointsReprojected), cv::NORM_L2) / pts2d_single.size();
 				//cout << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << endl;
 				cout << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
@@ -790,33 +912,10 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		//	pts2dMap[(1 + scanCount) * 100 + i] = cv::Point2f((float)pos2Ds.at<int>(i, 0), (float)pos2Ds.at<int>(i, 1));
 	}
 
-	for (int i = 0; i < 2; i++) {
+	{
 		cv::Mat rvec, tvec;
-		vector<cv::Point3f>& pts3d = i == 0 ? ptsRbMk3ds : ptsWsMk3ds;
-		cv::solvePnP(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
-		//cv::solvePnPRansac(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec, false, 100, 10.f);
-		//cv::solvePnPRefineLM(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
-		//cv::solvePnPRefineVVS(pts3d, pts2ds, cameraMatrix, distCoeffs, rvec, tvec);
-		
-		{
-			// Reproject the 3D points onto the image plane using the camera calibration
-			vector<cv::Point3f>& pts3d_test = i == 0 ? ptsRbMk3ds_test : ptsWsMk3ds_test;
-			std::vector<cv::Point2f> imagePointsReprojected;
-			cv::projectPoints(pts3d_test, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
-
-			// Compute the reprojection error
-			float maxErr = 0;
-			float reprojectionError = computeReprojErr(pts2ds_test, imagePointsReprojected, maxErr);
-			//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
-			cout << "************* " << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
-		}
-
-		{
-			cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::WRITE);
-			fs.write("rvec", rvec);
-			fs.write("tvec", tvec);
-			fs.release();
-		}
+		ComputePose(pts2ds, ptsRbMk3ds, ptsWsMk3ds, cameraMatrix, distCoeffs, rvec, tvec,
+			pts2ds_test, ptsRbMk3ds_test, ptsWsMk3ds_test);
 	}
 
 	// scene 2
@@ -832,6 +931,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		vzm::NewActor(apAxis, "Scene2 Axis", aidRbAxis);
 		vzm::AppendSceneItemToSceneTree(aidRbAxis, sidScene2);
 
+		glm::fmat4x4 matCA2RB;
 		for (int i = 0; i < 2; i++) { // Rb and then Ws
 
 			cv::Mat rvec, tvec;
@@ -860,7 +960,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 			matRB2CA[3][1] = (float)((double*)tvec.data)[1];
 			matRB2CA[3][2] = (float)((double*)tvec.data)[2];
 
-			glm::fmat4x4 matCA2RB = glm::inverse(matRB2CA);
+			matCA2RB = glm::inverse(matRB2CA);
 			//glm::fmat4x4 matRB2WS;
 
 			assert(pts2ds.size() == ptsRbMk3ds.size() && pts2ds.size() == ptsWsMk3ds.size());
@@ -872,6 +972,9 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 				apMarker.is_pickable = true;
 
 				glm::fvec3 pos3d = *(glm::fvec3*)&(i == 0 ? ptsRbMk3ds[j] : ptsWsMk3ds[j]);
+				if (i == 0) {
+					g_posCenterMKsRBS += pos3d / (float)numSamples;
+				}
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
 				glm::fmat4x4 matLS2RB = glm::translate(pos3d);
 				matLS2RB = matLS2RB * matScale;
@@ -883,6 +986,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 				vzm::NewActor(apMarker, actorMkName, aidMarker);
 				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene2);
 
+				/*
 				std::vector<glm::fvec3> pinfo(3);
 				pinfo[0] = glm::fvec3(0, 0, 1);
 				pinfo[1] = glm::fvec3(1, 0, 0);
@@ -899,54 +1003,88 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 				int aidLabelText = 0;
 				vzm::NewActor(apLabelText, labeMkName + ":Label", aidLabelText);
 				vzm::AppendSceneItemToSceneTree(aidLabelText, aidMarker);
-			}
-
-			if (i == 0) {
-				int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
-				int cidCam1 = vzmutils::GetSceneItemIdByName("World Camera");
-
-				vzm::CameraParameters cpCam1;
-				vzm::GetCameraParams(cidCam1, cpCam1);
-				
-				vzm::CameraParameters cpCam2 = cpCam1;
-
-				RECT rc;
-				GetClientRect(g_hWnd, &rc);
-				UINT widthWindow = rc.right - rc.left;
-				UINT heightWindow = rc.bottom - rc.top;
-
-				const float intrinsicRatioX = (float)imageWH.x / widthWindow;
-				const float intrinsicRatioY = (float)imageWH.y / heightWindow;
-
-				cpCam2.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
-				glm::fvec3 pos(0, 0, 0);
-				glm::fvec3 view(0, 0, 1);
-				glm::fvec3 up(0, -1, 0);
-				pos = *(glm::fvec3*)cpCam2.pos = vzmutils::transformPos(pos, matCA2RB);
-				view = *(glm::fvec3*)cpCam2.view = vzmutils::transformVec(view, matCA2RB);
-				up = *(glm::fvec3*)cpCam2.up = vzmutils::transformVec(up, matCA2RB);
-				cpCam2.fx = arrayMatK[0] / intrinsicRatioX;
-				cpCam2.fy = arrayMatK[4] / intrinsicRatioY;
-				cpCam2.sc = arrayMatK[1];
-				cpCam2.cx = arrayMatK[2] / intrinsicRatioX;
-				cpCam2.cy = arrayMatK[5] / intrinsicRatioY;
-				cpCam2.np = 0.1;
-				int cidCam2 = 0;
-				vzm::NewCamera(cpCam2, "CArm Camera", cidCam2);
-
-				vzm::LightParameters lpLight2;
-				lpLight2.is_on_camera = true;
-				lpLight2.is_pointlight = false;
-				*(glm::fvec3*)lpLight2.pos = *(glm::fvec3*)cpCam1.pos;
-				*(glm::fvec3*)lpLight2.dir = *(glm::fvec3*)cpCam1.view;
-				*(glm::fvec3*)lpLight2.up = *(glm::fvec3*)cpCam1.up;
-				int lidLight2 = 0;
-				vzm::NewLight(lpLight2, "World Light 2", lidLight2);
-
-				vzm::AppendSceneItemToSceneTree(cidCam2, sidScene2);
-				vzm::AppendSceneItemToSceneTree(lidLight2, sidScene2);
+				/**/
 			}
 		}
+
+		vzm::CameraParameters cpCam2;
+		*(glm::fvec3*)cpCam2.pos = glm::fvec3(-1.5, 1.5, -1.5);
+		*(glm::fvec3*)cpCam2.up = glm::fvec3(0, 1, 0);
+		*(glm::fvec3*)cpCam2.view = glm::fvec3(1, -1, 1);
+
+		cv::FileStorage fs("../data/SceneCamPose2.txt", cv::FileStorage::Mode::READ);
+		if (fs.isOpened()) {
+			cv::Mat ocvVec3;
+			fs["POS"] >> ocvVec3;
+			memcpy(cpCam2.pos, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["VIEW"] >> ocvVec3;
+			memcpy(cpCam2.view, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["UP"] >> ocvVec3;
+			memcpy(cpCam2.up, ocvVec3.ptr(), sizeof(float) * 3);
+			fs.release();
+		}
+
+		RECT rc;
+		GetClientRect(g_hWndDialog1, &rc);
+		UINT widthWindow = rc.right - rc.left;
+		UINT heightWindow = rc.bottom - rc.top;
+		cpCam2.w = widthWindow;
+		cpCam2.h = heightWindow;
+
+		cpCam2.np = 0.1f;
+		cpCam2.fp = 100.f;
+
+		float vFov = 3.141592654f / 4.f;
+		if (0) {
+			cpCam2.fov_y = vFov;
+			cpCam2.aspect_ratio = (float)cpCam2.w / (float)cpCam2.h;
+			cpCam2.projection_mode = vzm::CameraParameters::CAMERA_FOV;
+		}
+		else {
+			float aspect_ratio = (float)cpCam2.w / (float)cpCam2.h;
+			float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
+
+			//  fy = h/(2 * tan(f_y / 2)) 
+			cpCam2.fx = cpCam2.w / (2.f * tan(hFov / 2.f));
+			cpCam2.fy = cpCam2.h / (2.f * tan(vFov / 2.f));
+			cpCam2.sc = 0;
+			cpCam2.cx = cpCam2.w / 2.f;
+			cpCam2.cy = cpCam2.h / 2.f;
+			cpCam2.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+		}
+
+		cpCam2.hWnd = USE_WHND ? g_hWndDialog1 : NULL;
+
+		const float intrinsicRatioX = (float)imageWH.x / widthWindow;
+		const float intrinsicRatioY = (float)imageWH.y / heightWindow;
+
+		cpCam2.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
+		glm::fvec3 pos(0, 0, 0);
+		glm::fvec3 view(0, 0, 1);
+		glm::fvec3 up(0, -1, 0);
+		pos = *(glm::fvec3*)cpCam2.pos = vzmutils::transformPos(pos, matCA2RB);
+		view = *(glm::fvec3*)cpCam2.view = vzmutils::transformVec(view, matCA2RB);
+		up = *(glm::fvec3*)cpCam2.up = vzmutils::transformVec(up, matCA2RB);
+		cpCam2.fx = cameraMatrix.at<double>(0, 0) / intrinsicRatioX;
+		cpCam2.fy = cameraMatrix.at<double>(1, 1) / intrinsicRatioY;
+		cpCam2.sc = cameraMatrix.at<double>(0, 1);
+		cpCam2.cx = cameraMatrix.at<double>(0, 2) / intrinsicRatioX;
+		cpCam2.cy = cameraMatrix.at<double>(1, 2) / intrinsicRatioY;
+		cpCam2.np = 0.1;
+		int cidCam2 = 0;
+		vzm::NewCamera(cpCam2, "CArm Camera", cidCam2);
+
+		vzm::LightParameters lpLight2;
+		lpLight2.is_on_camera = true;
+		lpLight2.is_pointlight = false;
+		*(glm::fvec3*)lpLight2.pos = *(glm::fvec3*)cpCam2.pos;
+		*(glm::fvec3*)lpLight2.dir = *(glm::fvec3*)cpCam2.view;
+		*(glm::fvec3*)lpLight2.up = *(glm::fvec3*)cpCam2.up;
+		int lidLight2 = 0;
+		vzm::NewLight(lpLight2, "World Light 2", lidLight2);
+
+		vzm::AppendSceneItemToSceneTree(cidCam2, sidScene2);
+		vzm::AppendSceneItemToSceneTree(lidLight2, sidScene2);
 	}
 }
 
@@ -986,8 +1124,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
         {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
+			if (IsDialogMessage(g_hWndDialog1, &msg) && msg.message == WM_KEYDOWN) {
+				DiagProc1(g_hWndDialog1, msg.message, msg.wParam, msg.lParam);
+			}
+			else {
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+			}
         }
 	}
 
@@ -1042,7 +1185,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    //   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
+	   10, 10, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
 
    g_hWnd = hWnd;
 
@@ -1054,6 +1197,19 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
+   
+   g_hWndDialog1 = CreateDialog(hInst, MAKEINTRESOURCE(IDD_FORMVIEW), hWnd, DiagProc1);
+
+   RECT rc1;
+   GetWindowRect(g_hWnd, &rc1);
+   SetWindowPos(g_hWndDialog1, 0, rc1.right + 5,10, DESIRED_SCREEN_W, DESIRED_SCREEN_H, SWP_SHOWWINDOW);
+   if (!g_hWndDialog1)
+   {
+	   return FALSE;
+   }
+   ShowWindow(g_hWndDialog1, SW_SHOW);
+   UpdateWindow(g_hWndDialog1);
+   /**/
    return TRUE;
 }
 
@@ -1072,11 +1228,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
 	int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
 	float scene_stage_scale = 5.f;
-#ifdef USE_MOTIVE
-	static int activeCarmIdx = -1;
-#else
 	static int activeCarmIdx = 0;
-#endif
+
 	glm::fvec3 scene_stage_center = glm::fvec3();
 	vzm::CameraParameters cpCam1;
 	if (sidScene != 0 && cidCam1 != 0) {
@@ -1108,203 +1261,165 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				fs.write("UP", ocvVec3);
 				fs.release();
 			}break;
-				case char('L') :
-				{
-					cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
-					if (fs.isOpened()) {
-						cv::Mat ocvVec3;
-						fs["POS"] >> ocvVec3;
-						memcpy(cpCam1.pos, ocvVec3.ptr(), sizeof(float) * 3);
-						fs["VIEW"] >> ocvVec3;
-						memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
-						fs["UP"] >> ocvVec3;
-						memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
-						fs.release();
-					}
-					vzm::SetCameraParams(cidCam1, cpCam1);
-				}break;
-					case char('A') :
-					{
-						//double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
-						//	0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
-						//	0.00000000e+00, 0.00000000e+00, 1.00000000e+00
-						//};
+			case char('L') :
+			{
+				cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
+				if (fs.isOpened()) {
+					cv::Mat ocvVec3;
+					fs["POS"] >> ocvVec3;
+					memcpy(cpCam1.pos, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["VIEW"] >> ocvVec3;
+					memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["UP"] >> ocvVec3;
+					memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
+					fs.release();
+				}
+				vzm::SetCameraParams(cidCam1, cpCam1);
+			}break;
+			case char('A') :
+			{
+				cv::FileStorage fs("../data/Tracking 2023-05-09/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+				cv::Mat cameraMatrix;
+				fs["K"] >> cameraMatrix;
+				fs.release();
 
-						double arrayMatK[9] = {};
-						cv::FileStorage fs("../data/Tracking 2023-05-09/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-						cv::Mat _matK;
-						fs["K"] >> _matK;
-						memcpy(arrayMatK, _matK.ptr(), sizeof(double) * 9);
-						fs.release();
+				int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + to_string(activeCarmIdx));
 
-						int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + to_string(activeCarmIdx));
+				vzm::ActorParameters apCArmPlane;
+				vzm::GetActorParams(aidCArmPlane, apCArmPlane);
+				glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
+				glm::ivec2 imageWH = apCArmPlane.script_params.GetParam("imageWH", glm::ivec2(0));
 
-						vzm::ActorParameters apCArmPlane;
-						vzm::GetActorParams(aidCArmPlane, apCArmPlane);
-						glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
-						glm::ivec2 imageWH = apCArmPlane.script_params.GetParam("imageWH", glm::ivec2(0));
+				vzm::CameraParameters cpNewCam1 = cpCam1;
+				cpPrevCam = cpCam1;
 
-						vzm::CameraParameters cpNewCam1 = cpCam1;
-						cpPrevCam = cpCam1;
+				glm::fvec3 posPrev = *(glm::fvec3*)cpCam1.pos;
+				glm::fvec3 viewPrev = *(glm::fvec3*)cpCam1.view;
+				glm::fvec3 upPrev = *(glm::fvec3*)cpCam1.up;
 
-						glm::fvec3 posPrev = *(glm::fvec3*)cpCam1.pos;
-						glm::fvec3 viewPrev = *(glm::fvec3*)cpCam1.view;
-						glm::fvec3 upPrev = *(glm::fvec3*)cpCam1.up;
+				RECT rc;
+				GetClientRect(g_hWnd, &rc);
+				UINT widthWindow = rc.right - rc.left;
+				UINT heightWindow = rc.bottom - rc.top;
 
-						RECT rc;
-						GetClientRect(g_hWnd, &rc);
-						UINT widthWindow = rc.right - rc.left;
-						UINT heightWindow = rc.bottom - rc.top;
+				const float intrinsicRatioX = (float)imageWH.x / widthWindow;
+				const float intrinsicRatioY = (float)imageWH.y / heightWindow;
 
-						const float intrinsicRatioX = (float)imageWH.x / widthWindow;
-						const float intrinsicRatioY = (float)imageWH.y / heightWindow;
+				cpNewCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
+				glm::fvec3 pos(0, 0, 0);
+				glm::fvec3 view(0, 0, 1);
+				glm::fvec3 up(0, -1, 0);
+				pos = *(glm::fvec3*)cpNewCam1.pos = vzmutils::transformPos(pos, matCA2WS);
+				view = *(glm::fvec3*)cpNewCam1.view = vzmutils::transformVec(view, matCA2WS);
+				up = *(glm::fvec3*)cpNewCam1.up = vzmutils::transformVec(up, matCA2WS);
+				cpNewCam1.fx = cameraMatrix.at<double>(0, 0) / intrinsicRatioX;
+				cpNewCam1.fy = cameraMatrix.at<double>(1, 1) / intrinsicRatioY;
+				cpNewCam1.sc = cameraMatrix.at<double>(0, 1);
+				cpNewCam1.cx = cameraMatrix.at<double>(0, 2) / intrinsicRatioX;
+				cpNewCam1.cy = cameraMatrix.at<double>(1, 2) / intrinsicRatioY;
+				cpNewCam1.np = 0.2;
 
-						cpNewCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
-						glm::fvec3 pos(0, 0, 0);
-						glm::fvec3 view(0, 0, 1);
-						glm::fvec3 up(0, -1, 0);
-						pos = *(glm::fvec3*)cpNewCam1.pos = vzmutils::transformPos(pos, matCA2WS);
-						view = *(glm::fvec3*)cpNewCam1.view = vzmutils::transformVec(view, matCA2WS);
-						up = *(glm::fvec3*)cpNewCam1.up = vzmutils::transformVec(up, matCA2WS);
-						cpNewCam1.fx = arrayMatK[0] / intrinsicRatioX;
-						cpNewCam1.fy = arrayMatK[4] / intrinsicRatioY;
-						cpNewCam1.sc = arrayMatK[1];
-						cpNewCam1.cx = arrayMatK[2] / intrinsicRatioX;
-						cpNewCam1.cy = arrayMatK[5] / intrinsicRatioY;
-						cpNewCam1.np = 0.2;
+				glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
+				//glm::fvec3 _o(0, 0, 0);
+				//glm::fmat4x4 m1 = glm::lookAtRH(_o, viewPrev, upPrev);
+				//glm::fmat4x4 m2 = glm::toMat4(q1);
+				//glm::fmat4x4 m3 = glm::inverse(m2);
+				glm::fquat q2 = glm::quatLookAtRH(glm::normalize(view), up);
 
-						glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
-						//glm::fvec3 _o(0, 0, 0);
-						//glm::fmat4x4 m1 = glm::lookAtRH(_o, viewPrev, upPrev);
-						//glm::fmat4x4 m2 = glm::toMat4(q1);
-						//glm::fmat4x4 m3 = glm::inverse(m2);
-						glm::fquat q2 = glm::quatLookAtRH(glm::normalize(view), up);
+				float range = std::max((float)(numAnimationCount - 1), 1.f);
+				for (int i = 0; i < numAnimationCount; i++) {
+					float t = (float)i / range; // 0 to 1
+					glm::fquat q = glm::slerp(q1, q2, t);
+					glm::fmat4x4 invMatLookAt = glm::toMat4(q);
+					//glm::fmat4x4 invMat = glm::inverse(matLookAt);
+					glm::fvec3 _view(0, 0, -1);
+					glm::fvec3 _up(0, 1, 0);
+					_view = vzmutils::transformVec(_view, invMatLookAt);
+					_up = vzmutils::transformVec(_up, invMatLookAt);
 
-						float range = std::max((float)(numAnimationCount - 1), 1.f);
-						for (int i = 0; i < numAnimationCount; i++) {
-							float t = (float)i / range; // 0 to 1
-							glm::fquat q = glm::slerp(q1, q2, t);
-							glm::fmat4x4 invMatLookAt = glm::toMat4(q);
-							//glm::fmat4x4 invMat = glm::inverse(matLookAt);
-							glm::fvec3 _view(0, 0, -1);
-							glm::fvec3 _up(0, 1, 0);
-							_view = vzmutils::transformVec(_view, invMatLookAt);
-							_up = vzmutils::transformVec(_up, invMatLookAt);
+					vzm::CameraParameters& _cpCam = cpInterCams[i];
+					_cpCam = cpNewCam1;
+					*(glm::fvec3*)_cpCam.pos = posPrev + (pos - posPrev) * t;
+					*(glm::fvec3*)_cpCam.view = _view;
+					*(glm::fvec3*)_cpCam.up = _up;
 
-							vzm::CameraParameters& _cpCam = cpInterCams[i];
-							_cpCam = cpNewCam1;
-							*(glm::fvec3*)_cpCam.pos = posPrev + (pos - posPrev) * t;
-							*(glm::fvec3*)_cpCam.view = _view;
-							*(glm::fvec3*)_cpCam.up = _up;
+					//INTERPOLCAM(w);
+					//INTERPOLCAM(h);
+					INTERPOLCAM(fx);
+					INTERPOLCAM(fy);
+					INTERPOLCAM(sc);
+					INTERPOLCAM(cx);
+					INTERPOLCAM(cy);
+				}
+				arAnimationKeyFrame = 0;
+				//vzm::SetCameraParams(cidCam1, cpNewCam1);
 
-							//INTERPOLCAM(w);
-							//INTERPOLCAM(h);
-							INTERPOLCAM(fx);
-							INTERPOLCAM(fy);
-							INTERPOLCAM(sc);
-							INTERPOLCAM(cx);
-							INTERPOLCAM(cy);
-						}
-						arAnimationKeyFrame = 0;
-						//vzm::SetCameraParams(cidCam1, cpNewCam1);
+				//cpCam1.
+				// Call SetWindowPos to resize the window
+				//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
+				//SetWindowPos(g_hWnd, NULL, 100, 100, imageWH.x, imageWH.y, flags);
+			} break;
+			case char('Z') :
+			{
+				vzm::CameraParameters cpNewCam1 = cpPrevCam;
 
-						//cpCam1.
-						// Call SetWindowPos to resize the window
-						//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
-						//SetWindowPos(g_hWnd, NULL, 100, 100, imageWH.x, imageWH.y, flags);
-					} break;
-						case char('Z') :
-						{
-							vzm::CameraParameters cpNewCam1 = cpPrevCam;
+				glm::fvec3 posPrev = *(glm::fvec3*)cpCam1.pos;
+				glm::fvec3 viewPrev = *(glm::fvec3*)cpCam1.view;
+				glm::fvec3 upPrev = *(glm::fvec3*)cpCam1.up;
 
-							glm::fvec3 posPrev = *(glm::fvec3*)cpCam1.pos;
-							glm::fvec3 viewPrev = *(glm::fvec3*)cpCam1.view;
-							glm::fvec3 upPrev = *(glm::fvec3*)cpCam1.up;
+				const float intrinsicRatioX = 1.f;
+				const float intrinsicRatioY = 1.f;
 
-							const float intrinsicRatioX = 1.f;
-							const float intrinsicRatioY = 1.f;
+				cpNewCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
+				glm::fvec3 pos(0, 0, 0);
+				glm::fvec3 view(0, 0, 1);
+				glm::fvec3 up(0, -1, 0);
+				pos = *(glm::fvec3*)cpNewCam1.pos;
+				view = *(glm::fvec3*)cpNewCam1.view;
+				up = *(glm::fvec3*)cpNewCam1.up;
 
-							cpNewCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
-							glm::fvec3 pos(0, 0, 0);
-							glm::fvec3 view(0, 0, 1);
-							glm::fvec3 up(0, -1, 0);
-							pos = *(glm::fvec3*)cpNewCam1.pos;
-							view = *(glm::fvec3*)cpNewCam1.view;
-							up = *(glm::fvec3*)cpNewCam1.up;
+				glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
+				//glm::fvec3 _o(0, 0, 0);
+				//glm::fmat4x4 m1 = glm::lookAtRH(_o, viewPrev, upPrev);
+				//glm::fmat4x4 m2 = glm::toMat4(q1);
+				//glm::fmat4x4 m3 = glm::inverse(m2);
+				glm::fquat q2 = glm::quatLookAtRH(glm::normalize(view), up);
 
-							glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
-							//glm::fvec3 _o(0, 0, 0);
-							//glm::fmat4x4 m1 = glm::lookAtRH(_o, viewPrev, upPrev);
-							//glm::fmat4x4 m2 = glm::toMat4(q1);
-							//glm::fmat4x4 m3 = glm::inverse(m2);
-							glm::fquat q2 = glm::quatLookAtRH(glm::normalize(view), up);
+				float range = std::max((float)(numAnimationCount - 1), 1.f);
+				for (int i = 0; i < numAnimationCount; i++) {
+					float t = (float)i / range; // 0 to 1
+					glm::fquat q = glm::slerp(q1, q2, t);
+					glm::fmat4x4 invMatLookAt = glm::toMat4(q);
+					//glm::fmat4x4 invMat = glm::inverse(matLookAt);
+					glm::fvec3 _view(0, 0, -1);
+					glm::fvec3 _up(0, 1, 0);
+					_view = vzmutils::transformVec(_view, invMatLookAt);
+					_up = vzmutils::transformVec(_up, invMatLookAt);
 
-							float range = std::max((float)(numAnimationCount - 1), 1.f);
-							for (int i = 0; i < numAnimationCount; i++) {
-								float t = (float)i / range; // 0 to 1
-								glm::fquat q = glm::slerp(q1, q2, t);
-								glm::fmat4x4 invMatLookAt = glm::toMat4(q);
-								//glm::fmat4x4 invMat = glm::inverse(matLookAt);
-								glm::fvec3 _view(0, 0, -1);
-								glm::fvec3 _up(0, 1, 0);
-								_view = vzmutils::transformVec(_view, invMatLookAt);
-								_up = vzmutils::transformVec(_up, invMatLookAt);
+					vzm::CameraParameters& _cpCam = cpInterCams[i];
+					_cpCam = cpNewCam1;
+					*(glm::fvec3*)_cpCam.pos = posPrev + (pos - posPrev) * t;
+					*(glm::fvec3*)_cpCam.view = _view;
+					*(glm::fvec3*)_cpCam.up = _up;
 
-								vzm::CameraParameters& _cpCam = cpInterCams[i];
-								_cpCam = cpNewCam1;
-								*(glm::fvec3*)_cpCam.pos = posPrev + (pos - posPrev) * t;
-								*(glm::fvec3*)_cpCam.view = _view;
-								*(glm::fvec3*)_cpCam.up = _up;
+					//INTERPOLCAM(w);
+					//INTERPOLCAM(h);
+					INTERPOLCAM(fx);
+					INTERPOLCAM(fy);
+					INTERPOLCAM(sc);
+					INTERPOLCAM(cx);
+					INTERPOLCAM(cy);
+				}
+				arAnimationKeyFrame = 0;
+				activeCarmIdx = -1;
+				//vzm::SetCameraParams(cidCam1, cpNewCam1);
 
-								//INTERPOLCAM(w);
-								//INTERPOLCAM(h);
-								INTERPOLCAM(fx);
-								INTERPOLCAM(fy);
-								INTERPOLCAM(sc);
-								INTERPOLCAM(cx);
-								INTERPOLCAM(cy);
-							}
-							arAnimationKeyFrame = 0;
-							activeCarmIdx = -1;
-							//vzm::SetCameraParams(cidCam1, cpNewCam1);
-
-							//cpCam1.
-							// Call SetWindowPos to resize the window
-							//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
-							//SetWindowPos(g_hWnd, NULL, 100, 100, imageWH.x, imageWH.y, flags);
-						} break;
+				//cpCam1.
+				// Call SetWindowPos to resize the window
+				//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
+				//SetWindowPos(g_hWnd, NULL, 100, 100, imageWH.x, imageWH.y, flags);
+			} break;
 		}
-
-		auto StoreParams = [](const std::string& targetFolder, const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
-
-			cv::FileStorage __fs(targetFolder + paramsFileName, cv::FileStorage::Mode::WRITE);
-
-			double arrayMatK[9] = {};
-			double arrayDistCoeffs[5] = {};
-			cv::FileStorage fs(targetFolder + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-			cv::Mat _matK;
-			fs["K"] >> _matK;
-			__fs << "K" << _matK;
-			memcpy(arrayMatK, _matK.ptr(), sizeof(double) * 9);
-			cv::Mat _distCoeffs;
-			fs["DistCoeffs"] >> _distCoeffs;
-			__fs << "DistCoeffs" << _distCoeffs;
-			memcpy(arrayDistCoeffs, _distCoeffs.ptr(), sizeof(double) * 5);
-			fs.open(targetFolder + "rb2carm0.txt", cv::FileStorage::Mode::READ);
-			cv::Mat rvec, tvec;
-			fs["rvec"] >> rvec;
-			fs["tvec"] >> tvec;
-			__fs << "rvec" << rvec;
-			__fs << "tvec" << tvec;
-			fs.release();
-
-
-			cv::Mat ocvRb(4, 4, CV_32FC1);
-			memcpy(ocvRb.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
-			__fs << "rb2wsMat" << ocvRb;
-			__fs << "imgFile" << imgFileName;
-			__fs.release();
-		};
 
 		static string trkNames[10] = {
 			"../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"
@@ -1329,7 +1444,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				
 				string calibPosInfoFile = "test" + to_string(i) + ".txt";
 				avr_trk& trk = itScan->second;
-				StoreParams("../data/Tracking 2023-05-09/", calibPosInfoFile, trk.mat_rb2ws, trk.xRayScanImg); // key 1
+				StoreParams("../data/Tracking 2023-05-09/", calibPosInfoFile, trk.mat_rb2ws, trk.xRayScanImg, false); // key 1
 
 				static int aidGroup = 0;
 				if(aidGroup != 0)
@@ -1460,12 +1575,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			*(glm::fvec3*)cpCam1.pos -= scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam1.view);
 
 		vzm::SetCameraParams(cidCam1, cpCam1);
-		//Render();
-		//vzm::RenderScene(sidScene, cidCam1);
-
-		//InvalidateRect(hWnd, NULL, FALSE);
-		//UpdateWindow(hWnd);
-	}
+	}break;
 	case WM_ERASEBKGND:
 		return TRUE; // tell Windows that we handled it. (but don't actually draw anything)
 	default:
@@ -1475,6 +1585,245 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	int sidScene2 = vzmutils::GetSceneItemIdByName(g_sceneName2);
+	int cidCam2 = vzmutils::GetSceneItemIdByName(g_camName2);
+	float scene_stage_scale = 5.f;
+	glm::fvec3 scene_stage_center = g_posCenterMKsRBS;// glm::fvec3();
+	vzm::CameraParameters cpCam2;
+	if (sidScene2 != 0 && cidCam2 != 0) {
+		vzm::GetCameraParams(cidCam2, cpCam2);
+
+		scene_stage_scale = glm::length(scene_stage_center - *(glm::fvec3*)cpCam2.pos) * 1.0f;
+	}
+
+	static vzmutils::GeneralMove general_move;
+	static vzm::CameraParameters cpPrevCam;
+	static std::set<int> excludedMKIndices;
+
+	switch (message)
+	{ 
+	case WM_KEYDOWN:
+	{
+		switch (wParam) {
+			case char('S') :
+			{
+				cv::FileStorage fs("../data/SceneCamPose2.txt", cv::FileStorage::Mode::WRITE);
+				cv::Mat ocvVec3(1, 3, CV_32FC1);
+				memcpy(ocvVec3.ptr(), cpCam2.pos, sizeof(float) * 3);
+				fs.write("POS", ocvVec3);
+				memcpy(ocvVec3.ptr(), cpCam2.view, sizeof(float) * 3);
+				fs.write("VIEW", ocvVec3);
+				memcpy(ocvVec3.ptr(), cpCam2.up, sizeof(float) * 3);
+				fs.write("UP", ocvVec3);
+				fs.release();
+			}break;
+			case char('L') :
+			{
+				cv::FileStorage fs("../data/SceneCamPose2.txt", cv::FileStorage::Mode::READ);
+				if (fs.isOpened()) {
+					cv::Mat ocvVec3;
+					fs["POS"] >> ocvVec3;
+					memcpy(cpCam2.pos, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["VIEW"] >> ocvVec3;
+					memcpy(cpCam2.view, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["UP"] >> ocvVec3;
+					memcpy(cpCam2.up, ocvVec3.ptr(), sizeof(float) * 3);
+					fs.release();
+				}
+				vzm::SetCameraParams(cidCam2, cpCam2);
+			}break;
+			case char('C') :
+			{
+				// to do // calibration
+				{
+					cv::Mat cameraMatrix, distCoeffs;
+					{
+						cv::FileStorage fs("../data/Tracking 2023-05-09/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+						fs["K"] >> cameraMatrix;
+						fs["DistCoeffs"] >> distCoeffs;
+						fs.release();
+					}
+					std::vector<cv::Point2f> pts2ds;
+					std::vector<cv::Point3f> ptsRbMk3ds, ptsWsMk3ds;
+					int numAllMKs = (int)g_pts2ds.size();
+					for (int i = 0; i < numAllMKs; i++) {
+						auto it = excludedMKIndices.find(i);
+						if (it == excludedMKIndices.end()) continue;
+						pts2ds.push_back(g_pts2ds[i]);
+						ptsRbMk3ds.push_back(g_ptsRbMk3ds[i]);
+						ptsWsMk3ds.push_back(g_ptsWsMk3ds[i]);
+					}
+					std::cout << "# Valid Points : " << pts2ds.size() << std::endl;
+					cv::Mat rvec, tvec;
+					ComputePose(pts2ds, ptsRbMk3ds, ptsWsMk3ds, cameraMatrix, distCoeffs, rvec, tvec,
+						g_pts2ds, g_ptsRbMk3ds, g_ptsWsMk3ds);
+				}
+			} break;
+			case char('Z') :
+			{
+				// to do // restore all points
+				int numAllMKs = (int)g_pts2ds.size();
+				for (int i = 0; i < 2; i++) {
+					for (int j = 0; j < numAllMKs; j++) {
+						int aidMarker = vzmutils::GetSceneItemIdByName((i == 0? "Rb" : "Ws") + std::to_string(j));
+						vzm::ActorParameters apMarker;
+						vzm::GetActorParams(aidMarker, apMarker);
+						apMarker.is_visible = true;
+						vzm::SetActorParams(aidMarker, apMarker);
+					}
+				}
+				excludedMKIndices.clear();
+			} break;
+			case char('X') :
+			{
+				cv::Mat eset;
+				{
+					cv::FileStorage fs("../data/Tracking 2023-05-09/exclude_set.txt", cv::FileStorage::Mode::READ);
+					fs["ExSET"] >> eset;
+					fs.release();
+				}
+
+				excludedMKIndices.clear();
+				// restore all points
+				for (int i = 0; i < eset.cols; i++) {
+					excludedMKIndices.insert(eset.at<int>(0, i));
+				}
+
+				int numAllMKs = (int)g_pts2ds.size();
+				for (int i = 0; i < 2; i++) {
+					for (int j = 0; j < numAllMKs; j++) {
+						int aidMarker = vzmutils::GetSceneItemIdByName((i == 0 ? "Rb" : "Ws") + std::to_string(j));
+						vzm::ActorParameters apMarker;
+						vzm::GetActorParams(aidMarker, apMarker);
+						apMarker.is_visible = excludedMKIndices.find(j) == excludedMKIndices.end();
+						vzm::SetActorParams(aidMarker, apMarker);
+					}
+				}
+			} break;
+		}
+	}break;
+	break;
+	case WM_SIZE:
+	{
+		if (cidCam2 != 0) {
+			RECT rc;
+			GetClientRect(hDlg, &rc);
+			UINT width = rc.right - rc.left;
+			UINT height = rc.bottom - rc.top;
+
+			cpCam2.w = width;
+			cpCam2.h = height;
+			vzm::SetCameraParams(cidCam2, cpCam2);
+		}
+	}
+	break;
+	case WM_PAINT:
+	{
+		if (sidScene2 != 0)
+		{
+			if (USE_WHND) {
+
+				PAINTSTRUCT ps;
+				HDC hdc = BeginPaint(hDlg, &ps);
+				//// TODO: 여기에 hdc를 사용하는 그리기 코드를 추가합니다...
+				EndPaint(hDlg, &ps);
+
+				//vzm::PresentHWND(hWnd); // this calls WM_PAINT again...
+			}
+			else {
+				UpdateBMP(cidCam2, hDlg);
+			} // no need to call invalidate
+		}
+	}
+	break;
+	case WM_LBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+	{
+		int x = GET_X_LPARAM(lParam);
+		int y = GET_Y_LPARAM(lParam);
+		if (x == 0 && y == 0) break;
+
+		if (wParam & MK_CONTROL) {
+			// exclude the picking mk...
+			int aidPickedMK = 0;
+			glm::fvec3 pos_picked;
+			if (vzm::PickActor(aidPickedMK, __FP pos_picked, x, y, cidCam2))
+			{
+				std::string mkName;
+				vzm::GetNameBySceneItemID(aidPickedMK, mkName);
+				int idx = std::stoi(mkName.substr(2, mkName.size() - 1));
+				excludedMKIndices.insert(idx);
+				std::cout << "picking index : " << idx << std::endl;
+
+				std::cout << "excluded index list : ";
+				for (auto it : excludedMKIndices) {
+					std::cout << it << ", ";
+				}
+				std::cout << std::endl;
+
+				for (int i = 0; i < 2; i++) {
+					int aidMarker = vzmutils::GetSceneItemIdByName((i == 0 ? "Rb" : "Ws") + std::to_string(idx));
+					vzm::ActorParameters apMarker;
+					vzm::GetActorParams(aidMarker, apMarker);
+					apMarker.is_visible = false;
+					vzm::SetActorParams(aidMarker, apMarker);
+				}
+			}
+		}
+		else {
+			// renderer does not need to be called
+			glm::ivec2 pos_ss = glm::ivec2(x, y);
+			general_move.Start((int*)&pos_ss, cpCam2, scene_stage_center, scene_stage_scale);
+		}
+		break;
+	}
+	case WM_MOUSEMOVE:
+	{
+		int x = GET_X_LPARAM(lParam);
+		int y = GET_Y_LPARAM(lParam);
+
+		if ((wParam & MK_LBUTTON) || (wParam & MK_RBUTTON))
+		{
+			glm::ivec2 pos_ss = glm::ivec2(x, y);
+			if (wParam & MK_LBUTTON)
+				general_move.PanMove((int*)&pos_ss, cpCam2);
+			else if (wParam & MK_RBUTTON)
+				general_move.RotateMove((int*)&pos_ss, cpCam2);
+
+			vzm::SetCameraParams(cidCam2, cpCam2);
+		}
+		break;
+	}
+	case WM_LBUTTONUP:
+	case WM_RBUTTONUP:
+		break;
+	case WM_MOUSEWHEEL:
+	{
+		int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+
+		// by adjusting cam distance
+		if (zDelta > 0)
+			*(glm::fvec3*)cpCam2.pos += scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam2.view);
+		else
+			*(glm::fvec3*)cpCam2.pos -= scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam2.view);
+
+		vzm::SetCameraParams(cidCam2, cpCam2);
+		//Render();
+		//vzm::RenderScene(sidScene, cidCam1);
+
+		//InvalidateRect(hWnd, NULL, FALSE);
+		//UpdateWindow(hWnd);
+	}break;
+	//case WM_ERASEBKGND:
+	//	return TRUE; // tell Windows that we handled it. (but don't actually draw anything)
+	//default:
+	//	return DefWindowProc(hDlg, message, wParam, lParam);
+	}
+
+	return 0;
+}
 
 // Message handler for about box.
 INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)

@@ -1,0 +1,15 @@
+%YAML:1.0
+---
+K: !!opencv-matrix
+   rows: 3
+   cols: 3
+   dt: d
+   data: [ 4.88482861e+03, 0., 5.63874352e+02, 0.,
+       4.87209619e+03, 6.45273782e+02, 0., 0., 1. ]
+DistCoeffs: !!opencv-matrix
+   rows: 1
+   cols: 5
+   dt: d
+   data: [ 0, 0,  
+        0, 0,
+        0 ]

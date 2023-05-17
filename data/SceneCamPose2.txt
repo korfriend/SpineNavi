@@ -1,0 +1,17 @@
+%YAML:1.0
+---
+POS: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -1.01094913e+00, -6.76975250e-02, -7.50896260e-02 ]
+VIEW: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 9.94298518e-01, 1.65075045e-02, -1.05346918e-01 ]
+UP: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -1.05818480e-01, 3.09166741e-02, -9.93904769e-01 ]

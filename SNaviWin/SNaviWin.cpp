@@ -587,97 +587,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		}
 	});
 
-
-	/////////////////////////////////////////
-#define BUF_SIZE 5000
-
-	auto printError = [](std::string message) {
-		std::cout << message << std::endl;
-		fputc('\n', stderr);
-		exit(1);
-	};
-	auto GetMicroCounter = []()
-	{
-		u64 Counter;
-
-#if defined(_WIN32)
-		u64 Frequency;
-		QueryPerformanceFrequency((LARGE_INTEGER*)&Frequency);
-		QueryPerformanceCounter((LARGE_INTEGER*)&Counter);
-		Counter = 1000000 * Counter / Frequency;
-#elif defined(__linux__) 
-		struct timeval t;
-		gettimeofday(&t, 0);
-		Counter = 1000000 * t.tv_sec + t.tv_usec;
-#endif
-
-		return Counter;
-	};
-	/*
-	u64 start, end;
-	WSADATA wsaData;
-	struct sockaddr_in local_addr;
-	SOCKET s;
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
-
-	if ((s = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
-		printf("Socket Creat Error.\n");
-		exit(1);
-	}
-
-	memset(&local_addr, 0, sizeof(local_addr));
-	local_addr.sin_family = AF_INET;
-	local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	local_addr.sin_port = htons(atoi("22222"));
-
-	if (bind(s, (SOCKADDR*)&local_addr, sizeof(local_addr)) == SOCKET_ERROR)
-		printError("BIND ERROR");
-
-	printf("This server is waiting... \n");
-
-	struct sockaddr_in client_addr;
-	int len_addr = sizeof(client_addr);
-	int totalBufferNum;
-	int BufferNum;
-	int readBytes;
-	long file_size;
-	long totalReadBytes;
-
-	char buf[BUF_SIZE];
-
-	start = GetMicroCounter();
-
-	readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
-	file_size = atol(buf);
-	totalBufferNum = file_size / BUF_SIZE + 1;
-	BufferNum = 0;
-	totalReadBytes = 0;
-	/**/
-	std::atomic_bool udp_alive{ true };
-	std::thread udp_processing_thread([&]() {
-		/*
-		FILE* fp;
-		fopen_s(&fp, "../data/Tracking Test 2023-05-09/test.png", "wb");
-
-		while (BufferNum != totalBufferNum) {
-			readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
-			BufferNum++;
-			totalReadBytes += readBytes;
-			printf("In progress: %d/%dByte(s) [%d%%]\n", totalReadBytes, file_size, ((BufferNum * 100) / totalBufferNum));
-			if (readBytes > 0) {
-				fwrite(buf, sizeof(char), readBytes, fp);
-				readBytes = sendto(s, buf, 10, 0, (SOCKADDR*)&client_addr, sizeof(client_addr));
-			}
-			if (readBytes == SOCKET_ERROR)
-			{
-				printError("ERROR");
-				break;
-			}
-		}
-		fclose(fp);
-		/**/
-	});
-
 	UINT_PTR customData = (UINT_PTR)&track_que;
 #else
 	// trackingData
@@ -1088,7 +997,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			}
 			else {
 				//cv::FileStorage fs("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::READ);
-				cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm0.txt", cv::FileStorage::Mode::READ);
+				cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm1.txt", cv::FileStorage::Mode::READ);
 				fs["rvec"] >> rvec;
 				fs["tvec"] >> tvec;
 				__fs << "rvec" << rvec;
@@ -1242,6 +1151,101 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	//Render();
 	SetTimer(g_hWnd, customData, 10, TimerProc);
 
+	/////////////////////////////////////////////////////////
+#define BUF_SIZE 5000
+	/*
+	auto printError = [](std::string message) {
+		std::cout << message << std::endl;
+		fputc('\n', stderr);
+		exit(1);
+	};
+	auto GetMicroCounter = []()
+	{
+		u64 Counter;
+
+#if defined(_WIN32)
+		u64 Frequency;
+		QueryPerformanceFrequency((LARGE_INTEGER*)&Frequency);
+		QueryPerformanceCounter((LARGE_INTEGER*)&Counter);
+		Counter = 1000000 * Counter / Frequency;
+#elif defined(__linux__) 
+		struct timeval t;
+		gettimeofday(&t, 0);
+		Counter = 1000000 * t.tv_sec + t.tv_usec;
+#endif
+
+		return Counter;
+	};
+	u64 start, end;
+	WSADATA wsaData;
+	struct sockaddr_in local_addr;
+	SOCKET s;
+	WSAStartup(MAKEWORD(2, 2), &wsaData);
+
+	if ((s = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
+		printf("Socket Creat Error.\n");
+		exit(1);
+	}
+
+	memset(&local_addr, 0, sizeof(local_addr));
+	local_addr.sin_family = AF_INET;
+	local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+	local_addr.sin_port = htons(atoi("22222"));
+
+	if (bind(s, (SOCKADDR*)&local_addr, sizeof(local_addr)) == SOCKET_ERROR)
+		printError("BIND ERROR");
+
+	printf("This server is waiting... \n");
+
+	struct sockaddr_in client_addr;
+	int len_addr = sizeof(client_addr);
+	int totalBufferNum;
+	int BufferNum;
+	int readBytes;
+	long file_size;
+	long totalReadBytes;
+
+	char buf[BUF_SIZE];
+
+	start = GetMicroCounter();
+
+	readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
+	file_size = atol(buf);
+	totalBufferNum = file_size / BUF_SIZE + 1;
+	BufferNum = 0;
+	totalReadBytes = 0;
+	/**/
+	std::atomic_bool udp_alive{ true };
+	std::thread udp_processing_thread([&]() {
+	/*
+		FILE* fp;
+		fopen_s(&fp, "../data/Tracking Test 2023-05-09/test.raw", "wb");
+		cv::Mat receivedImg(1296, 1296, CV_8UC1);
+
+		int i = 0;
+		while (BufferNum != totalBufferNum) {
+			readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
+			BufferNum++;
+			totalReadBytes += readBytes;
+			printf("In progress: %d/%dByte(s) [%d%%]\n", totalReadBytes, file_size, ((BufferNum * 100) / totalBufferNum));
+			if (readBytes > 0) {
+				//fwrite(buf, sizeof(char), readBytes, fp);
+				memcpy(receivedImg.ptr() + readBytes * i++, buf, readBytes);
+				readBytes = sendto(s, buf, 10, 0, (SOCKADDR*)&client_addr, sizeof(client_addr));
+			}
+			if (readBytes == SOCKET_ERROR)
+			{
+				printError("ERROR");
+				break;
+			}
+		}
+		std::cout << "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGg : " << BufferNum << "GGG : " << totalBufferNum << std::endl;
+		cv::imshow("test", receivedImg);
+		cv::waitKey();
+		fclose(fp);
+		/**/
+	});
+
     MSG msg;
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAVIWIN));
 
@@ -1258,18 +1262,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
 	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
 	tracker_processing_thread.join();
-	udp_alive = false;
-	udp_processing_thread.join();
-
-	//end = GetMicroCounter();
-	//printf("Elapsed Time (micro seconds) : %d", end - start);
-	//
-	//closesocket(s);
-	//WSACleanup();
 
 	optitrk::DeinitOptiTrackLib();
 #endif
 	vzm::DeinitEngineLib();
+
+	//udp_alive = false;
+	//udp_processing_thread.join();
+	//end = GetMicroCounter();
+	//printf("Elapsed Time (micro seconds) : %d", end - start);
+	//closesocket(s);
+	//WSACleanup();
 
 	GdiplusShutdown(gdiplusToken);
 
