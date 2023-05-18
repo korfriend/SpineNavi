@@ -1150,8 +1150,6 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		int cidCam2 = 0;
 		vzm::NewCamera(cpCam2, "CArm Camera", cidCam2);
 
-		vzm::SetRenderTestParam("_float_GIVZThickness", 0.001f, sidScene2, cidCam2);
-
 		vzm::LightParameters lpLight2;
 		lpLight2.is_on_camera = true;
 		lpLight2.is_pointlight = false;
@@ -1163,6 +1161,28 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 
 		vzm::AppendSceneItemToSceneTree(cidCam2, sidScene2);
 		vzm::AppendSceneItemToSceneTree(lidLight2, sidScene2);
+
+		{
+			// remove actor/.... remove associated resource... check if refcount == 0
+			std::vector<glm::fvec3> pos_tris, pos_lines, clr_tris, clr_lines;
+			navihelpers::Make_ViewportFromCamParams(pos_tris, clr_tris, pos_lines, clr_lines, glm::fvec3(1, 0.3, 0.5), glm::fvec3(1, 0.3, 0.5),
+				pos, view, up, cpCam2.fx, cpCam2.fy, cpCam2.sc, cpCam2.cx, cpCam2.cy, cpCam2.w, cpCam2.h, 1.2f);
+			int oidCamTris = 0, oidCamLines = 0;
+			vzm::GenerateTrianglesObject((float*)&pos_tris[0], (float*)&clr_tris[0], (int)pos_tris.size() / 3, oidCamTris);
+			vzm::GenerateLinesObject((float*)&pos_lines[0], (float*)&clr_lines[0], (int)pos_lines.size() / 2, oidCamLines);
+
+			vzm::ActorParameters apCamTris, apCamLines;
+			apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
+			apCamTris.color[3] = 0.5f;
+			apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
+			*(glm::fvec4*)apCamLines.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+			apCamLines.line_thickness = 2;
+			int aidCamTris = 0, aidCamLines = 0;
+			vzm::NewActor(apCamTris, "C-Arm Cam Tris:test0", aidCamTris);
+			vzm::NewActor(apCamLines, "C-Arm Lines:test0", aidCamLines);
+			vzm::AppendSceneItemToSceneTree(aidCamTris, sidScene2);
+			vzm::AppendSceneItemToSceneTree(aidCamLines, sidScene2);
+		}
 	}
 }
 
@@ -1217,6 +1237,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	SceneInit();	// camera setting inside SceneInit should be called after InitInstance (which sets windows properties)
 	CalibrateCamPoseForCArmRB(folder_trackingInfo + "carm_intrinsics.txt", "c-arm", "test1", 7);
 
+	int sidScene1 = vzmutils::GetSceneItemIdByName(g_sceneName);
+	int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
+	int sidScene2 = vzmutils::GetSceneItemIdByName(g_sceneName2);
+	int cidCam2 = vzmutils::GetSceneItemIdByName(g_camName2);
+	vzm::SetRenderTestParam("_float_GIVZThickness", 0.001f, sidScene1, cidCam1);
+	vzm::SetRenderTestParam("_float_GIVZThickness", 0.001f, sidScene2, cidCam2);
+
 	SetTimer(g_hWnd, NULL, 10, TimerProc);
 
     HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SCALIBRATORWIN));
@@ -1237,6 +1264,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
 	}
 
+	vzm::RemoveSceneItem(sidScene1, true);
+	vzm::RemoveSceneItem(sidScene2, true);
 	vzm::DeinitEngineLib();
 
     return (int) msg.wParam;
@@ -1551,12 +1580,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				static int aidGroup = 0;
 				if(aidGroup != 0)
-				vzm::RemoveSceneItem(aidGroup);
+				vzm::RemoveSceneItem(aidGroup, true);
 				aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + calibPosInfoFile, "test" + to_string(i));
 				if (aidGroup == -1)
 					break;
 
 				activeCarmIdx = i;
+
 				break;
 			}
 		}

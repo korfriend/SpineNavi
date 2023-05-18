@@ -98,45 +98,8 @@ int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, con
 	vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCArmCam);
 	vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCArmCam);
 
-
-	auto computeMatCS2PS = [](const float _fx, const float _fy, const float _s, const float _cx, const float _cy,
-		const float widthPix, const float heightPix,
-		const float near_p, const float far_p, glm::fmat4x4& matCS2PS)
-	{
-		double q = far_p / (near_p - far_p);
-		double qn = far_p * near_p / (near_p - far_p);
-
-		double fx = (double)_fx;
-		double fy = (double)_fy;
-		double sc = (double)_s;
-		double cx = (double)_cx;
-		double cy = (double)_cy;
-		double width = (double)widthPix;
-		double height = (double)heightPix;
-		double x0 = 0, y0 = 0;
-
-		matCS2PS[0][0] = 2.0 * fx / width;
-		matCS2PS[1][0] = -2.0 * sc / width;
-		matCS2PS[2][0] = (width + 2.0 * x0 - 2.0 * cx) / width;
-		matCS2PS[3][0] = 0;
-		matCS2PS[0][1] = 0;
-		matCS2PS[1][1] = 2.0 * fy / height;
-		matCS2PS[2][1] = -(height + 2.0 * y0 - 2.0 * cy) / height;
-		matCS2PS[3][1] = 0;
-		matCS2PS[0][2] = 0;
-		matCS2PS[1][2] = 0;
-		matCS2PS[2][2] = q;
-		matCS2PS[3][2] = qn;
-		matCS2PS[0][3] = 0;
-		matCS2PS[1][3] = 0;
-		matCS2PS[2][3] = -1.0;
-		matCS2PS[3][3] = 0;
-		//mat_cs2ps = glm::transpose(mat_cs2ps);
-		//fmat_cs2ps = mat_cs2ps;
-	};
-
 	glm::fmat4x4 matCS2PS;
-	computeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
+	navihelpers::ComputeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
 		(float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCS2PS);
 	// here, CS is defined with
 	// -z axis as viewing direction

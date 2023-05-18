@@ -456,7 +456,7 @@ namespace vzm
 	__dojostatic bool SetCameraParams(const int cam_id, const CameraParameters& camera_params);
 	__dojostatic bool SetLightParams(const int light_id, const LightParameters& light_params);
 	__dojostatic bool AppendSceneItemToSceneTree(const int scene_item_id, const int parent_scene_item_id); // scene_item_id:
-	__dojostatic bool RemoveSceneItem(const int scene_item_id); // scene, actor, camera, or light
+	__dojostatic bool RemoveSceneItem(const int scene_item_id, const bool try_delete_associated_res_objs = false); // scene, actor, camera, or light
 	__dojostatic bool UpdateSceneTransforms(const int scene_id); // if -1, all scenes are updated
 
 	__dojostatic bool GetActorWorldBoundingBox(const int actor_id, BoxTr& boxTr); // from unitcube
@@ -473,6 +473,7 @@ namespace vzm
 	__dojostatic bool GetAllScenes(std::vector<int>& scene_ids);
 	__dojostatic bool GetCamerasInScene(const int scene_id, std::vector<int>& cam_ids);
 	__dojostatic bool GetActorsInScene(const int scene_id, std::vector<int>& actor_ids);
+	__dojostatic bool GetLightsInScene(const int scene_id, std::vector<int>& actor_ids);
 	__dojostatic bool GetActorsUsingResInScene(const int scene_id, const int res_obj_id, std::vector<int>& actor_ids);
 	__dojostatic bool GetObjectsInScene(const int scene_id, std::vector<int>& obj_ids);
 	__dojostatic bool GetAllResObjects(std::vector<int>& obj_ids);

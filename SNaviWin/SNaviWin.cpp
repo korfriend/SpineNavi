@@ -1065,44 +1065,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCArmCam);
 
 
-			auto computeMatCS2PS = [](const float _fx, const float _fy, const float _s, const float _cx, const float _cy,
-				const float widthPix, const float heightPix,
-				const float near_p, const float far_p, glm::fmat4x4& matCS2PS)
-			{
-				double q = far_p / (near_p - far_p);
-				double qn = far_p * near_p / (near_p - far_p);
-
-				double fx = (double)_fx;
-				double fy = (double)_fy;
-				double sc = (double)_s;
-				double cx = (double)_cx;
-				double cy = (double)_cy;
-				double width = (double)widthPix;
-				double height = (double)heightPix;
-				double x0 = 0, y0 = 0;
-
-				matCS2PS[0][0] = 2.0 * fx / width;
-				matCS2PS[1][0] = -2.0 * sc / width;
-				matCS2PS[2][0] = (width + 2.0 * x0 - 2.0 * cx) / width;
-				matCS2PS[3][0] = 0;
-				matCS2PS[0][1] = 0;
-				matCS2PS[1][1] = 2.0 * fy / height;
-				matCS2PS[2][1] = -(height + 2.0 * y0 - 2.0 * cy) / height;
-				matCS2PS[3][1] = 0;
-				matCS2PS[0][2] = 0;
-				matCS2PS[1][2] = 0;
-				matCS2PS[2][2] = q;
-				matCS2PS[3][2] = qn;
-				matCS2PS[0][3] = 0;
-				matCS2PS[1][3] = 0;
-				matCS2PS[2][3] = -1.0;
-				matCS2PS[3][3] = 0;
-				//mat_cs2ps = glm::transpose(mat_cs2ps);
-				//fmat_cs2ps = mat_cs2ps;
-			};
-
 			glm::fmat4x4 matCS2PS;
-			computeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
+			navihelpers::ComputeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
 				(float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCS2PS);
 			// here, CS is defined with
 			// -z axis as viewing direction
@@ -1111,10 +1075,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			// so, we need to convert CS to OpenCV's Camera Frame by rotating 180 deg w.r.t. x axis
 			glm::fmat4x4 matCS2CA = glm::rotate(glm::pi<float>(), glm::fvec3(1, 0, 0));
 			glm::fmat4x4 matPS2WS = matCA2WS * matCS2CA * matPS2CS;
-
-
-
-
 
 			// mapping the carm image to far plane
 			glm::fvec3 ptsCArmPlanes[4] = { glm::fvec3(-1, 1, 1), glm::fvec3(1, 1, 1), glm::fvec3(1, -1, 1), glm::fvec3(-1, -1, 1) };
@@ -1267,8 +1227,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #endif
 	vzm::DeinitEngineLib();
 
-	//udp_alive = false;
-	//udp_processing_thread.join();
+	udp_alive = false;
+	udp_processing_thread.join();
 	//end = GetMicroCounter();
 	//printf("Elapsed Time (micro seconds) : %d", end - start);
 	//closesocket(s);
@@ -1642,7 +1602,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					// load case
 					auto it = mapAidGroupCArmCam.find(i + 1);
 					if (it != mapAidGroupCArmCam.end())
-						vzm::RemoveSceneItem(it->second);
+						vzm::RemoveSceneItem(it->second, true);
 					int aidGroup = RegisterCArmImage(sidScene, string("../data/Tracking Test 2023-04-30/") + "test" + to_string(i) + ".txt", "test" + to_string(i));
 					if (aidGroup == -1)
 						break;

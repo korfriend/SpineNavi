@@ -501,6 +501,106 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			clr_lines.push_back(clr_line);
 	}
 
+	inline void ComputeMatCS2PS(const float _fx, const float _fy, const float _s, const float _cx, const float _cy,
+		const float widthPix, const float heightPix,
+		const float near_p, const float far_p, glm::fmat4x4& matCS2PS)
+	{
+		double q = far_p / (near_p - far_p);
+		double qn = far_p * near_p / (near_p - far_p);
+
+		double fx = (double)_fx;
+		double fy = (double)_fy;
+		double sc = (double)_s;
+		double cx = (double)_cx;
+		double cy = (double)_cy;
+		double width = (double)widthPix;
+		double height = (double)heightPix;
+		double x0 = 0, y0 = 0;
+
+		matCS2PS[0][0] = 2.0 * fx / width;
+		matCS2PS[1][0] = -2.0 * sc / width;
+		matCS2PS[2][0] = (width + 2.0 * x0 - 2.0 * cx) / width;
+		matCS2PS[3][0] = 0;
+		matCS2PS[0][1] = 0;
+		matCS2PS[1][1] = 2.0 * fy / height;
+		matCS2PS[2][1] = -(height + 2.0 * y0 - 2.0 * cy) / height;
+		matCS2PS[3][1] = 0;
+		matCS2PS[0][2] = 0;
+		matCS2PS[1][2] = 0;
+		matCS2PS[2][2] = q;
+		matCS2PS[3][2] = qn;
+		matCS2PS[0][3] = 0;
+		matCS2PS[1][3] = 0;
+		matCS2PS[2][3] = -1.0;
+		matCS2PS[3][3] = 0;
+		//mat_cs2ps = glm::transpose(mat_cs2ps);
+		//fmat_cs2ps = mat_cs2ps;
+	};
+	inline void Make_ViewportFromCamParams(std::vector<glm::fvec3>& pos_tris, std::vector<glm::fvec3>& clr_tris, std::vector<glm::fvec3>& pos_lines, std::vector<glm::fvec3>& clr_lines,
+		const glm::fvec3 clr_tri, const glm::fvec3 clr_line,
+		const glm::fvec3 pos_c, const glm::fvec3 view, const glm::fvec3 up, 
+		const float fx, const float fy, const float s, const float cx, const float cy, const float w, const float h, const float max_length)
+	{
+		glm::fmat4x4 matWS2CS = glm::lookAtRH(pos_c, pos_c + view, up);
+		glm::fmat4x4 matCS2WS = glm::inverse(matWS2CS);
+
+		glm::fmat4x4 matCS2PS;
+		ComputeMatCS2PS(fx, fy, s, cx, cy, w, h, 0.01, max_length, matCS2PS);
+		glm::fmat4x4 matPS2WS = matCS2WS * glm::inverse(matCS2PS);
+
+		glm::fvec3 pos_0 = pos_c;
+		glm::fvec3 pos_1 = tr_pt(matPS2WS, glm::fvec3(-1, 1, 1));
+		glm::fvec3 pos_2 = tr_pt(matPS2WS, glm::fvec3( 1, 1, 1));
+		glm::fvec3 pos_3 = tr_pt(matPS2WS, glm::fvec3( -1,-1, 1));
+		glm::fvec3 pos_4 = tr_pt(matPS2WS, glm::fvec3(1,-1, 1));
+
+		pos_tris.push_back(pos_0);
+		pos_tris.push_back(pos_3);
+		pos_tris.push_back(pos_1);
+
+		pos_tris.push_back(pos_0);
+		pos_tris.push_back(pos_1);
+		pos_tris.push_back(pos_2);
+
+		pos_tris.push_back(pos_0);
+		pos_tris.push_back(pos_2);
+		pos_tris.push_back(pos_4);
+
+		pos_tris.push_back(pos_0);
+		pos_tris.push_back(pos_4);
+		pos_tris.push_back(pos_3);
+
+		pos_tris.push_back(pos_1);
+		pos_tris.push_back(pos_3);
+		pos_tris.push_back(pos_2);
+		pos_tris.push_back(pos_2);
+		pos_tris.push_back(pos_3);
+		pos_tris.push_back(pos_4);
+
+		pos_lines.push_back(pos_0);
+		pos_lines.push_back(pos_1);
+		pos_lines.push_back(pos_0);
+		pos_lines.push_back(pos_2);
+		pos_lines.push_back(pos_0);
+		pos_lines.push_back(pos_3);
+		pos_lines.push_back(pos_0);
+		pos_lines.push_back(pos_4);
+
+		pos_lines.push_back(pos_1);
+		pos_lines.push_back(pos_2);
+		pos_lines.push_back(pos_2);
+		pos_lines.push_back(pos_4);
+		pos_lines.push_back(pos_4);
+		pos_lines.push_back(pos_3);
+		pos_lines.push_back(pos_3);
+		pos_lines.push_back(pos_1);
+
+		for (int i = 0; i < pos_tris.size(); i++)
+			clr_tris.push_back(clr_tri);
+		for (int i = 0; i < pos_lines.size(); i++)
+			clr_lines.push_back(clr_line);
+	}
+
 	inline void Cam_Gen(const glm::vec3& pos_cam_ws, const glm::vec3& view_ws, const glm::vec3& up_ws, const string cam_label, int& cam_tris_is, int& cam_lines_id, int& cam_label_id)
 	{
 		std::vector<glm::fvec3> pos_tris, pos_lines, clr_tris, clr_lines;
