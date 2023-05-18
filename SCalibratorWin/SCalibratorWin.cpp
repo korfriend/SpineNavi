@@ -49,6 +49,11 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK    DiagProc1(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
+std::string folder_data = "";
+std::string folder_capture = "";
+std::string folder_trackingInfo = "";
+std::string folder_optiSession = "";
+
 void UpdateBMP(int cidCam, HWND hWnd) {
 	unsigned char* ptr_rgba;
 	float* ptr_zdepth;
@@ -130,7 +135,7 @@ void SceneInit() {
 	*(glm::fvec3*)cpCam1.up = glm::fvec3(0, 1, 0);
 	*(glm::fvec3*)cpCam1.view = glm::fvec3(1, -1, 1);
 
-	cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
+	cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 	if (fs.isOpened()) {
 		cv::Mat ocvVec3;
 		fs["POS"] >> ocvVec3;
@@ -374,7 +379,7 @@ void ComputePose(const std::vector<cv::Point2f>& pts2ds,
 		}
 
 		{
-			cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::WRITE);
+			cv::FileStorage fs(folder_trackingInfo + "rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::WRITE);
 			fs.write("rvec", rvec);
 			fs.write("tvec", tvec);
 			fs.release();
@@ -407,15 +412,15 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 
 	if(0)
 	{
-		cv::Mat img1 = cv::imread("../data/c-arm 2023-05-09/7823.png");
-		cv::Mat undist_img1 = cv::imread("../data/c-arm 2023-05-09/undist_7823.png");
+		cv::Mat img1 = cv::imread(folder_capture + "7823.png");
+		cv::Mat undist_img1 = cv::imread(folder_capture + "undist_7823.png");
 		cv::Mat undist_img2;
 		cv::undistort(img1, undist_img2, cameraMatrix, distCoeffs);
 		cv::flip(img1, img1, 1);
 		cv::flip(undist_img1, undist_img1, 1);
 		cv::flip(undist_img2, undist_img2, 1);
 
-		cv::FileStorage fs("../data/c-arm 2023-05-09/7823.txt", cv::FileStorage::Mode::READ | cv::FileStorage::Mode::FORMAT_YAML);
+		cv::FileStorage fs(folder_capture + "7823.txt", cv::FileStorage::Mode::READ | cv::FileStorage::Mode::FORMAT_YAML);
 		assert(fs.isOpened());
 		cv::Mat pos2Ds;
 		fs["circle_center_pos"] >> pos2Ds;
@@ -441,50 +446,50 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		return;
 	}
 
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk("../data/c-arm 2023-05-09/7802.png", "../data/c-arm 2023-05-09/7802.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk("../data/c-arm 2023-05-09/7803.png", "../data/c-arm 2023-05-09/7803.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk("../data/c-arm 2023-05-09/7804.png", "../data/c-arm 2023-05-09/7804.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk("../data/c-arm 2023-05-09/7805.png", "../data/c-arm 2023-05-09/7805.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk("../data/c-arm 2023-05-09/7806.png", "../data/c-arm 2023-05-09/7806.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk("../data/c-arm 2023-05-09/7807.png", "../data/c-arm 2023-05-09/7807.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk("../data/c-arm 2023-05-09/7808.png", "../data/c-arm 2023-05-09/7808.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk("../data/c-arm 2023-05-09/7809.png", "../data/c-arm 2023-05-09/7809.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk("../data/c-arm 2023-05-09/7810.png", "../data/c-arm 2023-05-09/7810.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk("../data/c-arm 2023-05-09/7811.png", "../data/c-arm 2023-05-09/7811.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk("../data/c-arm 2023-05-09/7812.png", "../data/c-arm 2023-05-09/7812.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk("../data/c-arm 2023-05-09/7813.png", "../data/c-arm 2023-05-09/7813.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk("../data/c-arm 2023-05-09/7814.png", "../data/c-arm 2023-05-09/7814.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk("../data/c-arm 2023-05-09/7815.png", "../data/c-arm 2023-05-09/7815.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk("../data/c-arm 2023-05-09/7817.png", "../data/c-arm 2023-05-09/7817.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk("../data/c-arm 2023-05-09/7818.png", "../data/c-arm 2023-05-09/7818.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk("../data/c-arm 2023-05-09/7819.png", "../data/c-arm 2023-05-09/7819.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk("../data/c-arm 2023-05-09/7820.png", "../data/c-arm 2023-05-09/7820.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk("../data/c-arm 2023-05-09/7821.png", "../data/c-arm 2023-05-09/7821.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk("../data/c-arm 2023-05-09/7822.png", "../data/c-arm 2023-05-09/7822.txt");
-	cArmCalibScans["../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk("../data/c-arm 2023-05-09/7823.png", "../data/c-arm 2023-05-09/7823.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk(folder_capture + "7802.png", folder_capture + "7802.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk(folder_capture + "7803.png", folder_capture + "7803.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk(folder_capture + "7804.png", folder_capture + "7804.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk(folder_capture + "7805.png", folder_capture + "7805.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk(folder_capture + "7806.png", folder_capture + "7806.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk(folder_capture + "7807.png", folder_capture + "7807.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk(folder_capture + "7808.png", folder_capture + "7808.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk(folder_capture + "7809.png", folder_capture + "7809.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk(folder_capture + "7810.png", folder_capture + "7810.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk(folder_capture + "7811.png", folder_capture + "7811.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk(folder_capture + "7812.png", folder_capture + "7812.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk(folder_capture + "7813.png", folder_capture + "7813.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk(folder_capture + "7814.png", folder_capture + "7814.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk(folder_capture + "7815.png", folder_capture + "7815.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk(folder_capture + "7817.png", folder_capture + "7817.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk(folder_capture + "7818.png", folder_capture + "7818.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk(folder_capture + "7819.png", folder_capture + "7819.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk(folder_capture + "7820.png", folder_capture + "7820.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk(folder_capture + "7821.png", folder_capture + "7821.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk(folder_capture + "7822.png", folder_capture + "7822.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk(folder_capture + "7823.png", folder_capture + "7823.txt");
 	
 	set<string> cArmCalibScansExcluded;
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_012.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_013.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_014.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_015.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_016.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_017.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_018.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_019.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_020.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_021.csv");
-	//cArmCalibScansExcluded.insert("../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_023.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_001.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_002.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_003.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_004.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_005.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_006.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_008.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_009.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_010.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_011.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_012.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_013.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_014.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_015.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_016.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_017.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_018.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_019.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_020.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_021.csv");
+	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_023.csv");
 
 	auto string2cid = [](const std::string id) {
 		std::bitset<128> cid;
@@ -545,214 +550,282 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		//	cv::imwrite(path + "undist_" + name, imgUndist);
 		//}
 
-		rapidcsv::Document trackingData(calibScan.first, rapidcsv::LabelParams(0, 0));
-		
-		// trackingData
-		int frameRowIdx = trackingData.GetRowIdx("Frame");
-		//trackingData.GetDataRowIdx
-		assert(frameRowIdx > 0);
-		const int startRowIdx = frameRowIdx + 1;
-		const int startColIdx = 1;
+		// trackingFrames
+		avr_trk& avrTrkInfo = calibScan.second;
+		ifstream _file(folder_trackingInfo + "avrTrk" + to_string(scanCount_test) + ".txt");
+		bool existFile = _file.is_open();
+		_file.close();
+		if (existFile) {
+			cv::FileStorage fsTrk(folder_trackingInfo + "avrTrk" + to_string(scanCount_test) + ".txt", cv::FileStorage::Mode::READ | cv::FileStorage::Mode::FORMAT_YAML);
+			cv::Mat cvMat;
+			fsTrk["q_cArmRb"] >> cvMat;
+			memcpy(&avrTrkInfo.q_cArmRb, cvMat.ptr(), sizeof(float) * 4);
+			fsTrk["rot_cArmRb"] >> cvMat;
+			memcpy(&avrTrkInfo.rot_cArmRb, cvMat.ptr(), sizeof(float) * 3);
+			fsTrk["rotDeg_cArmRb"] >> avrTrkInfo.rotDeg_cArmRb;
+			fsTrk["mat_rb2ws"] >> cvMat;
+			memcpy(&avrTrkInfo.mat_rb2ws, cvMat.ptr(), sizeof(float) * 16);
+			fsTrk["mat_ws2rb"] >> cvMat;
+			memcpy(&avrTrkInfo.mat_ws2rb, cvMat.ptr(), sizeof(float) * 16);
+			fsTrk["t_cArmRb"] >> cvMat;
+			memcpy(&avrTrkInfo.t_cArmRb, cvMat.ptr(), sizeof(float) * 3);
+			fsTrk["rbMSE_cArmRb"] >> avrTrkInfo.rbMSE_cArmRb;
+			fsTrk["rbMSE_calibRb"] >> avrTrkInfo.rbMSE_calibRb;
+			fsTrk["rbMarkers_calibRb"] >> cvMat;
+			avrTrkInfo.rbMarkers_calibRb.assign(numCalibRbMKs, glm::fvec3(0));
+			memcpy(&avrTrkInfo.rbMarkers_calibRb[0], cvMat.ptr(), sizeof(float) * 3 * numCalibRbMKs);
+			fsTrk["wsMarkers_calibRb"] >> cvMat;
+			avrTrkInfo.wsMarkers_calibRb.assign(numCalibRbMKs, glm::fvec3(0));
+			memcpy(&avrTrkInfo.wsMarkers_calibRb[0], cvMat.ptr(), sizeof(float) * 3 * numCalibRbMKs);
+			fsTrk.release();
+		}
+		else {
+			rapidcsv::Document trackingData(calibScan.first, rapidcsv::LabelParams(0, 0));
 
-		std::vector<std::string> rowTypes = trackingData.GetRow<std::string>(frameRowIdx - 4);
-		std::vector<std::string> rowNames = trackingData.GetRow<std::string>(frameRowIdx - 3);
-		std::vector<std::string> rowIds = trackingData.GetRow<std::string>(frameRowIdx - 2);
-		std::vector<std::string> rotPosLabels = trackingData.GetRow<std::string>(frameRowIdx - 1);
-		std::vector<std::string> xyzwLabels = trackingData.GetRow<std::string>(frameRowIdx);
-		const int numCols = (int)rowTypes.size();//trackingData.GetColumnCount();
-		const int numRows = (int)trackingData.GetRowCount();
+			// trackingData
+			int frameRowIdx = trackingData.GetRowIdx("Frame");
+			//trackingData.GetDataRowIdx
+			assert(frameRowIdx > 0);
+			const int startRowIdx = frameRowIdx + 1;
+			const int startColIdx = 1;
 
-		std::vector<navihelpers::track_info> trackingFrames(numRows - startRowIdx);
-		int frameIdx = 0;
+			std::vector<std::string> rowTypes = trackingData.GetRow<std::string>(frameRowIdx - 4);
+			std::vector<std::string> rowNames = trackingData.GetRow<std::string>(frameRowIdx - 3);
+			std::vector<std::string> rowIds = trackingData.GetRow<std::string>(frameRowIdx - 2);
+			std::vector<std::string> rotPosLabels = trackingData.GetRow<std::string>(frameRowIdx - 1);
+			std::vector<std::string> xyzwLabels = trackingData.GetRow<std::string>(frameRowIdx);
+			const int numCols = (int)rowTypes.size();//trackingData.GetColumnCount();
+			const int numRows = (int)trackingData.GetRowCount();
 
-		int numAllFramesRBs = 0;
-		int numAllFramesMKs = 0;
-		int numTrackedCArmRbFrames = 0;
-		int numUnstableTrackingFrames = 0;
+			std::vector<navihelpers::track_info> trackingFrames(numRows - startRowIdx);
+			int frameIdx = 0;
 
-		for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
-			std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
-			if (rowStrValues.size() == 0)
-				continue;
-			navihelpers::track_info& trackInfo = trackingFrames[frameIdx++];
+			int numAllFramesRBs = 0;
+			int numAllFramesMKs = 0;
+			int numTrackedCArmRbFrames = 0;
+			int numUnstableTrackingFrames = 0;
 
-			int colIdx = startColIdx;
-			int targetTrackedMKs = 0;
-			while (colIdx < numCols) {
-				std::string type = rowTypes[colIdx];
-				std::string name = rowNames[colIdx];
-				std::string id = rowIds[colIdx];
-				std::bitset<128> cid = string2cid(id);
-				std::string rotPos = rotPosLabels[colIdx];
-				std::string xyzw = xyzwLabels[colIdx];
+			for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
+				std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
+				if (rowStrValues.size() == 0)
+					continue;
+				navihelpers::track_info& trackInfo = trackingFrames[frameIdx++];
 
-				std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
+				int colIdx = startColIdx;
+				int targetTrackedMKs = 0;
+				while (colIdx < numCols) {
+					std::string type = rowTypes[colIdx];
+					std::string name = rowNames[colIdx];
+					std::string id = rowIds[colIdx];
+					std::bitset<128> cid = string2cid(id);
+					std::string rotPos = rotPosLabels[colIdx];
+					std::string xyzw = xyzwLabels[colIdx];
 
-				if (type == "Rigid Body") {
-					if (rowIdx == startRowIdx) numAllFramesRBs++;
-					std::string startStrValue = rowStrValues[colIdx];
-					if (startStrValue == "") {
+					std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
+
+					if (type == "Rigid Body") {
+						if (rowIdx == startRowIdx) numAllFramesRBs++;
+						std::string startStrValue = rowStrValues[colIdx];
+						if (startStrValue == "") {
+							colIdx += 8;
+							for (; colIdx < numCols; colIdx += 4) {
+								std::string _type = rowTypes[colIdx];
+								if (_type != "Rigid Body Marker") break;
+							}
+							continue;
+						}
+						float values[8];
+						for (int i = 0; i < 8; i++)
+							values[i] = std::stof(rowStrValues[colIdx + i]);
+
+						if (name == cArmRbName) numTrackedCArmRbFrames++;
+
+						// read 8 col-successive cells
+						glm::fquat q(values[3], values[0], values[1], values[2]);
+						glm::fvec3 t(values[4], values[5], values[6]);
+						float mkMSE = values[7];
+
+						glm::fmat4x4 mat_r = glm::toMat4(q);
+						glm::fmat4x4 mat_t = glm::translate(t);
+						glm::fmat4x4 mat_ls2ws = mat_t * mat_r;
+
 						colIdx += 8;
+
 						for (; colIdx < numCols; colIdx += 4) {
 							std::string _type = rowTypes[colIdx];
 							if (_type != "Rigid Body Marker") break;
+							std::string startMkStrValue = rowStrValues[colIdx];
+							if (startMkStrValue == "") {
+								continue;
+							}
+							float mkValues[4];
+							for (int i = 0; i < 4; i++)
+								mkValues[i] = std::stof(rowStrValues[colIdx + i]);
+
+
+							// read 4 col-successive cells
+							std::string _name = rowNames[colIdx];
+							std::string _id = rowIds[colIdx];
+							std::bitset<128> _cid = string2cid(_id);
+
+							glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
+							float mq = mkValues[3];
+							auto& v = rbmkSet[_name];
+							v[navihelpers::track_info::MKINFO::POSITION] = p;
+							v[navihelpers::track_info::MKINFO::MK_QUALITY] = mq;
+							v[navihelpers::track_info::MKINFO::MK_NAME] = _name;
+							v[navihelpers::track_info::MKINFO::CID] = _cid;
 						}
-						continue;
+
+						trackInfo.AddRigidBody(name, mat_ls2ws, q, t, mkMSE, rbmkSet);
 					}
-					float values[8];
-					for (int i = 0; i < 8; i++)
-						values[i] = std::stof(rowStrValues[colIdx + i]);
-
-					if (name == cArmRbName) numTrackedCArmRbFrames++;
-
-					// read 8 col-successive cells
-					glm::fquat q(values[3], values[0], values[1], values[2]);
-					glm::fvec3 t(values[4], values[5], values[6]);
-					float mkMSE = values[7];
-
-					glm::fmat4x4 mat_r = glm::toMat4(q);
-					glm::fmat4x4 mat_t = glm::translate(t);
-					glm::fmat4x4 mat_ls2ws = mat_t * mat_r;
-
-					colIdx += 8;
-
-					for (; colIdx < numCols; colIdx += 4) {
-						std::string _type = rowTypes[colIdx];
-						if (_type != "Rigid Body Marker") break;
+					if (type == "Marker") {
+						if (rowIdx == startRowIdx) numAllFramesMKs++;
 						std::string startMkStrValue = rowStrValues[colIdx];
 						if (startMkStrValue == "") {
+							colIdx += 3;
 							continue;
 						}
-						float mkValues[4];
-						for (int i = 0; i < 4; i++)
+						// read 3 col-successive cells
+						float mkValues[3];
+						for (int i = 0; i < 3; i++)
 							mkValues[i] = std::stof(rowStrValues[colIdx + i]);
-
-
-						// read 4 col-successive cells
-						std::string _name = rowNames[colIdx];
-						std::string _id = rowIds[colIdx];
-						std::bitset<128> _cid = string2cid(_id);
-
 						glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
-						float mq = mkValues[3];
-						auto& v = rbmkSet[_name];
-						v[navihelpers::track_info::MKINFO::POSITION] = p;
-						v[navihelpers::track_info::MKINFO::MK_QUALITY] = mq;
-						v[navihelpers::track_info::MKINFO::MK_NAME] = _name;
-						v[navihelpers::track_info::MKINFO::CID] = _cid;
-					}
-
-					trackInfo.AddRigidBody(name, mat_ls2ws, q, t, mkMSE, rbmkSet);
-				}
-				if (type == "Marker") {
-					if (rowIdx == startRowIdx) numAllFramesMKs++;
-					std::string startMkStrValue = rowStrValues[colIdx];
-					if (startMkStrValue == "") {
+						trackInfo.AddMarker(cid, p, name);
 						colIdx += 3;
-						continue;
-					}
-					// read 3 col-successive cells
-					float mkValues[3];
-					for (int i = 0; i < 3; i++)
-						mkValues[i] = std::stof(rowStrValues[colIdx + i]);
-					glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
-					trackInfo.AddMarker(cid, p, name);
-					colIdx += 3;
-					
-					if (name.find(calibRbName + ":") != std::string::npos) {
-						targetTrackedMKs++;
+
+						if (name.find(calibRbName + ":") != std::string::npos) {
+							targetTrackedMKs++;
+						}
 					}
 				}
+				if (targetTrackedMKs < numCalibRbMKs) numUnstableTrackingFrames++;
 			}
-			if (targetTrackedMKs < numCalibRbMKs) numUnstableTrackingFrames++;
-		}
 
-		cout << "*******************************************" << endl;
-		cout << calibScan.first << endl;
-		cout << "# of total frames : " << trackingFrames.size() << endl;
-		cout << "# of dst tracked frames : " << numTrackedCArmRbFrames << endl;
-		cout << "# of unstable tracking frames : " << numUnstableTrackingFrames << endl;
+			cout << "*******************************************" << endl;
+			cout << calibScan.first << endl;
+			cout << "# of total frames : " << trackingFrames.size() << endl;
+			cout << "# of dst tracked frames : " << numTrackedCArmRbFrames << endl;
+			cout << "# of unstable tracking frames : " << numUnstableTrackingFrames << endl;
+			float normalizedNum = 1.f / (float)numTrackedCArmRbFrames;
 
-		// trackingFrames
-		avr_trk& avrTrkInfo = calibScan.second;
+			avrTrkInfo.rot_cArmRb = glm::fvec3(0, 0, 0);
+			avrTrkInfo.rotDeg_cArmRb = 0;
+			avrTrkInfo.t_cArmRb = glm::fvec3(0, 0, 0);
+			avrTrkInfo.rbMSE_cArmRb = 0;
+			avrTrkInfo.rbMSE_calibRb = 0;
+			avrTrkInfo.rbMarkers_calibRb.assign(numCalibRbMKs, glm::fvec3());
+			vector<int> rbMKsCounts;
+			rbMKsCounts.assign(numCalibRbMKs, 0);
+			avrTrkInfo.wsMarkers_calibRb.assign(numCalibRbMKs, glm::fvec3());
+			vector<int> wsMKsCounts;
+			wsMKsCounts.assign(numCalibRbMKs, 0);
 
-		float normalizedNum = 1.f / (float)numTrackedCArmRbFrames;
+			int numFrames = (int)trackingFrames.size();
+			for (int i = 0; i < numFrames; i++) {
+				// c-arm rigid body
+				navihelpers::track_info& trk = trackingFrames[i];
+				glm::fquat q;
+				glm::fvec3 t;
+				trk.GetRigidBodyQuatTVecByName(cArmRbName, &q, &t);
+				float quatMagnitude = glm::length(q);
+				q /= quatMagnitude;
 
-		avrTrkInfo.rot_cArmRb = glm::fvec3(0, 0, 0);
-		avrTrkInfo.rotDeg_cArmRb = 0;
-		avrTrkInfo.t_cArmRb = glm::fvec3(0, 0, 0);
-		avrTrkInfo.rbMSE_cArmRb = 0;
-		avrTrkInfo.rbMSE_calibRb = 0;
-		avrTrkInfo.rbMarkers_calibRb.assign(numCalibRbMKs, glm::fvec3());
-		vector<int> rbMKsCounts;
-		rbMKsCounts.assign(numCalibRbMKs, 0);
-		avrTrkInfo.wsMarkers_calibRb.assign(numCalibRbMKs, glm::fvec3());
-		vector<int> wsMKsCounts;
-		wsMKsCounts.assign(numCalibRbMKs, 0);
+				float rotationAngle = 2.0f * acos(q.w);
 
-		int numFrames = (int)trackingFrames.size();
-		for (int i = 0; i < numFrames; i++) {
-			// c-arm rigid body
-			navihelpers::track_info& trk = trackingFrames[i];
-			glm::fquat q;
-			glm::fvec3 t;
-			trk.GetRigidBodyQuatTVecByName(cArmRbName, &q, &t);
-			float quatMagnitude = glm::length(q);
-			q /= quatMagnitude;
+				float sinAngle = sin(rotationAngle / 2.0f);
+				glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
 
-			float rotationAngle = 2.0f * acos(q.w);
+				avrTrkInfo.rot_cArmRb += rotationAxis * normalizedNum;
+				avrTrkInfo.rotDeg_cArmRb += rotationAngle * normalizedNum;
 
-			float sinAngle = sin(rotationAngle / 2.0f);
-			glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
+				avrTrkInfo.t_cArmRb += t * normalizedNum;
 
-			avrTrkInfo.rot_cArmRb += rotationAxis * normalizedNum;
-			avrTrkInfo.rotDeg_cArmRb += rotationAngle * normalizedNum;
+				float mkMSE_carm;
+				trk.GetRigidBodyByName(cArmRbName, NULL, &mkMSE_carm, NULL);
+				avrTrkInfo.rbMSE_cArmRb += mkMSE_carm * normalizedNum;
 
-			avrTrkInfo.t_cArmRb += t * normalizedNum;
+				// calib rigid body
+				std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
+				float mkMSE_calib;
+				trk.GetRigidBodyByName(calibRbName, NULL, &mkMSE_calib, &rbmkSet);
+				avrTrkInfo.rbMSE_calibRb += mkMSE_calib * normalizedNum;
+				assert(numCalibRbMKs == rbmkSet.size());
 
-			float mkMSE_carm;
-			trk.GetRigidBodyByName(cArmRbName, NULL, &mkMSE_carm, NULL);
-			avrTrkInfo.rbMSE_cArmRb += mkMSE_carm * normalizedNum;
+				for (int j = 0; j < numCalibRbMKs; j++) {
+					string mkName = calibRbName + ":Marker" + to_string(j + 1);
+					auto it = rbmkSet.find(mkName);
+					assert(it != rbmkSet.end());
+					rbMKsCounts[j]++;
+					glm::fvec3 posMK = any_cast<glm::fvec3>(it->second[navihelpers::track_info::MKINFO::POSITION]);
+					avrTrkInfo.rbMarkers_calibRb[j] += posMK * normalizedNum;
+					std::map<navihelpers::track_info::MKINFO, std::any> mk;
+					if (trk.GetMarkerByName(mkName, mk)) {
+						wsMKsCounts[j]++;
+						posMK = any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
+						avrTrkInfo.wsMarkers_calibRb[j] += posMK * normalizedNum;
+					}
 
-			// calib rigid body
-			std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
-			float mkMSE_calib;
-			trk.GetRigidBodyByName(calibRbName, NULL, &mkMSE_calib, &rbmkSet);
-			avrTrkInfo.rbMSE_calibRb += mkMSE_calib * normalizedNum;
-			assert(numCalibRbMKs == rbmkSet.size());
-
+				}
+			}
+			avrTrkInfo.rot_cArmRb = glm::normalize(avrTrkInfo.rot_cArmRb);
+			avrTrkInfo.q_cArmRb = glm::fquat(avrTrkInfo.rotDeg_cArmRb, avrTrkInfo.rot_cArmRb);
 			for (int j = 0; j < numCalibRbMKs; j++) {
-				string mkName = calibRbName + ":Marker" + to_string(j + 1);
-				auto it = rbmkSet.find(mkName);
-				assert(it != rbmkSet.end());
-				rbMKsCounts[j]++;
-				glm::fvec3 posMK = any_cast<glm::fvec3>(it->second[navihelpers::track_info::MKINFO::POSITION]);
-				avrTrkInfo.rbMarkers_calibRb[j] += posMK * normalizedNum;
-				std::map<navihelpers::track_info::MKINFO, std::any> mk;
-				if (trk.GetMarkerByName(mkName, mk)) {
-					wsMKsCounts[j]++;
-					posMK = any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
-					avrTrkInfo.wsMarkers_calibRb[j] += posMK * normalizedNum;
+				if (rbMKsCounts[j] != numFrames) {
+					cout << "Error!! rbMKsCounts[j] != numCalibRbMKs" << endl;
+					avrTrkInfo.rbMarkers_calibRb[j] *= (rbMKsCounts[j] / normalizedNum);
 				}
+				if (wsMKsCounts[j] != numFrames) {
+					cout << "Error!! wsMKsCounts[j] != numCalibRbMKs" << endl;
+					avrTrkInfo.wsMarkers_calibRb[j] *= (wsMKsCounts[j] / normalizedNum);
+				}
+			}
+			glm::fmat4x4 mat_r = glm::rotate(avrTrkInfo.rotDeg_cArmRb, avrTrkInfo.rot_cArmRb);
+			glm::fmat4x4 mat_t = glm::translate(avrTrkInfo.t_cArmRb);
+			avrTrkInfo.mat_rb2ws = mat_t * mat_r;
+			avrTrkInfo.mat_ws2rb = glm::inverse(avrTrkInfo.mat_rb2ws);
 
-			}
+			/*
+			std::string xRayScanImg;
+			std::string xRayCirclesResult;
+			glm::fquat q_cArmRb; // c-arm rb
+			glm::fvec3 rot_cArmRb; // c-arm rb
+			float rotDeg_cArmRb; // c-arm rb
+			glm::fmat4x4 mat_rb2ws; // c-arm rb
+			glm::fmat4x4 mat_ws2rb; // c-arm rb
+
+			glm::fvec3 t_cArmRb; // c-arm rb
+			float rbMSE_cArmRb; // c-arm rb
+
+			std::vector<glm::fvec3> rbMarkers_calibRb; // calib rb
+			std::vector<glm::fvec3> wsMarkers_calibRb; // calib rb
+			float rbMSE_calibRb; // c-arm rb
+			//navihelpers::track_info avrTrkInfo;
+			/**/
+			cv::FileStorage fsTrk(folder_trackingInfo + "avrTrk" + to_string(scanCount_test) + ".txt", cv::FileStorage::Mode::WRITE);
+			cv::Mat cvMat3 = cv::Mat(1, 3, CV_32FC1);
+			cv::Mat cvMat4 = cv::Mat(1, 4, CV_32FC1);
+			cv::Mat cvMat44 = cv::Mat(4, 4, CV_32FC1);
+			cv::Mat cvMatPts = cv::Mat(numCalibRbMKs, 3, CV_32FC1);
+			memcpy(cvMat4.ptr(), &avrTrkInfo.q_cArmRb, sizeof(float) * 4);
+			fsTrk.write("q_cArmRb", cvMat4);
+			memcpy(cvMat3.ptr(), &avrTrkInfo.rot_cArmRb, sizeof(float) * 3);
+			fsTrk.write("rot_cArmRb", cvMat3);
+			fsTrk.write("rotDeg_cArmRb", avrTrkInfo.rotDeg_cArmRb);
+			memcpy(cvMat44.ptr(), &avrTrkInfo.mat_rb2ws, sizeof(float) * 16);
+			fsTrk.write("mat_rb2ws", cvMat44);
+			memcpy(cvMat44.ptr(), &avrTrkInfo.mat_ws2rb, sizeof(float) * 16);
+			fsTrk.write("mat_ws2rb", cvMat44);
+			memcpy(cvMat3.ptr(), &avrTrkInfo.t_cArmRb, sizeof(float) * 3);
+			fsTrk.write("t_cArmRb", cvMat3);
+			fsTrk.write("rbMSE_cArmRb", avrTrkInfo.rbMSE_cArmRb);
+			fsTrk.write("rbMSE_calibRb", avrTrkInfo.rbMSE_calibRb);
+			memcpy(cvMatPts.ptr(), &avrTrkInfo.rbMarkers_calibRb[0], sizeof(float) * 3 * numCalibRbMKs);
+			fsTrk.write("rbMarkers_calibRb", cvMatPts);
+			memcpy(cvMatPts.ptr(), &avrTrkInfo.wsMarkers_calibRb[0], sizeof(float) * 3 * numCalibRbMKs);
+			fsTrk.write("wsMarkers_calibRb", cvMatPts);
+			fsTrk.release();
 		}
-		avrTrkInfo.rot_cArmRb = glm::normalize(avrTrkInfo.rot_cArmRb);
-		avrTrkInfo.q_cArmRb = glm::fquat(avrTrkInfo.rotDeg_cArmRb, avrTrkInfo.rot_cArmRb);
-		for (int j = 0; j < numCalibRbMKs; j++) {
-			if (rbMKsCounts[j] != numFrames) {
-				cout << "Error!! rbMKsCounts[j] != numCalibRbMKs" << endl;
-				avrTrkInfo.rbMarkers_calibRb[j] *= (rbMKsCounts[j] / normalizedNum);
-			}
-			if (wsMKsCounts[j] != numFrames) {
-				cout << "Error!! wsMKsCounts[j] != numCalibRbMKs" << endl;
-				avrTrkInfo.wsMarkers_calibRb[j] *= (wsMKsCounts[j] / normalizedNum);
-			}
-		}
-		glm::fmat4x4 mat_r = glm::rotate(avrTrkInfo.rotDeg_cArmRb, avrTrkInfo.rot_cArmRb);
-		glm::fmat4x4 mat_t = glm::translate(avrTrkInfo.t_cArmRb);
-		avrTrkInfo.mat_rb2ws = mat_t * mat_r;
-		avrTrkInfo.mat_ws2rb = glm::inverse(avrTrkInfo.mat_rb2ws);
 
 		// Add a capture Scene
 		int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
@@ -892,7 +965,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 			}
 
 			{
-				cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::WRITE);
+				cv::FileStorage fs(folder_trackingInfo + "rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::WRITE);
 				fs.write("rvec", rvec);
 				fs.write("tvec", tvec);
 				fs.release();
@@ -935,7 +1008,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		for (int i = 0; i < 2; i++) { // Rb and then Ws
 
 			cv::Mat rvec, tvec;
-			cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::READ);
+			cv::FileStorage fs(folder_trackingInfo + "rb2carm" + to_string(i) + ".txt", cv::FileStorage::Mode::READ);
 			fs["rvec"] >> rvec;
 			fs["tvec"] >> tvec;
 			fs.release();
@@ -981,6 +1054,9 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 
 				*(glm::fvec4*)apMarker.color = i == 0? glm::fvec4(1.f, 0, 0, 1.f) : glm::fvec4(0, 1.f, 0, 1.f); // rgba
 				apMarker.SetLocalTransform(__FP matLS2RB);
+				// _float_VZThickness : note this parameter is only available for K-buffer rendering mode 
+				// current rendering is based on my modified A-buffer + global z-thickness technique 
+				//apMarker.test_params.SetParam("_float_VZThickness", 0.1f);
 				int aidMarker = 0;
 				string actorMkName = (i == 0 ? "Rb" : "Ws") + to_string(j);
 				vzm::NewActor(apMarker, actorMkName, aidMarker);
@@ -1012,7 +1088,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		*(glm::fvec3*)cpCam2.up = glm::fvec3(0, 1, 0);
 		*(glm::fvec3*)cpCam2.view = glm::fvec3(1, -1, 1);
 
-		cv::FileStorage fs("../data/SceneCamPose2.txt", cv::FileStorage::Mode::READ);
+		cv::FileStorage fs(folder_data + "SceneCamPose2.txt", cv::FileStorage::Mode::READ);
 		if (fs.isOpened()) {
 			cv::Mat ocvVec3;
 			fs["POS"] >> ocvVec3;
@@ -1074,6 +1150,8 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		int cidCam2 = 0;
 		vzm::NewCamera(cpCam2, "CArm Camera", cidCam2);
 
+		vzm::SetRenderTestParam("_float_GIVZThickness", 0.001f, sidScene2, cidCam2);
+
 		vzm::LightParameters lpLight2;
 		lpLight2.is_on_camera = true;
 		lpLight2.is_pointlight = false;
@@ -1096,6 +1174,31 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+	auto getdatapath = []()
+	{
+		using namespace std;
+		char ownPth[2048];
+		GetModuleFileNameA(NULL, ownPth, (sizeof(ownPth)));
+		string exe_path = ownPth;
+		string exe_path_;
+		size_t pos = 0;
+		std::string token;
+		string delimiter = "\\"; // windows
+		while ((pos = exe_path.find(delimiter)) != std::string::npos) {
+			token = exe_path.substr(0, pos);
+			if (token.find(".exe") != std::string::npos) break;
+			exe_path += token + "/";
+			exe_path_ += token + "/";
+			exe_path.erase(0, pos + delimiter.length());
+		}
+		return exe_path_ + "../../data/";
+	};
+
+	folder_data = getdatapath();
+	folder_trackingInfo = getdatapath() + "Tracking 2023-05-09/";
+	folder_capture = getdatapath() + "c-arm 2023-05-09/";
+	folder_optiSession = getdatapath() + "Session 2023-05-09/";
+
 	// TODO: Place code here.
 	vzm::InitEngineLib("SpineNavi");
 	vzm::SetLogConfiguration(true, 4);
@@ -1112,7 +1215,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
 	SceneInit();	// camera setting inside SceneInit should be called after InitInstance (which sets windows properties)
-	CalibrateCamPoseForCArmRB("../data/Tracking 2023-05-09/carm_intrinsics.txt", "c-arm", "test1", 7);
+	CalibrateCamPoseForCArmRB(folder_trackingInfo + "carm_intrinsics.txt", "c-arm", "test1", 7);
 
 	SetTimer(g_hWnd, NULL, 10, TimerProc);
 
@@ -1251,7 +1354,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (wParam) {
 			case char('S') :
 			{
-				cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
+				cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
 				cv::Mat ocvVec3(1, 3, CV_32FC1);
 				memcpy(ocvVec3.ptr(), cpCam1.pos, sizeof(float) * 3);
 				fs.write("POS", ocvVec3);
@@ -1263,7 +1366,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}break;
 			case char('L') :
 			{
-				cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
+				cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 				if (fs.isOpened()) {
 					cv::Mat ocvVec3;
 					fs["POS"] >> ocvVec3;
@@ -1278,7 +1381,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}break;
 			case char('A') :
 			{
-				cv::FileStorage fs("../data/Tracking 2023-05-09/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+				cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
 				cv::Mat cameraMatrix;
 				fs["K"] >> cameraMatrix;
 				fs.release();
@@ -1422,16 +1525,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 
 		static string trkNames[10] = {
-			"../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_001.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_002.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_003.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_004.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_005.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_006.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_008.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_009.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_010.csv"
-			, "../data/Session 2023-05-09/Take 2023-05-09 06.27.02 PM_011.csv"
+			  folder_optiSession + "Take 2023-05-09 06.27.02 PM_001.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_002.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_003.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_004.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_005.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_006.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_008.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_009.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_010.csv"
+			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_011.csv"
 		};
 		//static map<int, int> mapAidGroupCArmCam;
 		static char LOADKEYS[10] = { '1' , '2', '3', '4', '5', '6', '7', '8', '9', '0' };
@@ -1444,12 +1547,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				
 				string calibPosInfoFile = "test" + to_string(i) + ".txt";
 				avr_trk& trk = itScan->second;
-				StoreParams("../data/Tracking 2023-05-09/", calibPosInfoFile, trk.mat_rb2ws, trk.xRayScanImg, false); // key 1
+				StoreParams(folder_trackingInfo, calibPosInfoFile, trk.mat_rb2ws, trk.xRayScanImg, false); // key 1
 
 				static int aidGroup = 0;
 				if(aidGroup != 0)
 				vzm::RemoveSceneItem(aidGroup);
-				aidGroup = RegisterCArmImage(sidScene, "../data/Tracking 2023-05-09/" + calibPosInfoFile, "test" + to_string(i));
+				aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + calibPosInfoFile, "test" + to_string(i));
 				if (aidGroup == -1)
 					break;
 
@@ -1601,6 +1704,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	static vzmutils::GeneralMove general_move;
 	static vzm::CameraParameters cpPrevCam;
 	static std::set<int> excludedMKIndices;
+	static bool mouseCamFlag = false;
 
 	switch (message)
 	{ 
@@ -1609,7 +1713,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 		switch (wParam) {
 			case char('S') :
 			{
-				cv::FileStorage fs("../data/SceneCamPose2.txt", cv::FileStorage::Mode::WRITE);
+				cv::FileStorage fs(folder_data + "SceneCamPose2.txt", cv::FileStorage::Mode::WRITE);
 				cv::Mat ocvVec3(1, 3, CV_32FC1);
 				memcpy(ocvVec3.ptr(), cpCam2.pos, sizeof(float) * 3);
 				fs.write("POS", ocvVec3);
@@ -1621,7 +1725,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 			}break;
 			case char('L') :
 			{
-				cv::FileStorage fs("../data/SceneCamPose2.txt", cv::FileStorage::Mode::READ);
+				cv::FileStorage fs(folder_data + "SceneCamPose2.txt", cv::FileStorage::Mode::READ);
 				if (fs.isOpened()) {
 					cv::Mat ocvVec3;
 					fs["POS"] >> ocvVec3;
@@ -1640,7 +1744,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 				{
 					cv::Mat cameraMatrix, distCoeffs;
 					{
-						cv::FileStorage fs("../data/Tracking 2023-05-09/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+						cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
 						fs["K"] >> cameraMatrix;
 						fs["DistCoeffs"] >> distCoeffs;
 						fs.release();
@@ -1650,12 +1754,12 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 					int numAllMKs = (int)g_pts2ds.size();
 					for (int i = 0; i < numAllMKs; i++) {
 						auto it = excludedMKIndices.find(i);
-						if (it == excludedMKIndices.end()) continue;
+						if (it != excludedMKIndices.end()) continue;
 						pts2ds.push_back(g_pts2ds[i]);
 						ptsRbMk3ds.push_back(g_ptsRbMk3ds[i]);
 						ptsWsMk3ds.push_back(g_ptsWsMk3ds[i]);
 					}
-					std::cout << "# Valid Points : " << pts2ds.size() << std::endl;
+					std::cout << "# Valid Point-Pairs : " << pts2ds.size() << ", excluding " << excludedMKIndices.size() << " points" << std::endl;
 					cv::Mat rvec, tvec;
 					ComputePose(pts2ds, ptsRbMk3ds, ptsWsMk3ds, cameraMatrix, distCoeffs, rvec, tvec,
 						g_pts2ds, g_ptsRbMk3ds, g_ptsWsMk3ds);
@@ -1680,7 +1784,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 			{
 				cv::Mat eset;
 				{
-					cv::FileStorage fs("../data/Tracking 2023-05-09/exclude_set.txt", cv::FileStorage::Mode::READ);
+					cv::FileStorage fs(folder_trackingInfo + "exclude_set.txt", cv::FileStorage::Mode::READ);
 					fs["ExSET"] >> eset;
 					fs.release();
 				}
@@ -1776,6 +1880,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 			// renderer does not need to be called
 			glm::ivec2 pos_ss = glm::ivec2(x, y);
 			general_move.Start((int*)&pos_ss, cpCam2, scene_stage_center, scene_stage_scale);
+			mouseCamFlag = true;
 		}
 		break;
 	}
@@ -1784,7 +1889,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);
 
-		if ((wParam & MK_LBUTTON) || (wParam & MK_RBUTTON))
+		if (((wParam & MK_LBUTTON) || (wParam & MK_RBUTTON)) && mouseCamFlag)
 		{
 			glm::ivec2 pos_ss = glm::ivec2(x, y);
 			if (wParam & MK_LBUTTON)
@@ -1798,6 +1903,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	}
 	case WM_LBUTTONUP:
 	case WM_RBUTTONUP:
+		mouseCamFlag = false;
 		break;
 	case WM_MOUSEWHEEL:
 	{

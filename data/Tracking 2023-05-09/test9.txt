@@ -33,4 +33,4 @@ rb2wsMat: !!opencv-matrix
        9.94175673e-01, -5.06435037e-02, 9.51330662e-02, 0.,
        1.00411773e-01, 1.14621662e-01, -9.88321483e-01, 0.,
        1.25939548e-01, 5.98811209e-01, -5.29316425e-01, 1. ]
-imgFile: "../data/c-arm 2023-05-09/7811.png"
+imgFile: "E:/Spine Project/SpineNavi/bin/X64_Release/../../data/c-arm 2023-05-09/7811.png"
