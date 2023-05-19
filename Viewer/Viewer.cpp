@@ -10,8 +10,14 @@ Viewer::Viewer(QWidget *parent)
 
     QHBoxLayout* hboxLayout = new QHBoxLayout(this->centralWidget());
     qlistwidget = new QListWidget(); // thumbnail view
-    leftView = new QLabel();
-    rightView = new QLabel();
+    leftView = new myLabel();
+    leftView->setStyleSheet(
+        "color: #4D69E8; border-style: solid; border-width: 5px; border-color: #54A0FF; border-radius: 10px; ");
+    selectedView = 0;
+    leftView->setFocused(true);
+
+    rightView = new myLabel();
+    rightView->setFocused(false);
     
     qlistwidget->setViewMode(QListWidget::IconMode);
     qlistwidget->setIconSize(QSize(200, 150));
@@ -26,13 +32,33 @@ Viewer::Viewer(QWidget *parent)
     //ui.centralWidget->setLayout(hboxLayout);
 
     connect(qlistwidget, SIGNAL(itemDoubleClicked(QListWidgetItem*)),this, SLOT(clickedImage()));
+    connect(leftView, SIGNAL(clicked()), this, SLOT(leftClicked()));
+    connect(rightView, SIGNAL(clicked()), this, SLOT(rightClicked()));
 }
 
 Viewer::~Viewer()
 {}
 
+void Viewer::leftClicked()
+{
+    leftView->setFocused(true);
+    leftView->setStyleSheet(
+        "color: #4D69E8; border-style: solid; border-width: 5px; border-color: #54A0FF; border-radius: 10px; ");
 
+    rightView->setFocused(false);
+    rightView->setStyleSheet("");
+    selectedView = 0;
+}
+void Viewer::rightClicked()
+{
+    rightView->setFocused(false);
+    rightView->setStyleSheet(
+        "color: #4D69E8; border-style: solid; border-width: 5px; border-color: #54A0FF; border-radius: 10px; ");
 
+    leftView->setFocused(false);
+    leftView->setStyleSheet("");
+    selectedView = 1;
+}
 void Viewer::setImages()
 {
     for (auto const& dir_entry : std::filesystem::directory_iterator{ image_path })
@@ -88,7 +114,11 @@ void Viewer::clickedImage()
 {
     QModelIndex index = qlistwidget->currentIndex();
     int inx = index.row();
-    leftImg = QImage(image_paths[inx]);
+
+    if(selectedView == 0)
+        leftImg = QImage(image_paths[inx]);
+    else
+        rightImg = QImage(image_paths[inx]);
 
     setLeftRightImg();
 
