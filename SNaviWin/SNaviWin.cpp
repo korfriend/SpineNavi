@@ -51,6 +51,11 @@ typedef unsigned long long u64;
 
 static int testFileIdx = 1000;
 
+std::string folder_data = "";
+std::string folder_capture = "";
+std::string folder_trackingInfo = "";
+std::string folder_optiSession = "";
+
 // 전역 변수:
 HWND g_hWnd;
 HINSTANCE hInst;                                // 현재 인스턴스입니다.
@@ -62,6 +67,12 @@ ATOM                MyRegisterClass(HINSTANCE hInstance);
 BOOL                InitInstance(HINSTANCE, int);
 LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+
+#define SCANIMG_W 1296
+#define SCANIMG_H 1296
+cv::Mat g_curScanImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
+
+std::atomic_bool download_completed{ false };
 
 int main()
 {
@@ -168,7 +179,7 @@ void SceneInit() {
 	*(glm::fvec3*)cpCam1.up = glm::fvec3(0, 1, 0);
 	*(glm::fvec3*)cpCam1.view = glm::fvec3(1, -1, 1);
 
-	cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
+	cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 	if (fs.isOpened()) {
 		cv::Mat ocvVec3;
 		fs["POS"] >> ocvVec3;
@@ -471,19 +482,30 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+	auto getdatapath = []()
+	{
+		using namespace std;
+		char ownPth[2048];
+		GetModuleFileNameA(NULL, ownPth, (sizeof(ownPth)));
+		string exe_path = ownPth;
+		string exe_path_;
+		size_t pos = 0;
+		std::string token;
+		string delimiter = "\\"; // windows
+		while ((pos = exe_path.find(delimiter)) != std::string::npos) {
+			token = exe_path.substr(0, pos);
+			if (token.find(".exe") != std::string::npos) break;
+			exe_path += token + "/";
+			exe_path_ += token + "/";
+			exe_path.erase(0, pos + delimiter.length());
+		}
+		return exe_path_ + "../../data/";
+	};
 
-	//cv::Mat imgCArm = cv::imread("../data/c-arm 2023-04-19/7084.png");
-	//cv::FileStorage fs("../data/Tracking 2023-04-19/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-	//cv::Mat _matK;
-	//fs["K"] >> _matK;
-	//cv::Mat _distCoeffs;
-	//fs["DistCoeffs"] >> _distCoeffs;
-	//cv::Mat undistImg;
-	//cv::undistort(imgCArm, undistImg, _matK, _distCoeffs);
-	//cv::imwrite("../data/c-arm 2023-04-19/undist_7084.png", undistImg);
-
-
-
+	folder_data = getdatapath();
+	folder_trackingInfo = getdatapath() + "Tracking 2023-04-19/";
+	folder_capture = getdatapath() + "c-arm 2023-04-19/";
+	folder_optiSession = getdatapath() + "Session 2023-04-19/";
 
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
@@ -497,19 +519,19 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 #else
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
-	//std::string cArmTrackFile = "../data/Tracking 2023-04-19/c-arm-track1.txt";
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));  // 7082.png
-	//std::string cArmTrackFile = "../data/Tracking 2023-04-19/c-arm-track2.txt";
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));  // 7083.png
-	//std::string cArmTrackFile = "../data/Tracking 2023-04-19/c-arm-track3.txt";
-	rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
-	std::string cArmTrackFile = "../data/Tracking 2023-04-19/c-arm-track4.txt";
+	//rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
+	//std::string cArmTrackFile = folder_trackingInfo + "c-arm-track1.txt";
+	//rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));  // 7082.png
+	//std::string cArmTrackFile = folder_trackingInfo + "c-arm-track2.txt";
+	//rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));  // 7083.png
+	//std::string cArmTrackFile = folder_trackingInfo + "c-arm-track3.txt";
+	rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
+	std::string cArmTrackFile = folder_trackingInfo + "c-arm-track4.txt";
 
-	std::string imgFile = "../data/c-arm 2023-04-19/7084.png";
+	std::string imgFile = folder_capture + "7084.png";
 	
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0)); // 7085.png
-	//rapidcsv::Document trackingData("../data/Tracking 2023-04-19/Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
+	//rapidcsv::Document trackingData(folder_trackingInfo + "Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0)); // 7085.png
+	//rapidcsv::Document trackingData(folder_trackingInfo + "Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
 #endif
 
     // 전역 문자열을 초기화합니다.
@@ -869,7 +891,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			}
 		}
 
-		if(1)
+		std::ifstream _file(folder_trackingInfo + "testParams.txt");
+		bool existFile = _file.is_open();
+		_file.close();
+		if(!existFile)
 		{
 			int aidGroupCArmCam = 0;
 			vzm::ActorParameters apGroupCams;
@@ -884,26 +909,21 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			// therefore, the position mirrored horizontally
 			cv::Mat imgCArm = cv::imread(imgFile);
 
-			cv::FileStorage __fs("../data/Tracking 2023-04-19/testParams.txt", cv::FileStorage::Mode::WRITE);
+			cv::FileStorage __fs(folder_trackingInfo + "testParams.txt", cv::FileStorage::Mode::WRITE);
 
-			double arrayMatK[9] = {};
-			double arrayDistCoeffs[5] = {};
-			cv::FileStorage fs("../data/Tracking 2023-04-19/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-			cv::Mat _matK;
-			fs["K"] >> _matK;
-			__fs << "K" << _matK;
-			memcpy(arrayMatK, _matK.ptr(), sizeof(double) * 9);
-			cv::Mat _distCoeffs;
-			fs["DistCoeffs"] >> _distCoeffs;
-			__fs << "DistCoeffs" << _distCoeffs;
-			memcpy(arrayDistCoeffs, _distCoeffs.ptr(), sizeof(double) * 5);
-
+			cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+			cv::Mat matK;
+			fs["K"] >> matK;
+			__fs << "K" << matK;
+			cv::Mat distCoeffs;
+			fs["DistCoeffs"] >> distCoeffs;
+			__fs << "DistCoeffs" << distCoeffs;
 
 			//cv::Mat undistImg;
 			//cv::undistort(imgCArm, undistImg, _matK, _distCoeffs);
 			//
-			////std::string imgFile = "../data/c-arm 2023-04-19/7084.png";
-			//cv::imwrite("../data/c-arm 2023-04-19/undist_7084.png", undistImg);
+			////std::string imgFile = folder_capture + "7084.png";
+			//cv::imwrite(folder_capture + "undist_7084.png", undistImg);
 			///////////////////////////////////
 
 			cv::Mat rvec, tvec;
@@ -957,7 +977,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				vector<fvec3> ptsRBS;
 				ptsRBS.reserve(numCalPts* numCalScans);
 				for (int i = 0; i < numCalScans; i++) {
-					cv::FileStorage fs("../data/Tracking 2023-04-19/c-arm-track" + to_string(i + 1) + ".txt", 
+					cv::FileStorage fs(folder_trackingInfo + "c-arm-track" + to_string(i + 1) + ".txt", 
 						cv::FileStorage::Mode::READ);
 					cv::Mat ocvMatRB2WS;
 					fs["c-arm"] >> ocvMatRB2WS;
@@ -984,20 +1004,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				for (auto it = pts2Dmap.begin(); it != pts2Dmap.end(); it++)
 					pts2Ds[i++] = it->second;
 
-				cv::Mat cameraMatrix(3, 3, CV_64FC1);
-				memcpy(cameraMatrix.ptr(), arrayMatK, sizeof(double) * 9);
-				cv::Mat distCoeffs(5, 1, CV_64FC1);
-				memcpy(distCoeffs.ptr(), arrayDistCoeffs, sizeof(double) * 5);
-				cv::solvePnP(pts3Ds, pts2Ds, cameraMatrix, distCoeffs, rvec, tvec);
+				cv::solvePnP(pts3Ds, pts2Ds, matK, distCoeffs, rvec, tvec);
 
-				cv::FileStorage fs("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::WRITE);
+				cv::FileStorage fs(folder_trackingInfo + "rb2carm.txt", cv::FileStorage::Mode::WRITE);
 				fs.write("rvec", rvec);
 				fs.write("tvec", tvec);
 				fs.release();
 			}
 			else {
-				//cv::FileStorage fs("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::READ);
-				cv::FileStorage fs("../data/Tracking 2023-05-09/rb2carm1.txt", cv::FileStorage::Mode::READ);
+				//cv::FileStorage fs(folder_trackingInfo + "rb2carm.txt", cv::FileStorage::Mode::READ);
+				cv::FileStorage fs(folder_trackingInfo + "rb2carm.txt", cv::FileStorage::Mode::READ);
 				fs["rvec"] >> rvec;
 				fs["tvec"] >> tvec;
 				__fs << "rvec" << rvec;
@@ -1041,7 +1057,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				fs.release();
 
 				__fs << "rb2wsMat" << ocvRbMapTrAvr;
-				__fs << "imgFile" << "../data/c-arm 2023-04-19/7084.png";
+				__fs << "imgFile" << folder_capture + "7084.png";
 			}
 			__fs.release();
 
@@ -1066,8 +1082,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 
 			glm::fmat4x4 matCS2PS;
-			navihelpers::ComputeMatCS2PS(arrayMatK[0], arrayMatK[4], arrayMatK[1], arrayMatK[2], arrayMatK[5],
-				(float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCS2PS);
+
+			navihelpers::ComputeMatCS2PS(matK.at<double>(0, 0), matK.at<double>(1, 1), matK.at<double>(0, 1), 
+				matK.at<double>(0, 2), matK.at<double>(1, 2), (float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCS2PS);
 			// here, CS is defined with
 			// -z axis as viewing direction
 			// y axis as up vector
@@ -1088,7 +1105,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			unsigned int idxList[6] = { 0, 1, 3, 1, 2, 3 };
 
 			int oidImage = 0;
-			vzm::LoadImageFile("../data/c-arm 2023-04-19/undist_7084.png", oidImage, true, true);
+			vzm::LoadImageFile(folder_capture + "undist_7084.png", oidImage, true, true);
 			int oidCArmPlane = 0;
 			vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
 			vzm::ActorParameters apCArmPlane;
@@ -1102,7 +1119,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			vzm::AppendSceneItemToSceneTree(aidCArmPlane, sidScene);
 		}
 		else {
-			RegisterCArmImage(sidScene, "../data/Tracking 2023-04-19/testParams.txt", "test0");
+			RegisterCArmImage(sidScene, folder_trackingInfo + "testParams.txt", "test0");
 		}
 	}
 	UINT_PTR customData = (UINT_PTR)&trackingFrames;
@@ -1112,99 +1129,155 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	SetTimer(g_hWnd, customData, 10, TimerProc);
 
 	/////////////////////////////////////////////////////////
-#define BUF_SIZE 5000
-	/*
-	auto printError = [](std::string message) {
-		std::cout << message << std::endl;
-		fputc('\n', stderr);
-		exit(1);
-	};
-	auto GetMicroCounter = []()
-	{
-		u64 Counter;
+	// TCP routine
+#define CFG_LISTEN_PORT 22222
+#define CFG_SIZE_MAX_FD 1000
+#define CFG_SIZE_MAX_RECV_BUFFER 5000
 
-#if defined(_WIN32)
-		u64 Frequency;
-		QueryPerformanceFrequency((LARGE_INTEGER*)&Frequency);
-		QueryPerformanceCounter((LARGE_INTEGER*)&Counter);
-		Counter = 1000000 * Counter / Frequency;
-#elif defined(__linux__) 
-		struct timeval t;
-		gettimeofday(&t, 0);
-		Counter = 1000000 * t.tv_sec + t.tv_usec;
-#endif
+	std::atomic_bool network_alive{ true };
+	std::thread network_processing_thread([&]() {
+		WSADATA wsaData;
+		WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-		return Counter;
-	};
-	u64 start, end;
-	WSADATA wsaData;
-	struct sockaddr_in local_addr;
-	SOCKET s;
-	WSAStartup(MAKEWORD(2, 2), &wsaData);
 
-	if ((s = socket(PF_INET, SOCK_DGRAM, 0)) < 0) {
-		printf("Socket Creat Error.\n");
-		exit(1);
-	}
-
-	memset(&local_addr, 0, sizeof(local_addr));
-	local_addr.sin_family = AF_INET;
-	local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-	local_addr.sin_port = htons(atoi("22222"));
-
-	if (bind(s, (SOCKADDR*)&local_addr, sizeof(local_addr)) == SOCKET_ERROR)
-		printError("BIND ERROR");
-
-	printf("This server is waiting... \n");
-
-	struct sockaddr_in client_addr;
-	int len_addr = sizeof(client_addr);
-	int totalBufferNum;
-	int BufferNum;
-	int readBytes;
-	long file_size;
-	long totalReadBytes;
-
-	char buf[BUF_SIZE];
-
-	start = GetMicroCounter();
-
-	readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
-	file_size = atol(buf);
-	totalBufferNum = file_size / BUF_SIZE + 1;
-	BufferNum = 0;
-	totalReadBytes = 0;
-	/**/
-	std::atomic_bool udp_alive{ true };
-	std::thread udp_processing_thread([&]() {
-	/*
-		FILE* fp;
-		fopen_s(&fp, "../data/Tracking Test 2023-05-09/test.raw", "wb");
-		cv::Mat receivedImg(1296, 1296, CV_8UC1);
-
-		int i = 0;
-		while (BufferNum != totalBufferNum) {
-			readBytes = recvfrom(s, buf, BUF_SIZE, 0, (struct sockaddr*)&client_addr, &len_addr);
-			BufferNum++;
-			totalReadBytes += readBytes;
-			printf("In progress: %d/%dByte(s) [%d%%]\n", totalReadBytes, file_size, ((BufferNum * 100) / totalBufferNum));
-			if (readBytes > 0) {
-				//fwrite(buf, sizeof(char), readBytes, fp);
-				memcpy(receivedImg.ptr() + readBytes * i++, buf, readBytes);
-				readBytes = sendto(s, buf, 10, 0, (SOCKADDR*)&client_addr, sizeof(client_addr));
-			}
-			if (readBytes == SOCKET_ERROR)
-			{
-				printError("ERROR");
-				break;
-			}
+		/* create socket */
+		SOCKET serverSocket;
+		serverSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+		if (serverSocket < 0) {
+			printf("can not create socket\n");
+			return -1;
 		}
-		std::cout << "GGGGGGGGGGGGGGGGGGGGGGGGGGGGGg : " << BufferNum << "GGG : " << totalBufferNum << std::endl;
-		cv::imshow("test", receivedImg);
-		cv::waitKey();
-		fclose(fp);
-		/**/
+
+		/* bind socket */
+		struct sockaddr_in serverAddr;
+		memset(&serverAddr, 0, sizeof(serverAddr));
+		serverAddr.sin_family = AF_INET;
+		serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
+		serverAddr.sin_port = htons(CFG_LISTEN_PORT);
+
+		if (bind(serverSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
+		{
+			printf("bind error\n");
+			return -1;
+		}
+
+		/* listen */
+		if (listen(serverSocket, CFG_SIZE_MAX_FD) == SOCKET_ERROR) {
+			printf("listen error\n");
+			return -1;
+		}
+
+		printf("listen %d port...\n", CFG_LISTEN_PORT);
+
+		/* fd_set에 서버 소켓 설정 */
+		fd_set reads;
+		fd_set copy_reads;
+		FD_ZERO(&reads);
+		FD_SET(serverSocket, &reads);
+		int maxFd = serverSocket;
+
+		/* select timeout 1초 설정 */
+		struct timeval timeout;
+		timeout.tv_sec = 1;
+		timeout.tv_usec = 0;
+
+		int clientSocket = -1;
+		struct sockaddr_in clientAddr;
+		unsigned int clientAddrSize = sizeof(clientAddr);
+
+		const int bufferSize = CFG_SIZE_MAX_RECV_BUFFER;
+		char buffer[bufferSize];
+
+		int totalBufferNum;
+		int BufferNum;
+		int readBytes;
+		long file_size;
+		long totalReadBytes;
+		uint numTimeOut = 0;
+
+		while (network_alive) {
+
+			while (true && !download_completed) {
+				/* timeout 시간 재설정 */
+				timeout.tv_sec = 1;
+				timeout.tv_usec = 0;
+
+				/* fd_set 복사 */
+				copy_reads = reads;
+
+				/* select */
+				int result = select(maxFd + 1, &copy_reads, NULL, NULL, &timeout);
+
+				/* select 결과 예외처리 */
+				if (result < 0) {
+					printf("\rselect error");
+					fflush(stdout);
+					break;
+				}
+
+				if (result == 0) {
+					printf("\rtime out...%d", ++numTimeOut);
+					fflush(stdout);
+					break;
+				}
+
+				/* server listen socket에 input event가 있는지 확인 */
+				if (FD_ISSET(serverSocket, &copy_reads)) {
+					/* input event가 있으면 accept */
+					clientSocket = accept(serverSocket,
+						(struct sockaddr*)&clientAddr,
+						(int*)&clientAddrSize);
+
+					if (clientSocket < 0) {
+						printf("\ninvalid client socket. [clientSocket:%d]\n",
+							clientSocket);
+						break;
+					}
+
+					printf("\naccept new client. [clientSocket:%d]\n",
+						clientSocket);
+
+					readBytes = recv(clientSocket, buffer, bufferSize, 0);
+					if (readBytes < 5000) break;
+					file_size = atol(buffer);
+
+					unsigned char* data = new unsigned char[file_size];
+					totalReadBytes = 0;
+
+					//FILE* fp;
+					//fopen_s(&fp, (folder_capture + "result.raw").c_str(), "wb");
+					std::vector<char> bufferTmp(file_size * 2);
+					while (file_size > totalReadBytes) {
+						readBytes = recv(clientSocket, buffer, bufferSize, 0);
+						if (readBytes < 0) break;
+
+						//fwrite(buffer, sizeof(char), readBytes, fp);
+						memcpy(&bufferTmp[totalReadBytes], buffer, readBytes);
+
+						totalReadBytes += readBytes;
+						printf("\rIn progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
+						fflush(stdout);
+					}
+					if (readBytes > 0) {
+						download_completed = true;
+						memcpy(g_curScanImg.ptr(), &bufferTmp[0], file_size);
+					}
+
+					//fclose(fp);
+					/* client socket 종료 */
+					closesocket(clientSocket);
+					printf("close [clientSocket:%d]\n", clientSocket);
+				}
+			}
+
+		}
+
+		if (serverSocket != -1) {
+			closesocket(serverSocket);
+		}
+		WSACleanup();
 	});
+
 
     MSG msg;
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAVIWIN));
@@ -1227,13 +1300,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #endif
 	vzm::DeinitEngineLib();
 
-	udp_alive = false;
-	udp_processing_thread.join();
+	network_alive = false;
+	network_processing_thread.join();
 	//end = GetMicroCounter();
 	//printf("Elapsed Time (micro seconds) : %d", end - start);
-	//closesocket(s);
-	//WSACleanup();
-
 	GdiplusShutdown(gdiplusToken);
 
     return (int) msg.wParam;
@@ -1340,7 +1410,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			switch (wParam) {
 				case char('S') :
 				{
-					cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
+					cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
 					cv::Mat ocvVec3(1, 3, CV_32FC1);
 					memcpy(ocvVec3.ptr(), cpCam1.pos, sizeof(float) * 3);
 					fs.write("POS", ocvVec3);
@@ -1352,7 +1422,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}break;
 				case char('L') :
 				{
-					cv::FileStorage fs("../data/SceneCamPose.txt", cv::FileStorage::Mode::READ);
+					cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 					if (fs.isOpened()) {
 						cv::Mat ocvVec3;
 						fs["POS"] >> ocvVec3;
@@ -1371,14 +1441,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					if (activeCarmIdx < 0)
 						break;
 #endif
-
-					double arrayMatK[9] = { 4.90314332e+03, 0.00000000e+00, 5.66976763e+02,
-						0.00000000e+00, 4.89766748e+03, 6.45099412e+02,
-						0.00000000e+00, 0.00000000e+00, 1.00000000e+00
-					};
-					double arrayDistCoeffs[5] = { -4.41147907e-02,  1.01898819e+00,  6.79242077e-04,
-						-1.16990433e-02,  3.42748576e-01
-					};
+					cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+					cv::Mat cameraMatrix;
+					fs["K"] >> cameraMatrix;
+					fs.release();
 
 					int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + to_string(activeCarmIdx));
 	
@@ -1409,11 +1475,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					pos = *(glm::fvec3*)cpNewCam1.pos = vzmutils::transformPos(pos, matCA2WS);
 					view = *(glm::fvec3*)cpNewCam1.view = vzmutils::transformVec(view, matCA2WS);
 					up = *(glm::fvec3*)cpNewCam1.up = vzmutils::transformVec(up, matCA2WS);
-					cpNewCam1.fx = arrayMatK[0] / intrinsicRatioX;
-					cpNewCam1.fy = arrayMatK[4] / intrinsicRatioY;
-					cpNewCam1.sc = arrayMatK[1];
-					cpNewCam1.cx = arrayMatK[2] / intrinsicRatioX;
-					cpNewCam1.cy = arrayMatK[5] / intrinsicRatioY;
+					cpNewCam1.fx = cameraMatrix.at<double>(0, 0) / intrinsicRatioX;
+					cpNewCam1.fy = cameraMatrix.at<double>(1, 1) / intrinsicRatioY;
+					cpNewCam1.sc = cameraMatrix.at<double>(0, 1);
+					cpNewCam1.cx = cameraMatrix.at<double>(0, 2) / intrinsicRatioX;
+					cpNewCam1.cy = cameraMatrix.at<double>(1, 2) / intrinsicRatioY;
 					cpNewCam1.np = 0.2;
 
 					glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
@@ -1520,27 +1586,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
 				
-				cv::FileStorage __fs("../data/Tracking Test 2023-04-30/" + paramsFileName, cv::FileStorage::Mode::WRITE);
+				cv::FileStorage __fs(folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
 
-				double arrayMatK[9] = {};
-				double arrayDistCoeffs[5] = {};
-				cv::FileStorage fs("../data/Tracking 2023-04-19/carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-				cv::Mat _matK;
-				fs["K"] >> _matK;
-				__fs << "K" << _matK;
-				memcpy(arrayMatK, _matK.ptr(), sizeof(double) * 9);
-				cv::Mat _distCoeffs;
-				fs["DistCoeffs"] >> _distCoeffs;
-				__fs << "DistCoeffs" << _distCoeffs;
-				memcpy(arrayDistCoeffs, _distCoeffs.ptr(), sizeof(double) * 5);
-				fs.open("../data/Tracking 2023-04-19/rb2carm.txt", cv::FileStorage::Mode::READ);
+				cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+				cv::Mat matK;
+				fs["K"] >> matK;
+				__fs << "K" << matK;
+				cv::Mat distCoeffs;
+				fs["DistCoeffs"] >> distCoeffs;
+				__fs << "DistCoeffs" << distCoeffs;
+				fs.open(folder_trackingInfo + "rb2carm.txt", cv::FileStorage::Mode::READ);
 				cv::Mat rvec, tvec;
 				fs["rvec"] >> rvec;
 				fs["tvec"] >> tvec;
 				__fs << "rvec" << rvec;
 				__fs << "tvec" << tvec;
 				fs.release();
-
 
 				cv::Mat ocvRb(4, 4, CV_32FC1);
 				memcpy(ocvRb.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
@@ -1549,11 +1610,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				__fs.release();
 			};
 
-#ifdef USE_MOTIVE
 			static char SAVEKEYS[10] = { 'Q' , 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P' };
 			const int maxSamples = 30;
 			const float normalizedNum = 1.f / (float)maxSamples;
-
+#ifdef USE_MOTIVE
 			for (int i = 0; i < 10; i++) {
 				if (wParam == SAVEKEYS[i]) {
 					glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
@@ -1563,7 +1623,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					while (captureCount < maxSamples) {
 						navihelpers::track_info trackInfo;
 						g_track_que->wait_and_pop(trackInfo);
-						Sleep(50);
 						glm::fquat q;
 						glm::fvec3 t;
 						if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
@@ -1581,7 +1640,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 							trAvr += t * normalizedNum;
 							captureCount++;
 						}
-						std::cout << "Capturing... " << captureCount << std::endl;
+						//std::cout << "Capturing... " << captureCount << std::endl;
+						printf("\rCapturing... %d", captureCount);
+						fflush(stdout)
 					}
 					std::cout << "Capturing... DONE!" << std::endl;
 					rotAxisAvr = glm::normalize(rotAxisAvr);
@@ -1589,7 +1650,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					glm::fmat4x4 mat_t = glm::translate(trAvr);
 					glm::fmat4x4 matRB2WS = mat_t * mat_r;
 
-					StoreParams("test" + to_string(i) + ".txt", matRB2WS, "../data/Tracking Test 2023-05-09/test.png");
+					StoreParams("test" + to_string(i) + ".txt", matRB2WS, folder_trackingInfo + "test.png");
+					break;
+				}
+			}
+#else
+			//std::atomic_bool udp_alive{ true };
+			//
+			for (int i = 0; i < 10; i++) {
+				if (wParam == SAVEKEYS[i]) {
+					// to do //
+					string trkInfoFile = "test" + to_string(i) + ".txt";
+					ifstream _file(folder_trackingInfo + trkInfoFile);
+					bool fileExist = _file.is_open();
+					_file.close();
+					if (!fileExist) break;
+
+					cout << "*** Save " << trkInfoFile << " !!" << endl;
+
+					cv::FileStorage __fs(folder_trackingInfo + trkInfoFile, cv::FileStorage::Mode::READ);
+					cv::Mat rb2wsMat;
+					__fs["rb2wsMat"] >> rb2wsMat;
+					glm::fmat4x4 matRB2WS;
+					memcpy(&matRB2WS, rb2wsMat.ptr(), sizeof(glm::fmat4x4));
+
+					cv::Mat downloadImg;
+					cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2BGR);
+					string downloadImgFileName = folder_trackingInfo + "test" + to_string(i) + ".png";
+					cv::imwrite(downloadImgFileName, downloadImg);
+					cv::waitKey(1);
+					StoreParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
+					download_completed = false;
 					break;
 				}
 			}
@@ -1603,7 +1694,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					auto it = mapAidGroupCArmCam.find(i + 1);
 					if (it != mapAidGroupCArmCam.end())
 						vzm::RemoveSceneItem(it->second, true);
-					int aidGroup = RegisterCArmImage(sidScene, string("../data/Tracking Test 2023-04-30/") + "test" + to_string(i) + ".txt", "test" + to_string(i));
+					int aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
 					if (aidGroup == -1)
 						break;
 					mapAidGroupCArmCam[i + 1] = aidGroup;
