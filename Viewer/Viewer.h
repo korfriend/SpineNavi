@@ -10,8 +10,10 @@
 #include <qlabel.h>
 
 #include "ui_Viewer.h"
+#include "clickableLabel.h"
 
 #include<filesystem>
+#include<iostream>
 
 class Viewer : public QMainWindow
 {
@@ -38,11 +40,14 @@ private:
     QListWidget* qlistwidget; // thumnail 표시할 widget
     QImage leftImg; // 크게 표시될 두개의 img
     QImage rightImg;
-    QLabel* leftView;
-    QLabel* rightView;
+    myLabel* leftView;
+    myLabel* rightView;
     int num_imgs;
+    int selectedView;
 
 
 private slots:
     void clickedImage();
+    void leftClicked();
+    void rightClicked();
 };
