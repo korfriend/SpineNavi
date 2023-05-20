@@ -134,9 +134,10 @@ bool optitrk::LoadProfileAndCalibInfo(const std::string& file_profile, const std
 	CheckResult(TT_LoadProfile(file_profile.c_str()));
 
 	// Load a calibration file from the executable directory
-	printf("Loading Calibration: Calibration.cal\n\n");
-	CheckResult(TT_LoadCalibration(file_calib.c_str()));
-
+	if (file_calib != "") {
+		printf("Loading Calibration: Calibration.cal\n\n");
+		CheckResult(TT_LoadCalibration(file_calib.c_str()));
+	}
 	return true;
 }
 

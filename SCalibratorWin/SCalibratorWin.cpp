@@ -446,27 +446,27 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		return;
 	}
 
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_001.csv"] = avr_trk(folder_capture + "7802.png", folder_capture + "7802.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_002.csv"] = avr_trk(folder_capture + "7803.png", folder_capture + "7803.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_003.csv"] = avr_trk(folder_capture + "7804.png", folder_capture + "7804.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_004.csv"] = avr_trk(folder_capture + "7805.png", folder_capture + "7805.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_005.csv"] = avr_trk(folder_capture + "7806.png", folder_capture + "7806.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_006.csv"] = avr_trk(folder_capture + "7807.png", folder_capture + "7807.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_008.csv"] = avr_trk(folder_capture + "7808.png", folder_capture + "7808.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk(folder_capture + "7809.png", folder_capture + "7809.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk(folder_capture + "7810.png", folder_capture + "7810.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk(folder_capture + "7811.png", folder_capture + "7811.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk(folder_capture + "7812.png", folder_capture + "7812.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk(folder_capture + "7813.png", folder_capture + "7813.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk(folder_capture + "7814.png", folder_capture + "7814.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk(folder_capture + "7815.png", folder_capture + "7815.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk(folder_capture + "7817.png", folder_capture + "7817.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk(folder_capture + "7818.png", folder_capture + "7818.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk(folder_capture + "7819.png", folder_capture + "7819.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk(folder_capture + "7820.png", folder_capture + "7820.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk(folder_capture + "7821.png", folder_capture + "7821.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk(folder_capture + "7822.png", folder_capture + "7822.txt");
-	cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk(folder_capture + "7823.png", folder_capture + "7823.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-20 07.17.24 PM.csv"] = avr_trk(folder_capture + "8274.png", folder_capture + "8274.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-20 07.18.27 PM.csv"] = avr_trk(folder_capture + "8275.png", folder_capture + "8275.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-20 07.19.33 PM.csv"] = avr_trk(folder_capture + "8276.png", folder_capture + "8276.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-20 07.19.47 PM.csv"] = avr_trk(folder_capture + "8277.png", folder_capture + "8277.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-20 07.20.13 PM.csv"] = avr_trk(folder_capture + "8278.png", folder_capture + "8278.txt");
+	cArmCalibScans[folder_optiSession + "Take 2023-05-20 07.22.07 PM.csv"] = avr_trk(folder_capture + "8280.png", folder_capture + "8280.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-20 07.21.03 PM.csv"] = avr_trk(folder_capture + "8279.png", folder_capture + "8279.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_009.csv"] = avr_trk(folder_capture + "7809.png", folder_capture + "7809.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_010.csv"] = avr_trk(folder_capture + "7810.png", folder_capture + "7810.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_011.csv"] = avr_trk(folder_capture + "7811.png", folder_capture + "7811.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_012.csv"] = avr_trk(folder_capture + "7812.png", folder_capture + "7812.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_013.csv"] = avr_trk(folder_capture + "7813.png", folder_capture + "7813.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_014.csv"] = avr_trk(folder_capture + "7814.png", folder_capture + "7814.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_015.csv"] = avr_trk(folder_capture + "7815.png", folder_capture + "7815.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_016.csv"] = avr_trk(folder_capture + "7817.png", folder_capture + "7817.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_017.csv"] = avr_trk(folder_capture + "7818.png", folder_capture + "7818.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_018.csv"] = avr_trk(folder_capture + "7819.png", folder_capture + "7819.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_019.csv"] = avr_trk(folder_capture + "7820.png", folder_capture + "7820.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_020.csv"] = avr_trk(folder_capture + "7821.png", folder_capture + "7821.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_021.csv"] = avr_trk(folder_capture + "7822.png", folder_capture + "7822.txt");
+	//cArmCalibScans[folder_optiSession + "Take 2023-05-09 06.27.02 PM_023.csv"] = avr_trk(folder_capture + "7823.png", folder_capture + "7823.txt");
 	
 	set<string> cArmCalibScansExcluded;
 	//cArmCalibScansExcluded.insert(folder_optiSession + "Take 2023-05-09 06.27.02 PM_001.csv");
@@ -916,7 +916,7 @@ void CalibrateCamPoseForCArmRB(const std::string& intrinsicsFile, const std::str
 		cv::FileStorage fs(avrTrkInfo.xRayCirclesResult, cv::FileStorage::Mode::READ | cv::FileStorage::Mode::FORMAT_YAML);
 		assert(fs.isOpened());
 		cv::Mat pos2Ds;
-		fs["circle_center_pos"] >> pos2Ds;
+		fs["undist_circle_center_pos"] >> pos2Ds;
 		fs.release();
 
 		vector<cv::Point2f> pts2d_single(numCalibRbMKs);
@@ -1215,9 +1215,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	};
 
 	folder_data = getdatapath();
-	folder_trackingInfo = getdatapath() + "Tracking 2023-05-09/";
-	folder_capture = getdatapath() + "c-arm 2023-05-09/";
-	folder_optiSession = getdatapath() + "Session 2023-05-09/";
+	folder_trackingInfo = getdatapath() + "Tracking 2023-05-20/";
+	folder_capture = getdatapath() + "c-arm 2023-05-20/";
+	folder_optiSession = getdatapath() + "Session 2023-05-20/";
 
 	// TODO: Place code here.
 	vzm::InitEngineLib("SpineNavi");
@@ -1235,7 +1235,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     }
 
 	SceneInit();	// camera setting inside SceneInit should be called after InitInstance (which sets windows properties)
-	CalibrateCamPoseForCArmRB(folder_trackingInfo + "carm_intrinsics.txt", "c-arm", "test1", 7);
+	CalibrateCamPoseForCArmRB(folder_trackingInfo + "carm_intrinsics.txt", "c-arm", "test1", 8);
 
 	int sidScene1 = vzmutils::GetSceneItemIdByName(g_sceneName);
 	int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
@@ -1554,13 +1554,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		}
 
 		static string trkNames[10] = {
-			  folder_optiSession + "Take 2023-05-09 06.27.02 PM_001.csv"
-			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_002.csv"
-			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_003.csv"
-			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_004.csv"
-			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_005.csv"
-			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_006.csv"
-			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_008.csv"
+			  folder_optiSession + "Take 2023-05-20 07.17.24 PM.csv"
+			, folder_optiSession + "Take 2023-05-20 07.18.27 PM.csv"
+			, folder_optiSession + "Take 2023-05-20 07.19.33 PM.csv"
+			, folder_optiSession + "Take 2023-05-20 07.19.47 PM.csv"
+			, folder_optiSession + "Take 2023-05-20 07.20.13 PM.csv"
+			, folder_optiSession + "Take 2023-05-20 07.22.07 PM.csv"
+			, folder_optiSession + "a"
 			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_009.csv"
 			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_010.csv"
 			, folder_optiSession + "Take 2023-05-09 06.27.02 PM_011.csv"
@@ -1574,14 +1574,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				if (itScan == cArmCalibScans.end())
 					continue;
 				
-				string calibPosInfoFile = "test" + to_string(i) + ".txt";
+				string calibPosInfoFile = "calib_test" + to_string(i) + ".txt";
 				avr_trk& trk = itScan->second;
 				StoreParams(folder_trackingInfo, calibPosInfoFile, trk.mat_rb2ws, trk.xRayScanImg, false); // key 1
 
 				static int aidGroup = 0;
 				if(aidGroup != 0)
 				vzm::RemoveSceneItem(aidGroup, true);
-				aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + calibPosInfoFile, "test" + to_string(i));
+				aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + calibPosInfoFile, "calib_test" + to_string(i));
 				if (aidGroup == -1)
 					break;
 
