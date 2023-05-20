@@ -33,4 +33,4 @@ rb2wsMat: !!opencv-matrix
        3.72551411e-01, 9.25636768e-01, -6.63481578e-02, 0.,
        1.19615637e-01, 2.30016131e-02, 9.92553830e-01, 0.,
        -1.44659474e-01, 4.69686776e-01, 3.50532770e-01, 1. ]
-imgFile: "D:/Spine Project/SpineNavi/bin/X64_Debug/../../data/Tracking 2023-05-20/test0.png"
+imgFile: "../data/Tracking 2023-05-20/test0.png"

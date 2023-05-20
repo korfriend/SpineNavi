@@ -569,7 +569,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 #ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 
-	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-05-20.motive", "");
+	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-05-20.motive", folder_data + "System Calibration.cal");
 #else
 	//rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
 	//std::string cArmTrackFile = folder_trackingInfo + "c-arm-track1.txt";
