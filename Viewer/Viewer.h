@@ -8,10 +8,15 @@
 #include <qdebug.h>
 #include <qpushbutton.h>
 #include <qlabel.h>
+#include <qtimer.h>
+#include <QMouseEvent>
+#include <QKeyEvent>
 
 #include "ui_Viewer.h"
 
 #include<filesystem>
+#include <iostream>
+#include <memory>
 
 class Viewer : public QMainWindow
 {
@@ -26,9 +31,15 @@ public:
     void setThumbnailItems(); // 저장된 item을 thumbnail에 등록
     void setLeftRightImg(); // left right image viewer 에 setting size 맞춰서.
 
+
 protected:
     virtual void resizeEvent(QResizeEvent* event); // resize시
 
+	void mousePressEvent(QMouseEvent* event) override;
+	void mouseMoveEvent(QMouseEvent* event) override;
+	void mouseReleaseEvent(QMouseEvent* event) override;
+
+	void keyPressEvent(QKeyEvent* event) override;
 private:
     Ui::ViewerClass ui;
 
@@ -42,7 +53,9 @@ private:
     QLabel* rightView;
     int num_imgs;
 
+    QTimer* m_qtimer;
 
 private slots:
     void clickedImage();
+    void TimerProc();
 };

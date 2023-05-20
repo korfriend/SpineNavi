@@ -49,8 +49,6 @@ std::map<std::string, glm::fvec3> mkPosTest1Avr;
 #define MAX_LOADSTRING 100
 typedef unsigned long long u64;
 
-static int testFileIdx = 1000;
-
 std::string folder_data = "";
 std::string folder_capture = "";
 std::string folder_trackingInfo = "";
