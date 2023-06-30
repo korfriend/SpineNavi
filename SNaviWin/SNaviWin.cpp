@@ -1,5 +1,9 @@
 ﻿// SNaviWin.cpp : 애플리케이션에 대한 진입점을 정의합니다.
-//
+// DOJO : 자체적으로 개발한 namespace
+// 엔진 : vzm, vzmutils, vzmproc
+// 어플리케이션 helper : navihelpers
+// 트래킹 APIs (Optirack APIs Wrapper) : optitrk 
+// 위의 namespace 외엔 glm 과 같은 commonly-used 3rd party lib 이거나 C++ standard lib 또는 windows SDK lib 임
 
 #include "framework.h"
 #include "SNaviWin.h"
@@ -38,7 +42,6 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 #include "CArmCalibration.h"
 
-#define USE_MOTIVE
 #define DESIRED_SCREEN_W 950
 #define DESIRED_SCREEN_H 950
 #define USE_WHND true
@@ -73,6 +76,17 @@ cv::Mat g_curScanImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
 
 std::atomic_bool download_completed{ false };
 
+// DOJO : 특별한 기능은 아니며, 카메라 전환 시 부드러운 변화를 위해 slerp 로 카메라 정보를 저장한 구조체
+int numAnimationCount = 50;
+int arAnimationKeyFrame1 = -1;
+std::vector<vzm::CameraParameters> cpInterCams1(numAnimationCount);
+int arAnimationKeyFrame2 = -1;
+std::vector<vzm::CameraParameters> cpInterCams2(numAnimationCount);
+
+std::string g_sceneName = "Scene1"; // Scene1, Scene2
+std::string g_camName = "Cam1"; // World Camera, CArm Camera
+std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
+
 int main()
 {
 	return wWinMain(GetModuleHandle(NULL), NULL, GetCommandLine(), SW_SHOWNORMAL);
@@ -101,6 +115,7 @@ void UpdateBMP(int cidCam, HWND hWnd) {
 	unsigned char* ptr_rgba;
 	float* ptr_zdepth;
 	int w, h;
+	// DOJO : 렌더링된 버퍼를 받아서 GUI window buffer 에 그리기
 	if (vzm::GetRenderBufferPtrs(cidCam, &ptr_rgba, &ptr_zdepth, &w, &h))
 	{
 		// https://stackoverflow.com/questions/26005744/how-to-display-pixels-on-screen-directly-from-a-raw-array-of-rgb-values-faster-t
@@ -131,26 +146,54 @@ void UpdateBMP(int cidCam, HWND hWnd) {
 };
 
 void SceneInit() {
+	// DOJO : Scene 은 Camera(s), Light source(s), Actor(s)로 구성, World Space 의 Coordinate System 을 정의함 
+	// 
 	// we set 'meter scale world to world space
 
+	// DOJO : Actor 는 Scene 에 그려지는 Model 이며, 
+	// Actor 를 구성하는 actor resource (called resource object) 는 geometry 및 material (e.g., texture) 등으로 정의
+	// vzm::GenerateXXXObject 는 actor resource 를 생성 
+	// vzm::LoadXXX 는 file 로부터 actor resource 를 생성
+	// actor resource 의 geometry 는 기본적으로 Object Space (Model Space) 에서 정의된 것으로 봄
+	
+	// DOJO : Axis 를 위한 actor resource 를 생성
+	// oidAxis (objId) 은 생성된 actor resource 의 ID 를 받아옴
+	// objId = 0 인 경우, 항상 새로운 actor resource 를 생성하고 새로운 ID 를 받음
+	// objId != 0 인 경우, 해당 ID 의 actor resource 가 있을 때, 해당 actor resource 를 update 함 (ID 는 그대로 사용)
+	// objId != 0 인 경우, 해당 ID 의 actor resource 가 없을 때, 새로운 actor resource 를 생성하고 새로운 ID 를 받음
 	int oidAxis = 0;
 	vzm::GenerateAxisHelperObject(oidAxis, 0.5f);
 
+	// DOJO : Actor Parameter (vzm::ActorParameters) 와 actor resource 로 actor 생성
 	vzm::ActorParameters apAxis;
+	// vzm::ActorParameters::SetResourceID 로 다양한 actor resource 를 actor 에 할당할 수 있음
+	// 기본적으로 vzm::ActorParameters::RES_USAGE::GEOMETRY 가 있어야 함, 그 외 여러 종류의 texture 들이 올 수 있음 (ref. vzm::ActorParameters::RES_USAGE)
 	apAxis.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidAxis);
+	// line 으로 정의된 geometry 에 대해 렌더링에서 사용되는 parameter (c.f., triangle geometry 의 경우 해당 parameter 가 렌더링에서 사용되지 않음)
 	apAxis.line_thickness = 3;
+	// color 의 경우, 해당 actor 에 대해 global 로 적용됨 
+	// geometry resource 가 vertex 단위로 color 가 정의되어 있다면, 여기선 alpha 값만 사용됨
 	*(glm::fvec4*)apAxis.color = glm::fvec4(1, 1, 1, 1);
+	// DOJO : 새로운 액터 생성
+	// actor name parameter 와 actor parameter 필요
+	// actor name parameter 로 actor 의 ID 를 가져올 수 있음
 	int aidAxis = 0;
 	vzm::NewActor(apAxis, "World Axis", aidAxis);
 
+	// DOJO : navihelpers 는 이번 프로젝트에서 사용할 헬퍼 함수를 담고 있음
 	int oidGrid, oidLines, oidTextX, oidTextZ;
+	// scene 의 바닥에 그려지는 actor resources 를 생성
 	navihelpers::World_GridAxis_Gen(oidGrid, oidLines, oidTextX, oidTextZ);
 
 	std::vector<glm::fvec3> pinfo(3);
 	pinfo[0] = glm::fvec3(0, 0.5, 0);
 	pinfo[1] = glm::fvec3(0, 0, -1);
 	pinfo[2] = glm::fvec3(0, 1, 0);
-	int oidFrameText;
+	// DOJO : "Frame" 이라는 text 를 그리는 actor resource 를 생성 (자세한 사용법은 문의 바람)
+	// 여기서 int oidFrameText; 이렇게 했는데, 새롭게 생성하는 경우 oidFrameText = 0 을 권장
+	// DEBUG 모드에서는 initialize 안 하면, 보통 0 값이 들어 가지만, 
+	// RELEASE 모드에서는 initialize 안 하면, 임의의 값이 들어 가고, 이 때, (거의 발생하진 않지만) 다른 actor resource 의 ID 값이 들어가면 비정상 동작할 수 있음
+	int oidFrameText; // recommend "int oidFrameText = 0;"
 	vzm::GenerateTextObject((float*)&pinfo[0], "Frame", 0.1, true, false, oidFrameText);
 
 	vzm::ActorParameters apGrid, apLines, apTextX, apTextZ, apTextFrame;
@@ -169,15 +212,17 @@ void SceneInit() {
 	vzm::NewActor(apTextX, "World Text X", aidTextX);
 	vzm::NewActor(apTextZ, "World Text Y", aidTextZ);
 	vzm::NewActor(apTextFrame, "Frame Text", aidTextFrame);
-
+	
 	RECT rcWorldView;
 	GetClientRect(g_hWnd, &rcWorldView);
 
+	// DOJO : (world view 에서의) Camera 를 정의하기 위한 파라미터
 	vzm::CameraParameters cpCam1;
 	*(glm::fvec3*)cpCam1.pos = glm::fvec3(-1.5, 1.5, -1.5);
 	*(glm::fvec3*)cpCam1.up = glm::fvec3(0, 1, 0);
 	*(glm::fvec3*)cpCam1.view = glm::fvec3(1, -1, 1);
 
+	// YAML 로 이전에 저장된 (world view 에서의) 카메라 위치 정보 읽어 들임
 	cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 	if (fs.isOpened()) {
 		cv::Mat ocvVec3;
@@ -190,13 +235,18 @@ void SceneInit() {
 		fs.release();
 	}
 
+	// 렌더링될 buffer 사이즈
 	cpCam1.w = rcWorldView.right - rcWorldView.left;
 	cpCam1.h = rcWorldView.bottom - rcWorldView.top;
 
+	// 렌더링 파이프라인의 View Frustum 에서의 near plane, far plane distances
 	cpCam1.np = 0.1f;
 	cpCam1.fp = 100.f;
 
 	float vFov = 3.141592654f / 4.f;
+	// NOTE : union 으로 저장되어 있음
+	// 카메라 view projection 의 자연스러운 이동 (to C-arm View) 을 위해, 
+	// 카메라 설정 convention 을 camera (intrinsic) parameters 로 사용
 	if (0) {
 		cpCam1.fov_y = vFov;
 		cpCam1.aspect_ratio = (float)cpCam1.w / (float)cpCam1.h;
@@ -217,11 +267,13 @@ void SceneInit() {
 
 	//cpCam1.SetOrthogonalProjection(true);
 	cpCam1.hWnd = USE_WHND ? g_hWnd : NULL;
+	// DOJO : scene 에 등록될 카메라 생성, 여기선 두 개 생성 (AP, Lateral 용)
 	int cidCam1 = 0, cidCam2 = 0;
 	vzm::NewCamera(cpCam1, "Cam1", cidCam1);
 	cpCam1.hWnd = USE_WHND ? g_hWndDialog1 : NULL;
 	vzm::NewCamera(cpCam1, "Cam2", cidCam2);
 
+	// DOJO : Light 를 정의하기 위한 파라미터
 	vzm::LightParameters lpLight1;
 	lpLight1.is_on_camera = true;
 	lpLight1.is_pointlight = false;
@@ -229,179 +281,56 @@ void SceneInit() {
 	*(glm::fvec3*)lpLight1.dir = *(glm::fvec3*)cpCam1.view;
 	*(glm::fvec3*)lpLight1.up = *(glm::fvec3*)cpCam1.up;
 	int lidLight1 = 0;
+	// DOJO : scene 에 등록될 Light 생성
 	vzm::NewLight(lpLight1, "World Light", lidLight1);
 
-	// make a scene
+	// DOJO : scene 생성
 	int sidScene = 0;
 	vzm::NewScene("Scene1", sidScene);
 
+	// DOJO : scene 에 camera 1 (cidCam1) 을 연결 
 	vzm::AppendSceneItemToSceneTree(cidCam1, sidScene);
+	// DOJO : scene 에 camera 2 (cidCam2) 을 연결 
 	vzm::AppendSceneItemToSceneTree(cidCam2, sidScene);
+	// DOJO : scene 에 Light (lidLight1) 을 연결 
 	vzm::AppendSceneItemToSceneTree(lidLight1, sidScene);
+	// DOJO : scene 에 axis actor (aidAxis) 연결 
 	vzm::AppendSceneItemToSceneTree(aidAxis, sidScene);
+	// DOJO : scene 에 ground grid actor (aidGrid) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidGrid, sidScene);
+	// DOJO : scene 에 ground grid 에서의 진한 라인 actor (aidLines) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidLines, sidScene);
+	// DOJO : scene 에 ground grid 위에 있는 "X" 글자 actor (aidTextX) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidTextX, sidScene);
+	// DOJO : scene 에 ground grid 위에 있는 "Z" 글자 actor (aidTextZ) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidTextZ, sidScene);
+	// DOJO : scene 에 "Frame" 글자 actor (aidTextFrame) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
+	// NOTE : 여기에서는 모든 actor 및 camera, light 등 scene item 들이 모두 scene (i.e., root) 에 바로 연결되었지만,
+	// 특정 actor 의 자식으로 붙을 수도 있다 (e.g., scene<-aidAxis<-aidTextZ<-cidCam1 ,...)
 }
 
-void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo) {
-
-	int numRBs = trackInfo.NumRigidBodies();
-	int numMKs = trackInfo.NumMarkers();
-
-	for (int i = 0; i < numRBs; i++) {
-		std::string rbName;
-		glm::fmat4x4 matLS2WS;
-		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL)) {
-			
-			int aidRb = vzmutils::GetSceneItemIdByName(rbName);
-			vzm::ActorParameters apRb;
-			vzm::GetActorParams(aidRb, apRb);
-			apRb.is_visible = true;
-
-			if (storeAvrCarmTrackinfo)
-				matLS2WS = rbMapTrAvr[rbName];
-
-			apRb.SetLocalTransform(__FP matLS2WS);
-			vzm::SetActorParams(aidRb, apRb);
-		}
-	}
-
-	for (int i = 0; i < numMKs; i++) {
-		std::map<navihelpers::track_info::MKINFO, std::any> mk;
-		if (trackInfo.GetMarkerByIdx(i, mk)) {
-			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
-			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
-
-			if (storeAvrCarmTrackinfo)
-			{
-				auto mkp = mkPosTest1Avr.find(mkName);
-				if (mkp != mkPosTest1Avr.end())
-					pos = mkPosTest1Avr[mkName];
-			}
-
-			glm::fmat4x4 matLS2WS = glm::translate(pos);
-			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
-			matLS2WS = matLS2WS * matScale;
-			int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
-			vzm::ActorParameters apMarker;
-			vzm::GetActorParams(aidMarker, apMarker);
-			apMarker.is_visible = true;
-			apMarker.is_pickable = false;
-			apMarker.SetLocalTransform(__FP matLS2WS);
-			vzm::SetActorParams(aidMarker, apMarker);
-		}
-	}
-}
-
-int numAnimationCount = 50;
-int arAnimationKeyFrame1 = -1;
-std::vector<vzm::CameraParameters> cpInterCams1(numAnimationCount);
-int arAnimationKeyFrame2 = -1;
-std::vector<vzm::CameraParameters> cpInterCams2(numAnimationCount);
-std::string g_sceneName = "Scene1"; // Scene1, Scene2
-std::string g_camName = "Cam1"; // World Camera, CArm Camera
-std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
-
-void Render() {
-	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
-	int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
-
-	if (sidScene != 0 && cidCam1 != 0) {
-		// show case
-		if (arAnimationKeyFrame1 >= 0) {
-			vzm::CameraParameters cpCam = cpInterCams1[arAnimationKeyFrame1++];
-			vzm::SetCameraParams(cidCam1, cpCam);
-			if (arAnimationKeyFrame1 == numAnimationCount)
-				arAnimationKeyFrame1 = -1;
-
-			//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
-			//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
-		}
-
-		vzm::RenderScene(sidScene, cidCam1);
-
-		if (USE_WHND)
-			vzm::PresentHWND(g_hWnd);
-		else {
-			UpdateBMP(cidCam1, g_hWnd);
-			InvalidateRect(g_hWnd, NULL, FALSE);
-		}
-		//Sleep(1);
-	}
-
-	int cidCam2 = vzmutils::GetSceneItemIdByName(g_camName2);
-	if (sidScene != 0 && cidCam2 != 0) {
-		// show case
-		if (arAnimationKeyFrame2 >= 0) {
-			vzm::CameraParameters cpCam = cpInterCams2[arAnimationKeyFrame2++];
-			vzm::SetCameraParams(cidCam2, cpCam);
-			if (arAnimationKeyFrame2 == numAnimationCount)
-				arAnimationKeyFrame2 = -1;
-
-			//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
-			//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
-		}
-
-		vzm::RenderScene(sidScene, cidCam2);
-
-		if (USE_WHND)
-			vzm::PresentHWND(g_hWndDialog1);
-		else {
-			UpdateBMP(cidCam2, g_hWndDialog1);
-			InvalidateRect(g_hWndDialog1, NULL, FALSE);
-		}
-	}
-}
-
-#ifdef USE_MOTIVE
-navihelpers::concurrent_queue<navihelpers::track_info>* g_track_que = NULL;
-#endif
-void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
+// DOJO : Tracking 되는 정보를 Scene 에 반영시키는 함수
+// Timer 에 등록된 CALLBACK TimerProc 에서 호출됨 (note: Timer 가 본 어플리케이션에서 rendering thread 로 사용됨)
+// track_info& trackInfo : 트래킹 Thread 에서 concurrent queue (또는 async queue 라도고 함) 로 저장된 가장 최신 정보
+// numRBs : rigid bodies
+// numMKs : 개별 markers
+void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo) 
 {
-	static int frameCount = 0;
-#ifdef USE_MOTIVE
-	int frame = frameCount++;
-#else
-	std::vector<navihelpers::track_info>& trackingFrames = *(std::vector<navihelpers::track_info>*)pcsvData;
-	int totalFrames = (int)trackingFrames.size();
-	int frame = (frameCount++) % totalFrames;
-#endif
-	// update frame text 
-	{
-		int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
-		vzm::ActorParameters apFrameText;
-		vzm::GetActorParams(aidFrameText, apFrameText);
-		int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
-		std::vector<glm::fvec3> pinfo(3);
-		pinfo[0] = glm::fvec3(0, 0.3, 0);
-		pinfo[1] = glm::fvec3(0, 0, -1);
-		pinfo[2] = glm::fvec3(0, 1, 0);
-		vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
-		//vzm::GetActorParams(aidFrameText, apFrameText);
-	}
+	int numMKs = trackInfo.NumMarkers();
+	int numRBs = trackInfo.NumRigidBodies();
 
-
-#ifdef USE_MOTIVE
-	navihelpers::concurrent_queue<navihelpers::track_info>* track_que = 
-		(navihelpers::concurrent_queue<navihelpers::track_info>*)pcsvData;
-	navihelpers::track_info trackInfo;
-	track_que->wait_and_pop(trackInfo);
-
-	// generate scene actors with updated trackInfo
+	// DOJO : 최초 한번만 리소스 오브젝트 생성 (static 으로 지정된 리소스 오브젝트 ID = 0 일 때, 생성) 
+	// 이를 actor 로 생성하고 scene tree 에 배치
 	{
 		using namespace std;
 		using namespace navihelpers;
 		using namespace glm;
 
 		int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
-		int numMKs = trackInfo.NumMarkers();
-		int numRBs = trackInfo.NumRigidBodies();
 
-		// Tracking Cam Geometry and Actors
 		{
+			// tracking camera (총 세개) 를 그리는 actors
 			static int aidGroupCams = 0;
 			if (aidGroupCams == 0) {
 				vzm::ActorParameters apGroupCams;
@@ -438,13 +367,16 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 		static int oidAxis = 0;
 		static int oidMarker = 0;
 		static int oidProbe = 0;
+		// axis 를 그리는 resource object 생성
 		if (oidAxis == 0) {
 			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
 		}
+		// spherical marker 를 그리는 resource object 생성
 		if (oidMarker == 0) {
 			glm::fvec4 pos(0, 0, 0, 1.f);
 			vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
 		}
+		// probe 를 그리는 resource object 생성
 		if (oidProbe == 0) {
 			//vzm::LoadModelFile(folder_data + "probe.obj", oidProbe);
 
@@ -455,13 +387,16 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 
 		static map<string, int> sceneActors;
 
+		// tracking 된 rigid bodies 중, probe 와 그외 일반 rigid body frame 을 나타낼 scene actor 에 생성된 resource (oidProbe, oidAxis) 를 할당
+		// 최초 한 번만 할당하며 이것은 static 으로 저장된 sceneActors dictionary 에 해당 key value 가 있는지로 확인하고 없을 때, 할당
 		for (int i = 0; i < numRBs; i++) {
 			std::string rbName;
 			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, NULL, NULL)) {
 				auto actorId = sceneActors.find(rbName);
 				if (actorId == sceneActors.end()) {
 					vzm::ActorParameters apRb;
-					if (rbName == "probe") {;
+					if (rbName == "probe") {
+						;
 						apRb.SetResourceID(vzm::ActorParameters::GEOMETRY, oidProbe);
 						*(glm::fvec4*)apRb.color = glm::fvec4(1, 0.3, 0.2, 1);
 					}
@@ -497,6 +432,8 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 			}
 		}
 
+		// tracking 된 individual markers 를 나타낼 spherical shape 의 scene actor 에 생성된 resource (oidMarker) 를 할당
+		// 최초 한 번만 할당하며 이것은 static 으로 저장된 sceneActors dictionary 에 해당 key value 가 있는지로 확인하고 없을 때, 할당
 		for (int i = 0; i < numMKs; i++) {
 			std::map<navihelpers::track_info::MKINFO, std::any> mk;
 			if (trackInfo.GetMarkerByIdx(i, mk)) {
@@ -517,10 +454,156 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 		}
 	}
 
+	// DOJO : scene tree 에 배치된 (rigid body) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동 
+	for (int i = 0; i < numRBs; i++) {
+		std::string rbName;
+		glm::fmat4x4 matLS2WS;
+		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL)) {
+			
+			int aidRb = vzmutils::GetSceneItemIdByName(rbName);
+			vzm::ActorParameters apRb;
+			vzm::GetActorParams(aidRb, apRb);
+			apRb.is_visible = true;
+
+			if (storeAvrCarmTrackinfo)
+				matLS2WS = rbMapTrAvr[rbName];
+
+			apRb.SetLocalTransform(__FP matLS2WS);
+			vzm::SetActorParams(aidRb, apRb);
+		}
+	}
+
+	// DOJO : scene tree 에 배치된 (marker) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동
+	for (int i = 0; i < numMKs; i++) {
+		std::map<navihelpers::track_info::MKINFO, std::any> mk;
+		if (trackInfo.GetMarkerByIdx(i, mk)) {
+			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
+			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
+
+			if (storeAvrCarmTrackinfo)
+			{
+				auto mkp = mkPosTest1Avr.find(mkName);
+				if (mkp != mkPosTest1Avr.end())
+					pos = mkPosTest1Avr[mkName];
+			}
+
+			glm::fmat4x4 matLS2WS = glm::translate(pos);
+			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
+			matLS2WS = matLS2WS * matScale;
+			int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
+			vzm::ActorParameters apMarker;
+			vzm::GetActorParams(aidMarker, apMarker);
+			apMarker.is_visible = true;
+			apMarker.is_pickable = false;
+			apMarker.SetLocalTransform(__FP matLS2WS);
+			vzm::SetActorParams(aidMarker, apMarker);
+		}
+	}
+}
+
+// DOJO : 현재 Scene (g_sceneName) 에서 등록된 camera (g_camName, g_camName2) 들에 대해 렌더링하는 함수
+// Timer 에 등록된 CALLBACK TimerProc 에서 호출됨 (note: Timer 가 본 어플리케이션에서 rendering thread 로 사용됨)
+void Render() {
+	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
+	int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
+
+	if (sidScene != 0 && cidCam1 != 0) {
+		// DOJO : camera 의 위치 update
+		// cpInterCams1 는 매 스캔 시 업데이트되며, 
+		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
+		if (arAnimationKeyFrame1 >= 0) {
+			vzm::CameraParameters cpCam = cpInterCams1[arAnimationKeyFrame1++];
+			vzm::SetCameraParams(cidCam1, cpCam);
+			if (arAnimationKeyFrame1 == numAnimationCount)
+				arAnimationKeyFrame1 = -1;
+
+			//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
+			//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
+		}
+
+		// DOJO : sidScene 의 cidCam1 을 렌더링
+		vzm::RenderScene(sidScene, cidCam1);
+
+		// DOJO : windows SDK 에서 화면 업데이트 (QT 방식은 UpdateBMP 참조)
+		// USE_WHND 가 false 로 되어 있어야 함
+		if (USE_WHND)
+			vzm::PresentHWND(g_hWnd);
+		else {
+			UpdateBMP(cidCam1, g_hWnd);
+			InvalidateRect(g_hWnd, NULL, FALSE);
+		}
+		//Sleep(1);
+	}
+
+	int cidCam2 = vzmutils::GetSceneItemIdByName(g_camName2);
+	if (sidScene != 0 && cidCam2 != 0) {
+		// DOJO : camera 의 위치 update
+		// cpInterCams2 는 매 스캔 시 업데이트되며, 
+		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
+		if (arAnimationKeyFrame2 >= 0) {
+			vzm::CameraParameters cpCam = cpInterCams2[arAnimationKeyFrame2++];
+			vzm::SetCameraParams(cidCam2, cpCam);
+			if (arAnimationKeyFrame2 == numAnimationCount)
+				arAnimationKeyFrame2 = -1;
+
+			//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
+			//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
+		}
+
+		// DOJO : sidScene 의 cidCam1 을 렌더링
+		vzm::RenderScene(sidScene, cidCam2);
+
+		// DOJO : windows SDK 에서 화면 업데이트 (QT 방식은 UpdateBMP 참조)
+		// USE_WHND 가 false 로 되어 있어야 함
+		if (USE_WHND)
+			vzm::PresentHWND(g_hWndDialog1);
+		else {
+			UpdateBMP(cidCam2, g_hWndDialog1);
+			InvalidateRect(g_hWndDialog1, NULL, FALSE);
+		}
+	}
+}
+
+// DOJO: asynchronous (read write modify) queue of tracking info.
+// tracking thread 에서 queue 에 등록 (최신 정보 insert) 및 삭제 (오래된 element push out)
+// timer thread (rendering thread) 에서 queue 의 정보를 pop out (삭제) 하여 사용 
+navihelpers::concurrent_queue<navihelpers::track_info>* g_track_que = NULL;
+
+// DOJO: windows SDK 에서 호출되는 SetTimer 의 callback 함수
+// 여기에서 UpdateTrackInfo2Scene() 과 Render() 이 호출된다.
+// rendering thread 의 process 라고 생각해도 됨
+void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
+{
+	static int frameCount = 0;
+
+	int frame = frameCount++;
+
+	// DOJO: Scene 에 "Frame : 숫자" Text 뜨게 하는 (Actor에 사용될) 리소스(오브젝트) 생성 
+	{
+		int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
+		vzm::ActorParameters apFrameText;
+		vzm::GetActorParams(aidFrameText, apFrameText);
+		int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
+		std::vector<glm::fvec3> pinfo(3);
+		pinfo[0] = glm::fvec3(0, 0.3, 0);
+		pinfo[1] = glm::fvec3(0, 0, -1);
+		pinfo[2] = glm::fvec3(0, 1, 0);
+		vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+		//vzm::GetActorParams(aidFrameText, apFrameText);
+	}
+
+	navihelpers::concurrent_queue<navihelpers::track_info>* track_que = 
+		(navihelpers::concurrent_queue<navihelpers::track_info>*)pcsvData;
+	
+	// DOJO: concurrent queue 에서 가장 최신에 저장된 tracking frame 정보 pop out
+	navihelpers::track_info trackInfo;
+	track_que->wait_and_pop(trackInfo);
+
+	// generate scene actors with updated trackInfo
+	// DOJO : Tracking 되는 기본 세트 (individual markers + rigid body frames) 를 Scene 에 반영시키는 함수
+
 	UpdateTrackInfo2Scene(trackInfo);
-#else
-	UpdateTrackInfo2Scene(trackingFrames[frame]);
-#endif
+
 	Render();
 }
 
@@ -566,25 +649,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	vzm::InitEngineLib("SpineNavi");
 	vzm::SetLogConfiguration(true, 4);
 
-#ifdef USE_MOTIVE
     bool optitrkMode = optitrk::InitOptiTrackLib();
 
 	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-05-20.motive", folder_data + "System Calibration.cal");
-#else
-	//rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.12.57 PM.csv", rapidcsv::LabelParams(0, 0)); // 7081.png
-	//std::string cArmTrackFile = folder_trackingInfo + "c-arm-track1.txt";
-	//rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.13.30 PM.csv", rapidcsv::LabelParams(0, 0));  // 7082.png
-	//std::string cArmTrackFile = folder_trackingInfo + "c-arm-track2.txt";
-	//rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.14.05 PM.csv", rapidcsv::LabelParams(0, 0));  // 7083.png
-	//std::string cArmTrackFile = folder_trackingInfo + "c-arm-track3.txt";
-	rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
-	std::string cArmTrackFile = folder_trackingInfo + "c-arm-track4.txt";
-
-	std::string imgFile = folder_capture + "7084.png";
-	
-	//rapidcsv::Document trackingData(folder_trackingInfo + "Take 2023-04-19 05.18.13 PM.csv", rapidcsv::LabelParams(0, 0)); // 7085.png
-	//rapidcsv::Document trackingData(folder_trackingInfo + "Take 2023-04-19 05.19.59 PM.csv", rapidcsv::LabelParams(0, 0));
-#endif
 
     // 전역 문자열을 초기화합니다.
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -599,7 +666,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	SceneInit();
 
-#ifdef USE_MOTIVE
 	//const int postpone = 3;
 	std::vector<std::string> rbNames;
 	int numAllFramesRBs = optitrk::GetRigidBodies(&rbNames);
@@ -662,520 +728,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	});
 
 	UINT_PTR customData = (UINT_PTR)&track_que;
-#else
-	// trackingData
-	int frameRowIdx = trackingData.GetRowIdx("Frame");
-	//trackingData.GetDataRowIdx
-	assert(frameRowIdx > 0);
-	const int startRowIdx = frameRowIdx + 1;
-	const int startColIdx = 1;
 
-	std::vector<std::string> rowTypes = trackingData.GetRow<std::string>(frameRowIdx - 4);
-	std::vector<std::string> rowNames = trackingData.GetRow<std::string>(frameRowIdx - 3);
-	std::vector<std::string> rowIds = trackingData.GetRow<std::string>(frameRowIdx - 2);
-	std::vector<std::string> rotPosLabels = trackingData.GetRow<std::string>(frameRowIdx - 1);
-	std::vector<std::string> xyzwLabels = trackingData.GetRow<std::string>(frameRowIdx);
-	const int numCols = (int)rowTypes.size();//trackingData.GetColumnCount();
-	const int numRows = (int)trackingData.GetRowCount();
-
-	std::vector<navihelpers::track_info> trackingFrames(numRows - startRowIdx);
-	int frameIdx = 0;
-	auto string2cid = [](const std::string id) {
-		std::bitset<128> cid;
-		unsigned __int64 lbs;
-		unsigned __int64 hbs;
-		int length = id.length();
-		if (length <= 16) {
-			std::stringstream convert(id);
-			convert >> std::hex >> lbs;
-			cid |= lbs;
-		}
-		else {
-			std::string id_lbs, id_hbs;
-			id_hbs = id.substr(0, length - 16);
-			id_lbs = id.substr(length - 16, 16);
-			std::stringstream convertH(id_hbs);
-			std::stringstream convertL(id_lbs);
-			convertH >> std::hex >> hbs;
-			convertL >> std::hex >> lbs;
-			cid |= hbs;
-			cid <<= 64;
-			cid |= lbs;
-		}
-		return cid;
-	};
-
-	struct rb_tr_smooth
-	{
-		int fr_count;
-		std::vector<glm::fquat> qs;
-		std::vector<glm::fvec3> ts;
-	};
-
-	std::map<std::string, rb_tr_smooth> rbMapTRs;
-	std::map<std::string, std::vector<glm::fvec3>> test1MkMapPos;
-
-	int numAllFramesRBs = 0;
-	int numAllFramesMKs = 0;
-	for (int rowIdx = startRowIdx; rowIdx < numRows; rowIdx++) {
-		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
-		if (rowStrValues.size() == 0)
-			continue;
-		navihelpers::track_info& trackInfo = trackingFrames[frameIdx++];
-
-		int colIdx = startColIdx;
-		while (colIdx < numCols) {
-			std::string type = rowTypes[colIdx];
-			std::string name = rowNames[colIdx];
-			std::string id = rowIds[colIdx];
-			std::bitset<128> cid = string2cid(id);
-			std::string rotPos = rotPosLabels[colIdx];
-			std::string xyzw = xyzwLabels[colIdx];
-
-			std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
-
-			if (type == "Rigid Body") {
-				if(rowIdx == startRowIdx) numAllFramesRBs++;
-				std::string startStrValue = rowStrValues[colIdx];
-				if (startStrValue == "") {
-					colIdx += 8;
-					for (; colIdx < numCols; colIdx += 4) {
-						std::string _type = rowTypes[colIdx];
-						if (_type != "Rigid Body Marker") break;
-					}
-					continue;
-				}
-				float values[8];
-				for (int i = 0; i < 8; i++)
-					values[i] = std::stof(rowStrValues[colIdx + i]);
-				
-				// read 8 col-successive cells
-				glm::fquat q(values[3], values[0], values[1], values[2]);
-				glm::fvec3 t(values[4], values[5], values[6]);
-				float mkMSE = values[7];
-
-				glm::fmat4x4 mat_r = glm::toMat4(q);
-				glm::fmat4x4 mat_t = glm::translate(t);
-				glm::fmat4x4 mat_ls2ws = mat_t * mat_r;
-
-				rb_tr_smooth& rbTrSmooth = rbMapTRs[name];
-				rbTrSmooth.qs.push_back(q);
-				rbTrSmooth.ts.push_back(t);
-
-				colIdx += 8;
-
-				for (; colIdx < numCols; colIdx+=4) {
-					std::string _type = rowTypes[colIdx];
-					if (_type != "Rigid Body Marker") break;
-					std::string startMkStrValue = rowStrValues[colIdx];
-					if (startMkStrValue == "") {
-						continue;
-					}
-					float mkValues[4];
-					for (int i = 0; i < 4; i++)
-						mkValues[i] = std::stof(rowStrValues[colIdx + i]);
-
-
-					// read 4 col-successive cells
-					std::string _name = rowNames[colIdx];
-					std::string _id = rowIds[colIdx];
-					std::bitset<128> _cid = string2cid(_id);
-
-					glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
-					float mq = mkValues[3];
-					auto& v = rbmkSet[_name];
-					v[navihelpers::track_info::MKINFO::POSITION] = p;
-					v[navihelpers::track_info::MKINFO::MK_QUALITY] = mq;
-					v[navihelpers::track_info::MKINFO::MK_NAME] = _name;
-					v[navihelpers::track_info::MKINFO::CID] = _cid;
-				}
-
-				trackInfo.AddRigidBody(name, mat_ls2ws, q, t, mkMSE, rbmkSet);
-			}
-			if (type == "Marker") {
-				if (rowIdx == startRowIdx) numAllFramesMKs++;
-				std::string startMkStrValue = rowStrValues[colIdx];
-				if (startMkStrValue == "") {
-					colIdx += 3;
-					continue;
-				}
-				// read 3 col-successive cells
-				float mkValues[3];
-				for (int i = 0; i < 3; i++)
-					mkValues[i] = std::stof(rowStrValues[colIdx + i]);
-				glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
-				trackInfo.AddMarker(cid, p, name);
-				colIdx += 3;
-
-				if (name.find("test1:") != std::string::npos) {
-					std::vector<glm::fvec3>& posMKs = test1MkMapPos[name];
-					posMKs.push_back(p);
-				}
-			}
-		}
-	}
-	
-	// compute average of rigid body transforms
-	//std::map<std::string, glm::fmat4x4> rbMapTrAvr;
-	//std::map<std::string, glm::fvec3> mkPosTest1Avr;
-	if (storeAvrCarmTrackinfo)
-	{
-		cv::FileStorage fs(cArmTrackFile, cv::FileStorage::Mode::WRITE);
-		for (auto& v : rbMapTRs) {
-			int numTRs = (int)v.second.qs.size();
-			float normalizedNum = 1.f / (float)numTRs;
-
-			glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
-			float rotAngleAvr = 0;
-			glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
-			for (int i = 0; i < numTRs; i++) {
-				glm::fquat q = v.second.qs[i];
-				float quatMagnitude = glm::length(q);
-				q /= quatMagnitude;
-
-				float rotationAngle = 2.0f * acos(q.w);
-
-				float sinAngle = sin(rotationAngle / 2.0f);
-				glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
-
-				rotAngleAvr += rotationAngle * normalizedNum;
-				rotAxisAvr += rotationAxis * normalizedNum;
-
-				glm::fvec3 t = v.second.ts[i];
-				trAvr += t * normalizedNum;
-			}
-			rotAxisAvr = glm::normalize(rotAxisAvr);
-
-			glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
-			glm::fmat4x4 mat_t = glm::translate(trAvr);
-			glm::fmat4x4 matLS2WSavr = mat_t * mat_r;
-			rbMapTrAvr[v.first] = matLS2WSavr;
-
-			cv::Mat ocvRbMapTrAvr(4, 4, CV_32FC1);
-			memcpy(ocvRbMapTrAvr.ptr(), glm::value_ptr(matLS2WSavr), sizeof(float) * 16);
-			fs.write(v.first, ocvRbMapTrAvr);
-		}
-
-		for (auto& pts : test1MkMapPos) {
-			std::vector<glm::fvec3>& posMK = pts.second;
-			int numTRs = (int)posMK.size();
-			float normalizedNum = 1.f / (float)numTRs;
-
-			glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
-			for (int i = 0; i < numTRs; i++)
-				trAvr += posMK[i] * normalizedNum;
-			mkPosTest1Avr[pts.first] = trAvr;
-
-			static cv::Mat ocvPt(1, 3, CV_32FC1);
-			memcpy(ocvPt.ptr(), &trAvr, sizeof(float) * 3);
-			fs.write(std::regex_replace(pts.first, std::regex(":"), " "), ocvPt);
-		}
-		fs.release();
-		// TO DO with rbMapTrAvr and mkPosTest1Avr for calibration task
-	}
-
-	// generate scene actors 
-	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
-	if(sidScene != 0)
-	{
-		navihelpers::track_info& trackInfo = trackingFrames[0];
-
-		int oidAxis = 0;
-		vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
-		int oidMarker = 0;
-		glm::fvec4 pos(0, 0, 0, 1.f);
-		vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
-
-		for (int i = 0; i < numAllFramesRBs; i++) {
-			std::string rbName;
-			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, NULL, NULL)) {
-				vzm::ActorParameters apAxis;
-				apAxis.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
-				apAxis.is_visible = false;
-				apAxis.line_thickness = 3;
-				int aidRbAxis = 0;
-				vzm::NewActor(apAxis, rbName, aidRbAxis);
-				vzm::AppendSceneItemToSceneTree(aidRbAxis, sidScene);
-
-				std::vector<glm::fvec3> pinfo(3);
-				pinfo[0] = glm::fvec3(0, 0, 0);
-				pinfo[1] = glm::fvec3(-1, 0, 0);
-				pinfo[2] = glm::fvec3(0, -1, 0);
-				int oidLabelText = 0;
-				vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.07, true, false, oidLabelText);
-				vzm::ActorParameters apLabelText;
-				apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
-				*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-				int aidLabelText = 0;
-				vzm::NewActor(apLabelText, rbName + ":Label", aidLabelText);
-				vzm::AppendSceneItemToSceneTree(aidLabelText, aidRbAxis);
-			}
-		}
-
-		for (int i = 0; i < numAllFramesMKs; i++) {
-			std::map<navihelpers::track_info::MKINFO, std::any> mk;
-			if (trackInfo.GetMarkerByIdx(i, mk)) {
-				vzm::ActorParameters apMarker;
-				apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-				apMarker.is_visible = false;
-				*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
-				int aidMarker = 0;
-				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
-				vzm::NewActor(apMarker, mkName, aidMarker);
-				vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
-
-				if (mkName.find("test1") != std::string::npos) {
-					std::vector<glm::fvec3> pinfo(3);
-					pinfo[0] = glm::fvec3(0, 1, 0);
-					pinfo[1] = glm::fvec3(0, 0, -1);
-					pinfo[2] = glm::fvec3(0, -1, 0);
-					int oidLabelText = 0;
-					vzm::GenerateTextObject((float*)&pinfo[0], mkName.substr(6, mkName.length()-1), 2, true, false, oidLabelText, true);
-					vzm::ActorParameters apLabelText;
-					//apLabelText.is_visible = true;
-					apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
-					//apLabelText.script_params.SetParam("_bool_IsScaleFree", true);
-					*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-					int aidLabelText = 0;
-					vzm::NewActor(apLabelText, mkName + ":Label", aidLabelText);
-					vzm::AppendSceneItemToSceneTree(aidLabelText, aidMarker);
-				}
-			}
-		}
-
-		std::ifstream _file(folder_trackingInfo + "testParams.txt");
-		bool existFile = _file.is_open();
-		_file.close();
-		if(!existFile)
-		{
-			int aidGroupCArmCam = 0;
-			vzm::ActorParameters apGroupCams;
-			vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCArmCam);
-			vzm::AppendSceneItemToSceneTree(aidGroupCArmCam, sidScene);
-
-			///////////////////////////////////
-			// preprocessing information
-			// *** IMPORTANT NOTE:
-			// the C-arm image (Genoray) is aligned w.r.t. detector's view
-			// the calibration image must be aligned w.r.t. source's view (view frustum's origin point)
-			// therefore, the position mirrored horizontally
-			cv::Mat imgCArm = cv::imread(imgFile);
-
-			cv::FileStorage __fs(folder_trackingInfo + "testParams.txt", cv::FileStorage::Mode::WRITE);
-
-			cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-			cv::Mat matK;
-			fs["K"] >> matK;
-			__fs << "K" << matK;
-			cv::Mat distCoeffs;
-			fs["DistCoeffs"] >> distCoeffs;
-			__fs << "DistCoeffs" << distCoeffs;
-
-			//cv::Mat undistImg;
-			//cv::undistort(imgCArm, undistImg, _matK, _distCoeffs);
-			//
-			////std::string imgFile = folder_capture + "7084.png";
-			//cv::imwrite(folder_capture + "undist_7084.png", undistImg);
-			///////////////////////////////////
-
-			cv::Mat rvec, tvec;
-			const bool loadPrevRT = true;
-			if(!loadPrevRT)
-			{
-				const bool mirrorHorizontal = true;
-				std::map<int, cv::Point2f> pts2Dmap;
-				pts2Dmap[100 + 6] = cv::Point2f(961, 215);
-				pts2Dmap[100 + 3] = cv::Point2f(1146, 895);
-				pts2Dmap[100 + 4] = cv::Point2f(263, 940);
-				pts2Dmap[100 + 2] = cv::Point2f(756, 703);
-				pts2Dmap[100 + 5] = cv::Point2f(1105, 485);
-				pts2Dmap[100 + 1] = cv::Point2f(619, 325);
-				pts2Dmap[100 + 7] = cv::Point2f(273, 341);
-
-				pts2Dmap[200 + 6] = cv::Point2f(952, 350);
-				pts2Dmap[200 + 3] = cv::Point2f(1155, 862);
-				pts2Dmap[200 + 4] = cv::Point2f(245, 916);
-				pts2Dmap[200 + 2] = cv::Point2f(753, 719);
-				pts2Dmap[200 + 5] = cv::Point2f(1102, 547);
-				pts2Dmap[200 + 1] = cv::Point2f(613, 435);
-				pts2Dmap[200 + 7] = cv::Point2f(269, 456);
-
-				pts2Dmap[300 + 6] = cv::Point2f(954, 494);
-				pts2Dmap[300 + 3] = cv::Point2f(1168, 751);
-				pts2Dmap[300 + 4] = cv::Point2f(260, 807);
-				pts2Dmap[300 + 2] = cv::Point2f(766, 686);
-				pts2Dmap[300 + 5] = cv::Point2f(1107, 590);
-				pts2Dmap[300 + 1] = cv::Point2f(626, 551);
-				pts2Dmap[300 + 7] = cv::Point2f(289, 569);
-
-				pts2Dmap[400 + 6] = cv::Point2f(687, 653);
-				pts2Dmap[400 + 3] = cv::Point2f(1173, 917);
-				pts2Dmap[400 + 4] = cv::Point2f(389, 997);
-				pts2Dmap[400 + 2] = cv::Point2f(736, 859);
-				pts2Dmap[400 + 5] = cv::Point2f(939, 753);
-				pts2Dmap[400 + 1] = cv::Point2f(434, 709);
-				pts2Dmap[400 + 7] = cv::Point2f(118, 729);
-				if (mirrorHorizontal)
-				{
-					for (auto it = pts2Dmap.begin(); it != pts2Dmap.end(); it++) {
-						it->second.x = imgCArm.cols - it->second.x;
-					}
-				}
-
-				using namespace std;
-				using namespace glm;
-				const int numCalPts = 7;
-				const int numCalScans = 4;
-				vector<fvec3> ptsRBS;
-				ptsRBS.reserve(numCalPts* numCalScans);
-				for (int i = 0; i < numCalScans; i++) {
-					cv::FileStorage fs(folder_trackingInfo + "c-arm-track" + to_string(i + 1) + ".txt", 
-						cv::FileStorage::Mode::READ);
-					cv::Mat ocvMatRB2WS;
-					fs["c-arm"] >> ocvMatRB2WS;
-
-					fmat4x4 matRB2WS;
-					memcpy(&matRB2WS, ocvMatRB2WS.ptr(), sizeof(float) * 16);
-					fmat4x4 matWS2RB = glm::inverse(matRB2WS);
-
-					for (int j = 0; j < numCalPts; j++) {
-						cv::Mat ocvPos;
-						fs["test1 Marker" + to_string(j + 1)] >> ocvPos;
-						fvec3 posWS;
-						memcpy(&posWS, ocvPos.ptr(), sizeof(float) * 3);
-						fvec3 posRBS = vzmutils::transformPos(posWS, matWS2RB);
-						ptsRBS.push_back(posRBS);
-					}
-					fs.release();
-				}
-
-				vector<cv::Point3f> pts3Ds(ptsRBS.size());
-				vector<cv::Point2f> pts2Ds(pts2Dmap.size());
-				memcpy(&pts3Ds[0], &ptsRBS[0], sizeof(fvec3) * numCalPts * numCalScans);
-				int i = 0;
-				for (auto it = pts2Dmap.begin(); it != pts2Dmap.end(); it++)
-					pts2Ds[i++] = it->second;
-
-				cv::solvePnP(pts3Ds, pts2Ds, matK, distCoeffs, rvec, tvec);
-
-				cv::FileStorage fs(folder_trackingInfo + "rb2carm.txt", cv::FileStorage::Mode::WRITE);
-				fs.write("rvec", rvec);
-				fs.write("tvec", tvec);
-				fs.release();
-			}
-			else {
-				//cv::FileStorage fs(folder_trackingInfo + "rb2carm.txt", cv::FileStorage::Mode::READ);
-				cv::FileStorage fs(folder_trackingInfo + "rb2carm.txt", cv::FileStorage::Mode::READ);
-				fs["rvec"] >> rvec;
-				fs["tvec"] >> tvec;
-				__fs << "rvec" << rvec;
-				__fs << "tvec" << tvec;
-				fs.release();
-			}
-
-			cv::Mat matR;
-			cv::Rodrigues(rvec, matR);
-
-			// note, here camera frame (notation 'CA', opencv convention) is defined with
-			// z axis as viewing direction
-			// -y axis as up vector
-			glm::fmat4x4 matRB2CA = glm::fmat4x4(1);
-			matRB2CA[0][0] = (float)matR.at<double>(0, 0);
-			matRB2CA[0][1] = (float)matR.at<double>(1, 0);
-			matRB2CA[0][2] = (float)matR.at<double>(2, 0);
-			matRB2CA[1][0] = (float)matR.at<double>(0, 1);
-			matRB2CA[1][1] = (float)matR.at<double>(1, 1);
-			matRB2CA[1][2] = (float)matR.at<double>(2, 1);
-			matRB2CA[2][0] = (float)matR.at<double>(0, 2);
-			matRB2CA[2][1] = (float)matR.at<double>(1, 2);
-			matRB2CA[2][2] = (float)matR.at<double>(2, 2);
-			matRB2CA[3][0] = (float)((double*)tvec.data)[0];
-			matRB2CA[3][1] = (float)((double*)tvec.data)[1];
-			matRB2CA[3][2] = (float)((double*)tvec.data)[2];
-
-			glm::fmat4x4 matCA2RB = glm::inverse(matRB2CA);
-			glm::fmat4x4 matRB2WS;
-			
-			const bool loadCArmTrackInfo = true;
-			if(!loadCArmTrackInfo)
-				trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL);
-			else
-			{
-				// cArmTrackFile
-				cv::FileStorage fs(cArmTrackFile, cv::FileStorage::Mode::READ);
-				cv::Mat ocvRbMapTrAvr;
-				fs["c-arm"] >> ocvRbMapTrAvr;
-				memcpy(glm::value_ptr(matRB2WS), ocvRbMapTrAvr.ptr(), sizeof(float) * 16);
-				fs.release();
-
-				__fs << "rb2wsMat" << ocvRbMapTrAvr;
-				__fs << "imgFile" << folder_capture + "7084.png";
-			}
-			__fs.release();
-
-			glm::fmat4x4 matCA2WS = matRB2WS * matCA2RB;
-			int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
-			navihelpers::CamOcv_Gen(matCA2WS, "C-Arm Source:test0", oidCamTris, oidCamLines, oidCamLabel);
-			vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
-			apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
-			apCamTris.color[3] = 0.5f;
-			apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
-			*(glm::fvec4*)apCamLines.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-			apCamLines.line_thickness = 2;
-			apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
-			*(glm::fvec4*)apCamLabel.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-			int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
-			vzm::NewActor(apCamTris, "C-Arm Cam Tris:test0", aidCamTris);
-			vzm::NewActor(apCamLines, "C-Arm Lines:test0", aidCamLines);
-			vzm::NewActor(apCamLabel, "C-Arm Label:test0", aidCamLabel);
-			vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCArmCam);
-			vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCArmCam);
-			vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCArmCam);
-
-
-			glm::fmat4x4 matCS2PS;
-
-			navihelpers::ComputeMatCS2PS(matK.at<double>(0, 0), matK.at<double>(1, 1), matK.at<double>(0, 1), 
-				matK.at<double>(0, 2), matK.at<double>(1, 2), (float)imgCArm.cols, (float)imgCArm.rows, 0.1f, 1.2f, matCS2PS);
-			// here, CS is defined with
-			// -z axis as viewing direction
-			// y axis as up vector
-			glm::fmat4x4 matPS2CS = glm::inverse(matCS2PS);
-			// so, we need to convert CS to OpenCV's Camera Frame by rotating 180 deg w.r.t. x axis
-			glm::fmat4x4 matCS2CA = glm::rotate(glm::pi<float>(), glm::fvec3(1, 0, 0));
-			glm::fmat4x4 matPS2WS = matCA2WS * matCS2CA * matPS2CS;
-
-			// mapping the carm image to far plane
-			glm::fvec3 ptsCArmPlanes[4] = { glm::fvec3(-1, 1, 1), glm::fvec3(1, 1, 1), glm::fvec3(1, -1, 1), glm::fvec3(-1, -1, 1) };
-			for (int i = 0; i < 4; i++) {
-				ptsCArmPlanes[i] = vzmutils::transformPos(ptsCArmPlanes[i], matPS2WS);
-			}
-			//glm::fvec2 ptsTexCoords[4] = { glm::fvec2(0, 0), glm::fvec2(1, 0), glm::fvec2(1, 1), glm::fvec2(0, 1) };
-			glm::fvec3 ptsTexCoords[4] = { glm::fvec3(0, 0, 0), glm::fvec3(1, 0, 0), glm::fvec3(1, 1, 0), glm::fvec3(0, 1, 0) };
-			//std::vector<glm::fvec3> posBuffer(6);
-			//std::vector<glm::fvec2> texBuffer(6);
-			unsigned int idxList[6] = { 0, 1, 3, 1, 2, 3 };
-
-			int oidImage = 0;
-			vzm::LoadImageFile(folder_capture + "undist_7084.png", oidImage, true, true);
-			int oidCArmPlane = 0;
-			vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
-			vzm::ActorParameters apCArmPlane;
-			apCArmPlane.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCArmPlane);
-			apCArmPlane.SetResourceID(vzm::ActorParameters::TEXTURE_2D, oidImage);
-			apCArmPlane.script_params.SetParam("matCA2WS", matCA2WS); // temporal storage :)
-			apCArmPlane.script_params.SetParam("imageWH", glm::ivec2(imgCArm.cols, imgCArm.rows)); // temporal storage :)
-			*(glm::fvec4*)apCArmPlane.phong_coeffs = glm::fvec4(1, 0, 0, 0);
-			int aidCArmPlane = 0;
-			vzm::NewActor(apCArmPlane, "CArm Plane:test0", aidCArmPlane);
-			vzm::AppendSceneItemToSceneTree(aidCArmPlane, sidScene);
-		}
-		else {
-			RegisterCArmImage(sidScene, folder_trackingInfo + "testParams.txt", "test0");
-		}
-	}
-	UINT_PTR customData = (UINT_PTR)&trackingFrames;
-#endif
 	//UpdateFrame(csvData);
 	//Render();
 	SetTimer(g_hWnd, customData, 10, TimerProc);
@@ -1356,12 +909,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
         }
 	}
 
-#ifdef USE_MOTIVE
+
 	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
 	tracker_processing_thread.join();
 
 	optitrk::DeinitOptiTrackLib();
-#endif
 	vzm::DeinitEngineLib();
 
 	network_alive = false;
@@ -1445,6 +997,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    return TRUE;
 }
 
+// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
+// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
+// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
 void MoveCameraToCArmView(const int carmIdx, const int cidCam,
 	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) {
 
@@ -1529,6 +1084,11 @@ void MoveCameraToCArmView(const int carmIdx, const int cidCam,
 	arAnimationKeyFrame = 0;
 }
 
+// DOJO : 스캔 시 정보를 저장할 파일
+// 현 버전에서는 carm_intrinsics.txt (presetting) 에 저장된 intrinsic parameter 와
+// rb2carm1.txt (presetting + 매 스캔 시 저장됨) 에 저장된 c-arm source pose (extrinsic parameter) 를 로드하여 이를 파일로 저장
+// TODO : 추후 해당 부분을 file to file 이 아닌, memory to memory 로 관리해야 함
+// TODO : 매 스캔마다 camera intrinsics 와 extrinsics 를 계산하도록 수정해야 함
 auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
 
 	cv::FileStorage __fs(folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
@@ -1540,6 +1100,7 @@ auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& mat
 	cv::Mat distCoeffs;
 	fs["DistCoeffs"] >> distCoeffs;
 	__fs << "DistCoeffs" << distCoeffs;
+
 	fs.open(folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
 	cv::Mat rvec, tvec;
 	fs["rvec"] >> rvec;
@@ -1555,6 +1116,7 @@ auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& mat
 	__fs.release();
 };
 
+// DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
 auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const int cidCam,
 	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) {
 	using namespace std;
@@ -1562,7 +1124,7 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 	static map<int, int> mapAidGroupCArmCam;
 	for (int i = 0; i < 10; i++) {
 		if (keyParam == LOADKEYS[i]) {
-#ifdef USE_MOTIVE
+
 			if (download_completed) {
 				glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
 				float rotAngleAvr = 0;
@@ -1613,7 +1175,7 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 			else { // !download_completed
 
 			}
-#endif
+
 			// load case
 			auto it = mapAidGroupCArmCam.find(i + 1);
 			if (it != mapAidGroupCArmCam.end())
