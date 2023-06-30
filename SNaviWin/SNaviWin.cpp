@@ -1,5 +1,8 @@
 ﻿// SNaviWin.cpp : 애플리케이션에 대한 진입점을 정의합니다.
-//
+// DOJO : 자체적으로 개발한 namespace
+// 엔진 : vzm, vzmutils, vzmproc
+// 어플리케이션 helper : navihelpers
+// 위의 namespace 외엔 glm 과 같은 commonly-used 3rd party lib 이거나 C++ standard lib 또는 windows SDK lib 임
 
 #include "framework.h"
 #include "SNaviWin.h"
@@ -101,6 +104,7 @@ void UpdateBMP(int cidCam, HWND hWnd) {
 	unsigned char* ptr_rgba;
 	float* ptr_zdepth;
 	int w, h;
+	// DOJO : 렌더링된 버퍼를 받아서 GUI window buffer 에 그리기
 	if (vzm::GetRenderBufferPtrs(cidCam, &ptr_rgba, &ptr_zdepth, &w, &h))
 	{
 		// https://stackoverflow.com/questions/26005744/how-to-display-pixels-on-screen-directly-from-a-raw-array-of-rgb-values-faster-t
@@ -131,26 +135,54 @@ void UpdateBMP(int cidCam, HWND hWnd) {
 };
 
 void SceneInit() {
+	// DOJO : Scene 은 Camera(s), Light source(s), Actor(s)로 구성, World Space 의 Coordinate System 을 정의함 
+	// 
 	// we set 'meter scale world to world space
 
+	// DOJO : Actor 는 Scene 에 그려지는 Model 이며, 
+	// Actor 를 구성하는 actor resource (called resource object) 는 geometry 및 material (e.g., texture) 등으로 정의
+	// vzm::GenerateXXXObject 는 actor resource 를 생성 
+	// vzm::LoadXXX 는 file 로부터 actor resource 를 생성
+	// actor resource 의 geometry 는 기본적으로 Object Space (Model Space) 에서 정의된 것으로 봄
+	
+	// DOJO : Axis 를 위한 actor resource 를 생성
+	// oidAxis (objId) 은 생성된 actor resource 의 ID 를 받아옴
+	// objId = 0 인 경우, 항상 새로운 actor resource 를 생성하고 새로운 ID 를 받음
+	// objId != 0 인 경우, 해당 ID 의 actor resource 가 있을 때, 해당 actor resource 를 update 함 (ID 는 그대로 사용)
+	// objId != 0 인 경우, 해당 ID 의 actor resource 가 없을 때, 새로운 actor resource 를 생성하고 새로운 ID 를 받음
 	int oidAxis = 0;
 	vzm::GenerateAxisHelperObject(oidAxis, 0.5f);
 
+	// DOJO : Actor Parameter (vzm::ActorParameters) 와 actor resource 로 actor 생성
 	vzm::ActorParameters apAxis;
+	// vzm::ActorParameters::SetResourceID 로 다양한 actor resource 를 actor 에 할당할 수 있음
+	// 기본적으로 vzm::ActorParameters::RES_USAGE::GEOMETRY 가 있어야 함, 그 외 여러 종류의 texture 들이 올 수 있음 (ref. vzm::ActorParameters::RES_USAGE)
 	apAxis.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidAxis);
+	// line 으로 정의된 geometry 에 대해 렌더링에서 사용되는 parameter (c.f., triangle geometry 의 경우 해당 parameter 가 렌더링에서 사용되지 않음)
 	apAxis.line_thickness = 3;
+	// color 의 경우, 해당 actor 에 대해 global 로 적용됨 
+	// geometry resource 가 vertex 단위로 color 가 정의되어 있다면, 여기선 alpha 값만 사용됨
 	*(glm::fvec4*)apAxis.color = glm::fvec4(1, 1, 1, 1);
+	// DOJO : 새로운 액터 생성
+	// actor name parameter 와 actor parameter 필요
+	// actor name parameter 로 actor 의 ID 를 가져올 수 있음
 	int aidAxis = 0;
 	vzm::NewActor(apAxis, "World Axis", aidAxis);
 
+	// DOJO : navihelpers 는 이번 프로젝트에서 사용할 헬퍼 함수를 담고 있음
 	int oidGrid, oidLines, oidTextX, oidTextZ;
+	// scene 의 바닥에 그려지는 actor resources 를 생성
 	navihelpers::World_GridAxis_Gen(oidGrid, oidLines, oidTextX, oidTextZ);
 
 	std::vector<glm::fvec3> pinfo(3);
 	pinfo[0] = glm::fvec3(0, 0.5, 0);
 	pinfo[1] = glm::fvec3(0, 0, -1);
 	pinfo[2] = glm::fvec3(0, 1, 0);
-	int oidFrameText;
+	// DOJO : "Frame" 이라는 text 를 그리는 actor resource 를 생성 (자세한 사용법은 문의 바람)
+	// 여기서 int oidFrameText; 이렇게 했는데, 새롭게 생성하는 경우 oidFrameText = 0 을 권장
+	// DEBUG 모드에서는 initialize 안 하면, 보통 0 값이 들어 가지만, 
+	// RELEASE 모드에서는 initialize 안 하면, 임의의 값이 들어 가고, 이 때, (거의 발생하진 않지만) 다른 actor resource 의 ID 값이 들어가면 비정상 동작할 수 있음
+	int oidFrameText; // recommend "int oidFrameText = 0;"
 	vzm::GenerateTextObject((float*)&pinfo[0], "Frame", 0.1, true, false, oidFrameText);
 
 	vzm::ActorParameters apGrid, apLines, apTextX, apTextZ, apTextFrame;
@@ -169,15 +201,17 @@ void SceneInit() {
 	vzm::NewActor(apTextX, "World Text X", aidTextX);
 	vzm::NewActor(apTextZ, "World Text Y", aidTextZ);
 	vzm::NewActor(apTextFrame, "Frame Text", aidTextFrame);
-
+	
 	RECT rcWorldView;
 	GetClientRect(g_hWnd, &rcWorldView);
 
+	// DOJO : (world view 에서의) Camera 를 정의하기 위한 파라미터
 	vzm::CameraParameters cpCam1;
 	*(glm::fvec3*)cpCam1.pos = glm::fvec3(-1.5, 1.5, -1.5);
 	*(glm::fvec3*)cpCam1.up = glm::fvec3(0, 1, 0);
 	*(glm::fvec3*)cpCam1.view = glm::fvec3(1, -1, 1);
 
+	// YAML 로 이전에 저장된 (world view 에서의) 카메라 위치 정보 읽어 들임
 	cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 	if (fs.isOpened()) {
 		cv::Mat ocvVec3;
@@ -190,13 +224,18 @@ void SceneInit() {
 		fs.release();
 	}
 
+	// 렌더링될 buffer 사이즈
 	cpCam1.w = rcWorldView.right - rcWorldView.left;
 	cpCam1.h = rcWorldView.bottom - rcWorldView.top;
 
+	// 렌더링 파이프라인의 View Frustum 에서의 near plane, far plane distances
 	cpCam1.np = 0.1f;
 	cpCam1.fp = 100.f;
 
 	float vFov = 3.141592654f / 4.f;
+	// NOTE : union 으로 저장되어 있음
+	// 카메라 view projection 의 자연스러운 이동 (to C-arm View) 을 위해, 
+	// 카메라 설정 convention 을 camera (intrinsic) parameters 로 사용
 	if (0) {
 		cpCam1.fov_y = vFov;
 		cpCam1.aspect_ratio = (float)cpCam1.w / (float)cpCam1.h;
@@ -217,11 +256,13 @@ void SceneInit() {
 
 	//cpCam1.SetOrthogonalProjection(true);
 	cpCam1.hWnd = USE_WHND ? g_hWnd : NULL;
+	// DOJO : scene 에 등록될 카메라 생성, 여기선 두 개 생성 (AP, Lateral 용)
 	int cidCam1 = 0, cidCam2 = 0;
 	vzm::NewCamera(cpCam1, "Cam1", cidCam1);
 	cpCam1.hWnd = USE_WHND ? g_hWndDialog1 : NULL;
 	vzm::NewCamera(cpCam1, "Cam2", cidCam2);
 
+	// DOJO : Light 를 정의하기 위한 파라미터
 	vzm::LightParameters lpLight1;
 	lpLight1.is_on_camera = true;
 	lpLight1.is_pointlight = false;
@@ -229,21 +270,33 @@ void SceneInit() {
 	*(glm::fvec3*)lpLight1.dir = *(glm::fvec3*)cpCam1.view;
 	*(glm::fvec3*)lpLight1.up = *(glm::fvec3*)cpCam1.up;
 	int lidLight1 = 0;
+	// DOJO : scene 에 등록될 Light 생성
 	vzm::NewLight(lpLight1, "World Light", lidLight1);
 
-	// make a scene
+	// DOJO : scene 생성
 	int sidScene = 0;
 	vzm::NewScene("Scene1", sidScene);
 
+	// DOJO : scene 에 camera 1 (cidCam1) 을 연결 
 	vzm::AppendSceneItemToSceneTree(cidCam1, sidScene);
+	// DOJO : scene 에 camera 2 (cidCam2) 을 연결 
 	vzm::AppendSceneItemToSceneTree(cidCam2, sidScene);
+	// DOJO : scene 에 Light (lidLight1) 을 연결 
 	vzm::AppendSceneItemToSceneTree(lidLight1, sidScene);
+	// DOJO : scene 에 axis actor (aidAxis) 연결 
 	vzm::AppendSceneItemToSceneTree(aidAxis, sidScene);
+	// DOJO : scene 에 ground grid actor (aidGrid) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidGrid, sidScene);
+	// DOJO : scene 에 ground grid 에서의 진한 라인 actor (aidLines) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidLines, sidScene);
+	// DOJO : scene 에 ground grid 위에 있는 "X" 글자 actor (aidTextX) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidTextX, sidScene);
+	// DOJO : scene 에 ground grid 위에 있는 "Z" 글자 actor (aidTextZ) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidTextZ, sidScene);
+	// DOJO : scene 에 "Frame" 글자 actor (aidTextFrame) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
+	// NOTE : 여기에서는 모든 actor 및 camera, light 등 scene item 들이 모두 scene (i.e., root) 에 바로 연결되었지만,
+	// 특정 actor 의 자식으로 붙을 수도 있다 (e.g., scene<-aidAxis<-aidTextZ<-cidCam1 ,...)
 }
 
 void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo) {
