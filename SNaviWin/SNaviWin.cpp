@@ -652,6 +652,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     bool optitrkMode = optitrk::InitOptiTrackLib();
 
 	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-05-20.motive", folder_data + "System Calibration.cal");
+	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
 
     // 전역 문자열을 초기화합니다.
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);

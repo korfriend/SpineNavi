@@ -253,6 +253,16 @@ namespace vzm
 			// only available when projection_mode == SLICER_PLANE or SLICER_CURVED
 			script_params.SetParam("FAST_VOLRAYCASTER2X", enable);
 		}
+		void SetOutlineEffect(const int thick_pixs, const float depth_thres, const float* outline_color_rgb, const bool fadeEffect) {
+			// if thick_pixs == 0, no outline
+			script_params.SetParam("SILHOUETTE_THICKNESS", thick_pixs);
+			script_params.SetParam("SILHOUETTE_DEPTH_THRES", depth_thres);
+			if (outline_color_rgb != NULL) {
+				std::vector<float> color = { outline_color_rgb[0], outline_color_rgb[1], outline_color_rgb[2] };
+				script_params.SetParam("SILHOUETTE_COLOR_RGB", color);
+			}
+			script_params.SetParam("SILHOUETTE_FADEEFFECT", fadeEffect);
+		}
 		void HideActor(const int actor_id) {
 			hidden_actors.insert(actor_id);
 		}
@@ -329,14 +339,9 @@ namespace vzm
 
 		ParamMap<std::string> script_params;
 		ParamMap<std::string> test_params; // direct mapping to VmActor
-		void SetOutline(const int thick_pixs, const float depth_thres, const float* outline_color_rgb) {
-			// if thick_pixs == 0, no outline
-			script_params.SetParam("SILHOUETTE_THICKNESS", thick_pixs);
-			script_params.SetParam("SILHOUETTE_DEPTH_THRES", depth_thres);
-			if (outline_color_rgb != NULL) {
-				std::vector<float> color = { outline_color_rgb[0], outline_color_rgb[1], outline_color_rgb[2] };
-				script_params.SetParam("SILHOUETTE_COLOR_RGB", color);
-			}
+
+		void ShowOutline(const bool showOutline) {
+			script_params.SetParam("SHOW_OUTLINE", showOutline);
 		}
 		void SetClipBox(const vzm::BoxTr* clipBox) {
 			if (clipBox) script_params.SetParam("CLIPSETTING_BOX", *clipBox);
@@ -408,10 +413,12 @@ namespace vzm
 	// data_type "CHAR" "BYTE" "SHORT" "USHORT" "INT" "FLOAT"
 	__dojostatic bool GenerateEmptyVolume(int& vol_id, const int ref_vol_id = 0, const std::string& data_type = "", const double min_v = 0, const double max_v = 0, const double fill_v = 0);
 	// note that redundant safe-bnd to slices is not allowed
-	// data_type "CHAR" "BYTE" "SHORT" "USHORT" "INT" "FLOAT"
+	// data_type "CHAR" "BYTE[1-3]" "SHORT" "USHORT" "INT" "FLOAT"
 	__dojostatic bool GenerateVolumeFromData(int& vol_id, const void** vol_slices_2darray, const std::string& data_type, const int* size_xyz, const float* pitch_xyz, const float* axis_x_os, const float* axis_y_os, const bool is_rhs, const bool is_safe_bnd);
 	__dojostatic bool GenerateEmptyPrimitive(int& prim_id);
 	__dojostatic bool GenerateArrowObject(const float* pos_s, const float* pos_e, const float radius_body, const float radius_head, int& obj_id);
+	// buffer's format must be byte and ch must be 3 or 4, this is convenient method for opencv image conversion
+	__dojostatic bool GenerateImageBuffer(int& imgobj_id, const void* buffer, const int w, const int h, const int ch);
 	// optional : rgb_list (if NULL, this is not used)
 	__dojostatic bool GenerateSpheresObject(const float* xyzr_list, const float* rgb_list, const int num_spheres, int& obj_id);
 	__dojostatic bool GenerateCubesObject(const float* xyz_list, const float* whd_list, const float* rgb_list, const int num_cubes, const bool edgelines, int& obj_id);
@@ -484,8 +491,8 @@ namespace vzm
 	__dojostatic bool GetChildSceneItems(const int scene_item_id, std::vector<int>& scene_children_ids, std::vector<SceneItemType>& scene_children_types);
 
 	// picking
-	__dojostatic bool PickActor(int& picked_actor_id, float* pos_pick, const int x, const int y, const int cam_id, int* picked_submask_id = nullptr);
-	__dojostatic bool PickActorList(std::vector<int>& picked_actor_ids, std::vector<float>& pos_picks, const int x, const int y, const int cam_id, std::vector<int>* picked_submask_ids = nullptr);
+	__dojostatic bool PickActor(int& picked_actor_id, float* pos_pick, const int x, const int y, const int cam_id, int* picked_submask_id = nullptr, int* picked_primitive_id = nullptr);
+	__dojostatic bool PickActorList(std::vector<int>& picked_actor_ids, std::vector<float>& pos_picks, const int x, const int y, const int cam_id, std::vector<int>* picked_submask_ids = nullptr, std::vector<int>* picked_primitive_ids = nullptr);
 	__dojostatic bool CheckCollisionTwoMeshActors(const int actorId0, const int actorId1);
 
 	// only for the contributor's (by DongJoon Kim) test info.
