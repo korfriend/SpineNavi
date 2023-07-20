@@ -362,6 +362,9 @@ namespace vzm
 		void SetSculptIndex(const int sculptIndex) {
 			script_params.SetParam("SCULPT_INDEX", sculptIndex);
 		}
+		void DisableSolidFillingOnSlicer(const bool disableSolidFill) {
+			script_params.SetParam("SLICER_NO_SOLID_FILL", disableSolidFill);
+		}
 
 		bool GetClipBox(vzm::BoxTr& clipBox) {
 			return script_params.GetParamCheck("CLIPSETTING_BOX", clipBox);
@@ -396,7 +399,7 @@ namespace vzm
 		SSAO_Params effect_ssao;
 	};
 
-	__dojostatic bool InitEngineLib(const std::string& coreName = "VizMotive", const std::string& logFileName = "EngineApi.log");
+	__dojostatic bool InitEngineLib(const std::string& coreName = "VizMotive", const std::string& logFileName = "EngineApi.log", const std::string& performanceLevel = "DEFAULT");
 	__dojostatic bool DeinitEngineLib();
 
 	__dojostatic std::string GetEngineAPIsVer();
@@ -435,6 +438,7 @@ namespace vzm
 	__dojostatic bool GeneratePrimitiveObject(const float* xyz_list, const float* nrl_list, const float* rgb_list, const float* tex_list, const int num_vtx, const unsigned int* idx_prims, const int num_prims, const int stride_prim_idx, int& obj_id);
 	// optional : nrl_list, rgb_list (if NULL, this is not used)
 	__dojostatic bool GeneratePointCloudObject(const float* xyz_list, const float* nrl_list, const float* rgb_list, const int num_points, int& obj_id);
+	__dojostatic bool GenerateNormalLinesObject(const int src_obj_id, const float line_length, int& obj_id);
 	__dojostatic bool GenerateIsoSurfaceObject(const int vol_id, const float iso_value, const int downsample_offset, const int mask_id, const int mask_value, const BoxTr* boxTr, int& obj_id);
 	// center_aligned == false, then xyz is used for LT position of the text rect
 	__dojostatic bool GenerateTextObject(const float* xyz_view_up, const std::string& text, const float font_height, const bool bold, const bool italic, int& obj_id, const bool center_aligned = false);

@@ -998,6 +998,29 @@ namespace vzmutils {
 		return true;
 	}
 
+	inline bool GenerateGeometryNormalActor(int& aidNormalLinesActor, const int aidSrcActor, const float normalLineLength, const glm::fvec3 lineColor) {
+
+		vzm::ActorParameters apGeometry;
+		if (!vzm::GetActorParams(aidSrcActor, apGeometry)) return false;
+		int oidGeometry = apGeometry.GetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY);
+		if (oidGeometry == 0) return false;
+
+		int oidNormalLines = 0;
+		vzm::GenerateNormalLinesObject(oidGeometry, normalLineLength, oidNormalLines);
+		vzm::ActorParameters apNormalLines;
+		apNormalLines.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidNormalLines);
+		*(glm::fvec4*)apNormalLines.color = glm::fvec4(lineColor, 1);
+		apNormalLines.line_thickness = 1;
+
+		std::string actorName;
+		vzm::GetSceneItemName(aidSrcActor, actorName);
+		vzm::NewActor(apNormalLines, "normal lines of " + actorName, aidNormalLinesActor);
+
+		vzm::AppendSceneItemToSceneTree(aidNormalLinesActor, aidSrcActor);
+
+		return true;
+	}
+
 	struct GeneralMove {
 	private:
 		helpers::arcball aball_vr;
@@ -1005,11 +1028,14 @@ namespace vzmutils {
 		glm::ivec2 pos_ss_prev;
 		glm::fvec3 __scene_stage_center;
 		float __scene_stage_scale = 150.f;
+		bool validStartState = false;
 	public:
 		inline bool Start(const int* pos_ss, const vzm::CameraParameters& cam_params, const glm::fvec3 scene_stage_center = glm::fvec3(), const float scene_stage_scale = 150.f) {
+			validStartState = false; 
 			__scene_stage_scale = scene_stage_scale;
 			__scene_stage_center = scene_stage_center;
 			glm::fvec2 screen_size = glm::fvec2(cam_params.w, cam_params.h);
+			if (screen_size.x + screen_size.y == 0) return false;
 			if (cam_params.projection_mode == vzm::CameraParameters::SLICER_PLANE
 				|| cam_params.projection_mode == vzm::CameraParameters::SLICER_CURVED) 
 			{
@@ -1029,9 +1055,11 @@ namespace vzmutils {
 				aball_vr.start(pos_ss, (float*)&screen_size, arc_cam_pose);
 			}
 			pos_ss_prev = *(glm::ivec2*)pos_ss;
+			validStartState = true;
 			return true;
 		}
 		inline bool RotateMove(const int* pos_ss, vzm::CameraParameters& cam_params) {
+			if (!validStartState) return false;
 			if (cam_params.projection_mode == vzm::CameraParameters::SLICER_PLANE
 				|| cam_params.projection_mode == vzm::CameraParameters::SLICER_CURVED) return false;
 
@@ -1045,6 +1073,7 @@ namespace vzmutils {
 			return true;
 		}
 		inline bool PanMove(const int* pos_ss, vzm::CameraParameters& cam_params) {
+			if (!validStartState) return false;
 			if (cam_params.projection_mode == vzm::CameraParameters::SLICER_PLANE
 				|| cam_params.projection_mode == vzm::CameraParameters::SLICER_CURVED)
 			{
@@ -1066,6 +1095,7 @@ namespace vzmutils {
 			return true;
 		}
 		inline bool ZoomMove(const int* pos_ss, vzm::CameraParameters& cam_params, const bool zoomDir_convert, const bool preserveStageCenter = false) {
+			if (!validStartState) return false; 
 			if (cam_params.projection_mode == vzm::CameraParameters::SLICER_PLANE
 				|| cam_params.projection_mode == vzm::CameraParameters::SLICER_CURVED)
 			{
