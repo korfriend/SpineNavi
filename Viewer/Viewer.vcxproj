@@ -71,7 +71,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>;../includes</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>../includes;../includes/Qt/QtWidgets;../includes/Qt/QtCore;../includes/Qt/QtGui;../includes/Qt</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>../lib</AdditionalLibraryDirectories>
@@ -98,11 +98,14 @@
       <Optimization>MaxSpeed</Optimization>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Image2D.cpp" />
+    <ClCompile Include="View2D.cpp" />
+    <ClCompile Include="ViewLayout.cpp" />
     <QtRcc Include="Viewer.qrc" />
     <QtUic Include="Viewer.ui" />
     <QtMoc Include="Viewer.h" />
@@ -112,6 +115,14 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SNaviWin\CArmCalibration.h" />
+    <ClInclude Include="Engine.h" />
+    <ClInclude Include="Image2D.h" />
+    <ClInclude Include="nViewer.h" />
+    <QtMoc Include="WindowCArm.h" />
+    <ClInclude Include="Enums.h" />
+    <QtMoc Include="ViewMgr.h" />
+    <QtMoc Include="View2D.h" />
+    <QtMoc Include="ViewLayout.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

@@ -1,0 +1,30 @@
+#pragma once
+
+#include "View2D.h"
+
+
+#include <QWidget>
+#include <QVBoxLayout>
+#include <QImage>
+
+class Q_DECL_EXPORT WindowCArm : public QWidget
+{
+	Q_OBJECT
+public:
+	WindowCArm(int Id, QWidget* parent = 0);
+	~WindowCArm();
+
+	void setView(View2D view);
+
+	inline View2D* getView() { return m_view; }
+
+	inline void setImage(QImage img) { m_view->setImage(img); }
+	inline void display(void) { m_view->display(); }
+
+private:
+
+	View2D* m_view;
+
+
+
+};

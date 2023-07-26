@@ -58,7 +58,7 @@ int g_numAllFramesMKs = 0;
 
 #include "Viewer.h"
 
-int numAnimationCount = 50;
+int numAnimationCount = 5;
 int arAnimationKeyFrame = -1;
 std::vector<vzm::CameraParameters> cpInterCams(numAnimationCount);
 
@@ -697,10 +697,11 @@ Viewer::Viewer(QWidget *parent)
 						memcpy(&bufferTmp[totalReadBytes], buffer, readBytes);
 
 						totalReadBytes += readBytes;
-						printf("\rIn progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
+						printf("In progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
 						fflush(stdout);
 					}
 					if (readBytes > 0) {
+						printf("download Image");
 						download_completed = true;
 						memcpy(g_curScanImg.ptr(), &bufferTmp[0], file_size);
 					}
