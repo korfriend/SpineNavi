@@ -2,10 +2,8 @@
 
 #include <QImage>
 
-
-class Image2D
+class Q_DECL_EXPORT Image2D
 {
-
 
 public:
 	Image2D(int id, int type, QImage img);

@@ -20,7 +20,7 @@ networkThread::~networkThread()
 
 void networkThread::run()
 {
-
+	qDebug() << "CALL NETWORK THREAD";
 	WSADATA wsaData;
 	WSAStartup(MAKEWORD(2, 2), &wsaData);
 
@@ -69,9 +69,6 @@ void networkThread::run()
 	int clientSocket = -1;
 	struct sockaddr_in clientAddr;
 	unsigned int clientAddrSize = sizeof(clientAddr);
-
-	const int bufferSize = m_bufferSize;
-	char buffer[bufferSize];
 
 	int totalBufferNum;
 	int BufferNum;
@@ -122,9 +119,9 @@ void networkThread::run()
 				printf("\naccept new client. [clientSocket:%d]\n",
 					clientSocket);
 
-				readBytes = recv(clientSocket, buffer, bufferSize, 0);
+				readBytes = recv(clientSocket, m_buffer, m_bufferSize, 0);
 				if (readBytes < 5000) break;
-				file_size = atol(buffer);
+				file_size = atol(m_buffer);
 
 				unsigned char* data = new unsigned char[file_size];
 				totalReadBytes = 0;
@@ -133,20 +130,24 @@ void networkThread::run()
 				//fopen_s(&fp, (folder_capture + "result.raw").c_str(), "wb");
 				std::vector<char> bufferTmp(file_size * 2);
 				while (file_size > totalReadBytes) {
-					readBytes = recv(clientSocket, buffer, bufferSize, 0);
+					readBytes = recv(clientSocket, m_buffer, m_bufferSize, 0);
 					if (readBytes < 0) break;
 
 					//fwrite(buffer, sizeof(char), readBytes, fp);
-					memcpy(&bufferTmp[totalReadBytes], buffer, readBytes);
+					memcpy(&bufferTmp[totalReadBytes], m_buffer, readBytes);
 
 					totalReadBytes += readBytes;
-					printf("In progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
+					printf("\rIn progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
 					fflush(stdout);
 				}
 				if (readBytes > 0) {
 					printf("download Image");
 					m_download_completed = true;
-					//memcpy(g_curScanImg.ptr(), &bufferTmp[0], file_size);
+					cv::Mat g_curScanImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
+					memcpy(g_curScanImg.ptr(), &bufferTmp[0], file_size);
+
+					emit sigImageArrived(g_curScanImg);
+					
 				}
 
 				//fclose(fp);

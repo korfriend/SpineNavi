@@ -1,12 +1,17 @@
 #pragma once
+
+#include<QWidget>
+#include<QString>
+#include<QTimer>
+
+#include "Defines.h"
+#include "networkThread.h"
+#include "Image2D.h"
+
 #include <regex>
 #include <vector>
-#include <windowsx.h>
 #include <iostream>
-#include <winsock2.h> // udp
 #include <stdio.h>
-
-#pragma comment(lib,"ws2_32.lib")
 
 // math using GLM
 #include "glm/gtc/matrix_transform.hpp"
@@ -19,21 +24,14 @@
 
 // SpineProjects
 #include "VisMtvApi.h"
-#include "ApiUtility.hpp"
 #include "../optitrk/optitrk.h"
 #include "../SNaviWin/naviHelpers.hpp"
 #include "rapidcsv/rapidcsv.h"
 #include "../SNaviWin/CArmCalibration.h"
+#include "ApiUtility.hpp"
 
-#include "Defines.h"
-#include "Image2D.h"
-#include "networkThread.h"
 
-#include<QWidget>
-#include<QString>
-#include<QTimer>
-
-class Engine : public QWidget
+class Q_DECL_EXPORT Engine : public QWidget
 {
 
 	Q_OBJECT
@@ -50,12 +48,13 @@ public:
 	void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo);
 	void Render(vzm::CameraParameters cpCam);
 
+
 private slots:
 	
 	void TimerProc();
+	void slotImageArrived(cv::Mat img);
 
 private:
-	
 
 	//optitrack info files
 	bool m_optitrackMode;

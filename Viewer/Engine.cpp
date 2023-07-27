@@ -7,10 +7,14 @@ Engine::Engine(QString optiProfilePath, QString optiCalfilePath)
 	m_numImg = 0;
 
 	m_network_processing_thread = new networkThread();
+	m_qtimer = new QTimer();
+
+
+	connect(m_network_processing_thread, SIGNAL(sigImageArrived(cv::Mat)), this, SLOT(slotImageArrived(cv::Mat)));
 
 	this->EngineInit();
 
-	m_qtimer = new QTimer();
+	
 
 }
 
@@ -25,8 +29,6 @@ Engine::~Engine()
 	optitrk::DeinitOptiTrackLib();
 #endif
 	vzm::DeinitEngineLib();
-
-
 	SAFE_DELETE_OBJECT(m_network_processing_thread);
 
 
@@ -41,9 +43,32 @@ void Engine::EngineInit()
 #ifdef USE_MOTIVE
 	m_optitrackMode = optitrk::InitOptiTrackLib();
 #else
+
+	auto getdatapath = []()
+	{
+		using namespace std;
+		char ownPth[2048];
+		GetModuleFileNameA(NULL, ownPth, (sizeof(ownPth)));
+		string exe_path = ownPth;
+		string exe_path_;
+		size_t pos = 0;
+		std::string token;
+		string delimiter = "\\"; // windows
+		while ((pos = exe_path.find(delimiter)) != std::string::npos) {
+			token = exe_path.substr(0, pos);
+			if (token.find(".exe") != std::string::npos) break;
+			exe_path += token + "/";
+			exe_path_ += token + "/";
+			exe_path.erase(0, pos + delimiter.length());
+		}
+		return exe_path_ + "../../data/";
+	};
+
+	std::string folder_trackingInfo = getdatapath() + "Tracking 2023-04-19/";
+	std::string folder_capture = getdatapath() + "c-arm 2023-04-19/";
+	std::string folder_optiSession = getdatapath() + "Session 2023-04-19/";
 	rapidcsv::Document trackingData(folder_optiSession + "Take 2023-04-19 05.14.56 PM.csv", rapidcsv::LabelParams(0, 0));  // 7084.png
 	std::string cArmTrackFile = folder_trackingInfo + "c-arm-track4.txt";
-
 	std::string imgFile = folder_capture + "7084.png";
 #endif
 
@@ -272,7 +297,7 @@ void Engine::EngineInit()
 
 	connect(m_qtimer, SIGNAL(timeout()), this, SLOT(TimerProc()));
 	this->SceneInit();
-	
+#endif	
 }
 
 void Engine::SceneInit()
@@ -311,7 +336,6 @@ void Engine::SceneInit()
 	
 
 	m_qtimer->start(10);
-
 	m_network_processing_thread->start();
 }
 
@@ -334,6 +358,15 @@ void Engine::Render(vzm::CameraParameters cpCam)
 		//TODO : 여기서 image return???
 		//
 	}
+}
+
+void Engine::slotImageArrived(cv::Mat img)
+{
+	QImage tempimg = QImage((uchar*)img.data, SCANIMG_W, SCANIMG_H, QImage::Format_RGBA8888);
+	Image2D temp(m_numImg++, 0, tempimg);
+	m_ImgList.push_back(temp);
+
+	m_network_processing_thread->setDownloadFlag(false);
 }
 
 void Engine::UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
@@ -393,19 +426,6 @@ void Engine::TimerProc()
 	int totalFrames = (int)trackingFrames.size();
 	int frame = (frameCount++) % totalFrames;
 #endif
-	// update frame text 
-	{
-		int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
-		vzm::ActorParameters apFrameText;
-		vzm::GetActorParams(aidFrameText, apFrameText);
-		int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
-		std::vector<glm::fvec3> pinfo(3);
-		pinfo[0] = glm::fvec3(0, 0.3, 0);
-		pinfo[1] = glm::fvec3(0, 0, -1);
-		pinfo[2] = glm::fvec3(0, 1, 0);
-		vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
-		//vzm::GetActorParams(aidFrameText, apFrameText);
-	}
 
 #ifdef USE_MOTIVE
 	navihelpers::concurrent_queue<navihelpers::track_info>* track_que = g_track_que;
@@ -526,7 +546,7 @@ void Engine::TimerProc()
 	// 제일 최근 trackinfo 만 저장해두고
 	//viewer 에서 요청시 update and render 하는 식으로 해야함.
 
-	UpdateTrackInfo2Scene(trackingFrames[frame]);
+	//UpdateTrackInfo2Scene(trackingFrames[frame]);
 #endif
 	//Render();
 

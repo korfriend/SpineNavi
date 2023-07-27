@@ -103,7 +103,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Engine.cpp" />
     <ClCompile Include="Image2D.cpp" />
+    <ClCompile Include="networkThread.cpp" />
+    <ClCompile Include="nViewer.cpp" />
     <ClCompile Include="View2D.cpp" />
     <ClCompile Include="ViewLayout.cpp" />
     <QtRcc Include="Viewer.qrc" />
@@ -115,9 +118,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SNaviWin\CArmCalibration.h" />
-    <ClInclude Include="Engine.h" />
+    <QtMoc Include="Engine.h" />
     <ClInclude Include="Image2D.h" />
-    <ClInclude Include="nViewer.h" />
+    <QtMoc Include="networkThread.h" />
+    <QtMoc Include="nViewer.h" />
     <QtMoc Include="WindowCArm.h" />
     <ClInclude Include="Enums.h" />
     <QtMoc Include="ViewMgr.h" />

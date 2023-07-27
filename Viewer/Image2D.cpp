@@ -6,3 +6,7 @@ Image2D::Image2D(int id, int type, QImage img)
 	m_type = type;
 	m_img = img;
 }
+
+Image2D::~Image2D()
+{
+}

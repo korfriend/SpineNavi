@@ -52,6 +52,15 @@
     <ClCompile Include="Image2D.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Engine.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="networkThread.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="nViewer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SNaviWin\CArmCalibration.h">
@@ -61,12 +70,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Image2D.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Engine.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="nViewer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -81,6 +84,15 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="WindowCArm.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="Engine.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="nViewer.h">
+      <Filter>Header Files</Filter>
+    </QtMoc>
+    <QtMoc Include="networkThread.h">
       <Filter>Header Files</Filter>
     </QtMoc>
   </ItemGroup>

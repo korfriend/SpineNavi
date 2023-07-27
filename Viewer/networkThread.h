@@ -1,15 +1,21 @@
 #pragma once
 
-
-#include <QThread>
+#include <windowsx.h>
 #include <winsock2.h> // udp
+
+#pragma comment(lib, "ws2_32.lib")
+
 #include <algorithm>
 
+#include <QThread>
+#include <QDebug>
 
 #include "Defines.h"
 
+#include <opencv2/opencv.hpp>
 
-class networkThread : public QThread
+
+class Q_DECL_EXPORT networkThread : public QThread
 {
 	Q_OBJECT
 
@@ -19,6 +25,12 @@ public:
 
 	void setAlive(bool flag) { m_network_alive = flag; };
 	void setDownloadFlag(bool flag) { m_download_completed = flag; };
+
+
+signals:
+
+	void sigImageArrived(cv::Mat);
+
 private:
 	void run();
 
