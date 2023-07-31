@@ -913,12 +913,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
 	tracker_processing_thread.join();
+	network_alive = false;
+	network_processing_thread.join();
 
 	optitrk::DeinitOptiTrackLib();
 	vzm::DeinitEngineLib();
 
-	network_alive = false;
-	network_processing_thread.join();
 	//end = GetMicroCounter();
 	//printf("Elapsed Time (micro seconds) : %d", end - start);
 	GdiplusShutdown(gdiplusToken);
