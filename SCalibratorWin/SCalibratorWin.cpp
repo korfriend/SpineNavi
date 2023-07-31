@@ -1415,7 +1415,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				fs["K"] >> cameraMatrix;
 				fs.release();
 
-				int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + to_string(activeCarmIdx));
+				int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:calib_test" + to_string(activeCarmIdx));
+				if (aidCArmPlane == 0)
+					break;
 
 				vzm::ActorParameters apCArmPlane;
 				vzm::GetActorParams(aidCArmPlane, apCArmPlane);
