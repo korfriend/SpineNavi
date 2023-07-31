@@ -13,9 +13,9 @@
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 
-Qt6WebEngineCore*
-opencv_world330*
-NPTrackingToolsx64*
+# Qt6WebEngineCore*
+# opencv_world330*
+# NPTrackingToolsx64*
 
 # Build results
 [Dd]ebug/
