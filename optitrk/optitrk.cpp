@@ -242,7 +242,7 @@ bool optitrk::SetRigidBodyPropertyByName(const std::string& name, const float sm
 	return SetRigidBodyPropertyByIdx(rb_idx, smooth_term, test_smooth_term);
 }
 
-bool optitrk::SetRigidBodyEnabledbyId(const int rb_idx, const bool enabled)
+bool optitrk::SetRigidBodyEnabledbyIdx(const int rb_idx, const bool enabled)
 {
 	if (!is_initialized) return false;
 	if (TT_RigidBodyName(rb_idx) == NULL) return false;
@@ -264,6 +264,44 @@ bool optitrk::SetRigidBodyEnabledbyName(const std::string& name, const bool enab
 		return false;
 
 	TT_SetRigidBodyEnabled(rb_idx, enabled);
+	return true;
+}
+
+bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const float* mkPosArray)
+{
+	if (!is_initialized) return false;
+
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+	int rb_idx = 0;
+	for (; rb_idx < numRBs; rb_idx++)
+		if (name == rbNames[rb_idx]) break;
+
+	bool isNew = rb_idx == numRBs;
+
+	std::wstring name_w;
+	name_w.assign(name.begin(), name.end());
+
+	RigidBodySolver::cRigidBodySettings setting;
+	if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
+		return false;
+
+	memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
+
+	setting.ColorR = (float)(rand() % 100) / 100.f;
+	setting.ColorG = (float)(rand() % 100) / 100.f;
+	setting.ColorB = (float)(rand() % 100) / 100.f;
+	setting.Enabled = true;
+	if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
+		return false;
+
+	for (int i = 0; i < numMKs; i++) {
+		glm::fvec3 mkPos = *(glm::fvec3*)&mkPosArray[3 * i];
+		TT_RigidBodyUpdateMarker(rb_idx, i, &mkPos.x, &mkPos.y, &mkPos.z);
+	}
+
+	cout << TT_RigidBodyMeanError(rb_idx) << endl;
+
 	return true;
 }
 

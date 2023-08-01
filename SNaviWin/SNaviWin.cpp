@@ -1118,6 +1118,7 @@ auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& mat
 };
 
 // DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
+// AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
 auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const int cidCam,
 	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) {
 	using namespace std;
@@ -1216,6 +1217,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 
 	static vzmutils::GeneralMove general_move;
+	static bool calribmodeToggle = false;
 
     switch (message)
 	{
@@ -1225,6 +1227,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		switch (wParam) {
 			case char('S') :
 			{
+				if (calribmodeToggle) break;
+
 				cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
 				cv::Mat ocvVec3(1, 3, CV_32FC1);
 				memcpy(ocvVec3.ptr(), cpCam1.pos, sizeof(float) * 3);
@@ -1238,6 +1242,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case char('L') :
 			{
+				if (calribmodeToggle) break;
+
 				cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 				if (fs.isOpened()) {
 					cv::Mat ocvVec3;
@@ -1252,12 +1258,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				vzm::SetCameraParams(cidCam1, cpCam1);
 				break;
 			}
-			case char('A') :
+			case char('C') :
 			{
-				//cpCam1.
-				// Call SetWindowPos to resize the window
-				//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
-				//SetWindowPos(g_hWnd, NULL, 100, 100, imageWH.x, imageWH.y, flags);
+				calribmodeToggle = !calribmodeToggle;
+
+				using namespace glm;
+				fmat4x4 matCam2WS;
+				optitrk::GetCameraLocation(1, __FP matCam2WS);
+
+				*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
+				*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
+				*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
+
+				vzm::SetCameraParams(cidCam1, cpCam1);
 				break;
 			}
 		}
@@ -1327,11 +1340,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		// renderer does not need to be called
 		glm::ivec2 pos_ss = glm::ivec2(x, y);
-		general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
+
+		if (calribmodeToggle) {
+			// to do
+		}
+		else {
+			general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
+		}
 		break;
 	}
 	case WM_MOUSEMOVE:
 	{
+		if (calribmodeToggle) break;
+
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);
 
