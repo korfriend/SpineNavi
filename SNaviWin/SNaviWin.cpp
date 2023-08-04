@@ -84,57 +84,157 @@ std::string g_sceneName = "Scene1"; // Scene1, Scene2
 std::string g_camName = "Cam1"; // World Camera, CArm Camera
 std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
 
-std::vector<glm::fvec3> g_selectedWsMarkers;
+std::vector<std::string> g_selectedMkNames;
 
-// implemented by 김민교 
-int GetCenterPostions(const cv::Mat& inputImg, std::vector<std::vector<cv::Point2f>>& points2Ds)
-{
+namespace mystudents {
 	using namespace std;
-	cv::Mat imgGray;
-	cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
-	cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+	// implemented by 김민교 
+	int Get2DPostionsFromLegoPhantom(const cv::Mat& inputImg, std::vector<std::vector<cv::Point2f>>& points2Ds)
+	{
+		cv::Mat imgGray;
+		cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
+		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
 
-	//Add mask
-	//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
-	// Blob Detector Params
-	cv::SimpleBlobDetector::Params params;
-	params.filterByArea = true;
-	params.filterByCircularity = true;
-	params.filterByConvexity = false;
-	params.filterByInertia = true;
-	params.filterByColor = false;
+		//Add mask
+		//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
+		// Blob Detector Params
+		cv::SimpleBlobDetector::Params params;
+		params.filterByArea = true;
+		params.filterByCircularity = true;
+		params.filterByConvexity = false;
+		params.filterByInertia = true;
+		params.filterByColor = false;
 
-	params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-	params.maxArea = 1000;
-	params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
-	params.minInertiaRatio = 0.01; // 1 >> it detects perfect circle. short / long axis
-	params.minRepeatability = 2;
-	params.minDistBetweenBlobs = 0.1;
+		params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+		params.maxArea = 1000;
+		params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
+		params.minInertiaRatio = 0.01; // 1 >> it detects perfect circle. short / long axis
+		params.minRepeatability = 2;
+		params.minDistBetweenBlobs = 0.1;
 
-	cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
-	vector<cv::KeyPoint> keypoints;
-	detector->detect(imgGray, keypoints); // circle detect.
+		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
+		vector<cv::KeyPoint> keypoints;
+		detector->detect(imgGray, keypoints); // circle detect.
 
-	// circle 좌표 저장.
-	vector<cv::Point2f> sortingCenters; // 정렬하기 위해 소수점 필요.
+		// circle 좌표 저장.
+		vector<cv::Point2f> sortingCenters; // 정렬하기 위해 소수점 필요.
 
-	for (const auto& kp : keypoints) {
-		sortingCenters.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+		for (const auto& kp : keypoints) {
+			sortingCenters.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+		}
+
+		// 원의 좌표를 정렬.
+		sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+			return a.x < b.x;
+			});
+
+		sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+			return a.y < b.y;
+			});
+
+		points2Ds.push_back(sortingCenters);
+
+		return (int)points2Ds.size();
 	}
 
-	// 원의 좌표를 정렬.
-	sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-		return a.x < b.x;
-		});
+	// Function to calculate the normal vector of a plane given three points
+	cv::Point3f calc_normal_vector(const cv::Point3f& point1, const cv::Point3f& point2, const cv::Point3f& point3) {
+		cv::Point3f vector_x(point2.x - point1.x, point2.y - point1.y, point2.z - point1.z);
+		cv::Point3f vector_y(point3.x - point1.x, point3.y - point1.y, point3.z - point1.z);
 
-	sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-		return a.y < b.y;
-		});
+		cv::Point3f normal_vector;
+		normal_vector.x = vector_x.y * vector_y.z - vector_x.z * vector_y.y;
+		normal_vector.y = vector_x.z * vector_y.x - vector_x.x * vector_y.z;
+		normal_vector.z = vector_x.x * vector_y.y - vector_x.y * vector_y.x;
 
-	points2Ds.push_back(sortingCenters);
+		double norm = std::sqrt(normal_vector.x * normal_vector.x + normal_vector.y * normal_vector.y + normal_vector.z * normal_vector.z);
+		normal_vector.x /= norm;
+		normal_vector.y /= norm;
+		normal_vector.z /= norm;
 
-	return (int)points2Ds.size();
+		return normal_vector;
+	}
+
+	// Function to fit a plane to a set of 3D points and find its normal vector
+	cv::Point3f fit_plane_to_points(const vector<cv::Point3f>& points) {
+		cv::Point3f centroid(0.0, 0.0, 0.0);
+		for (const auto& point : points) {
+			centroid.x += point.x;
+			centroid.y += point.y;
+			centroid.z += point.z;
+		}
+		centroid.x /= points.size();
+		centroid.y /= points.size();
+		centroid.z /= points.size();
+
+		vector<cv::Point3f> centered_points;
+		for (const auto& point : points) {
+			cv::Point3f centered_point(point.x - centroid.x, point.y - centroid.y, point.z - centroid.z);
+			centered_points.push_back(centered_point);
+		}
+
+		cv::Point3f normal_vector;
+		normal_vector.x = normal_vector.y = normal_vector.z = 0.0;
+
+		for (size_t i = 0; i < centered_points.size(); ++i) {
+			normal_vector.x += centered_points[i].y * centered_points[(i + 1) % centered_points.size()].z - centered_points[i].z * centered_points[(i + 1) % centered_points.size()].y;
+			normal_vector.y += centered_points[i].z * centered_points[(i + 1) % centered_points.size()].x - centered_points[i].x * centered_points[(i + 1) % centered_points.size()].z;
+			normal_vector.z += centered_points[i].x * centered_points[(i + 1) % centered_points.size()].y - centered_points[i].y * centered_points[(i + 1) % centered_points.size()].x;
+		}
+
+		double norm = std::sqrt(normal_vector.x * normal_vector.x + normal_vector.y * normal_vector.y + normal_vector.z * normal_vector.z);
+		normal_vector.x /= norm;
+		normal_vector.y /= norm;
+		normal_vector.z /= norm;
+
+		return normal_vector;
+	}
+
+	// Function to get 3D positions of markers
+	int Get3DPostionsFromLegoPhantom(const double marker_r,
+		const cv::Point3f& marker1, const cv::Point3f& marker2, const cv::Point3f& marker3, const cv::Point3f& marker4, 
+		vector<vector<cv::Point3f>>& points3Ds) {
+
+		const double unit = 15.9375;
+
+		double plane_r = 3; // 홈의 반지름 
+		double big_h = marker_r - std::sqrt(marker_r * marker_r - plane_r * plane_r); //빠진 길이
+		double small_marker_r = 8 / 2;
+		double small_h = small_marker_r - std::sqrt(small_marker_r * small_marker_r - plane_r * plane_r); //빠진 길이
+		double h = big_h - small_h;
+
+		cv::Point3f x = calc_normal_vector(marker1, marker4, marker2);
+		cv::Point3f z = fit_plane_to_points({ marker1, marker2, marker3, marker4 });
+		cv::Point3f y = { x.y * z.z - x.z * z.y, x.z * z.x - x.x * z.z, x.x * z.y - x.y * z.x };
+
+		vector<cv::Point3f> inter_points;
+		for (int i = 0; i < 8; ++i) {
+			for (int j = 0; j < 8; ++j) {
+				if (i == 0 && j == 0)
+					continue;
+				else if (i == 7 && j == 0)
+					continue;
+				else if (i == 0 && j == 7)
+					continue;
+				else if (i == 7 && j == 7)
+					continue;
+
+				cv::Point3f unit_position(float(i), float(j), 0.0);
+				cv::Point3f estimate_marker(marker1.x + unit_position.x * unit * x.x + unit_position.y * unit * y.x + h * z.x,
+					marker1.y + unit_position.x * unit * x.y + unit_position.y * unit * y.y + h * z.y,
+					marker1.z + unit_position.x * unit * x.z + unit_position.y * unit * y.z + h * z.z);
+				inter_points.push_back(estimate_marker);
+			}
+		}
+
+		//vector<vector<cv::Point3f>> points3Ds;
+		points3Ds.push_back(inter_points);
+		return (int)points3Ds.size();
+	}
 }
+
+
+
 
 int main()
 {
@@ -1351,7 +1451,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				calribmodeToggle = !calribmodeToggle;
 
-				if (!calribmodeToggle) g_selectedWsMarkers.clear();
+				if (!calribmodeToggle) g_selectedMkNames.clear();
 
 				cout << "calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
 
@@ -1374,13 +1474,27 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// to do
 				// update "c-arm" RB
 				// 이 떄마다, sceneActors["c-arm"] 의 관련 scene item 모두 지우고, 해당 element 지우기..
-				if (g_selectedWsMarkers.size() < 3) {
-					cout << "at least 3 points are needed to register a rigid body!! current # of points : " << g_selectedWsMarkers.size() << endl;
+				int numSelectedMKs = (int)g_selectedMkNames.size();
+				if (numSelectedMKs < 3) {
+					cout << "at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
 					return 0;
 				}
 
-				cout << "rigidbody for c-arm is registered with " << g_selectedWsMarkers.size() << " points" << endl;
-				optitrk::SetRigidBody("c-arm", g_selectedWsMarkers.size(), (float*)&g_selectedWsMarkers[0]);
+				cout << "rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
+
+				navihelpers::track_info trackInfo;
+				g_track_que->wait_and_pop(trackInfo);
+
+				std::vector<glm::fvec3> posWsMarkers;
+				for (int i = 0; i < numSelectedMKs; i++) {
+
+					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
+					trackInfo.GetMarkerByName(g_selectedMkNames[i], mkInfo);
+				}
+
+
+
+				optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&g_selectedWsMarkers[0]);
 				break;
 			}
 			case char('X') :
