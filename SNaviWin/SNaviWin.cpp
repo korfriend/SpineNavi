@@ -85,6 +85,7 @@ std::string g_camName = "Cam1"; // World Camera, CArm Camera
 std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
 
 std::vector<std::string> g_selectedMkNames;
+bool call_rbSet = false;
 
 namespace mystudents {
 	using namespace std;
@@ -92,7 +93,10 @@ namespace mystudents {
 	int Get2DPostionsFromLegoPhantom(const cv::Mat& inputImg, std::vector<cv::Point2f>& points2Ds)
 	{
 		cv::Mat imgGray;
-		cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
+		if (inputImg.channels() == 3)
+			cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
+		else
+			imgGray = inputImg;
 		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
 
 		//Add mask
@@ -535,10 +539,8 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
 		}
 
-		static map<string, int> sceneActors;
-
 		// tracking 된 rigid bodies 중, probe 와 그외 일반 rigid body frame 을 나타낼 scene actor 에 생성된 resource (oidProbe, oidAxis) 를 할당
-		// 최초 한 번만 할당하며 이것은 static 으로 저장된 sceneActors dictionary 에 해당 key value 가 있는지로 확인하고 없을 때, 할당
+		// 최초 한 번만 할당하며 scene 에 tracking unit 의 이름이 있는지로 확인하고 없을 때, 할당
 		// rigid body 에 등록된 마커도 같이 등록
 		for (int i = 0; i < numRBs; i++) {
 			std::string rbName;
@@ -547,11 +549,10 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet)) {
 				if (rb_error > 10.0) cout << "\n" <<"problematic error!! " << rb_error << endl;
 
-				auto actorId = sceneActors.find(rbName);
-				if (actorId == sceneActors.end()) {
+				int aidRb = vzmutils::GetSceneItemIdByName(rbName);
+				if (aidRb == 0) {
 					vzm::ActorParameters apRb;
 					if (rbName == "probe") {
-						;
 						apRb.SetResourceID(vzm::ActorParameters::GEOMETRY, oidProbe);
 						*(glm::fvec4*)apRb.color = glm::fvec4(1, 0.3, 0.2, 1);
 					}
@@ -560,12 +561,10 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 						apRb.line_thickness = 3;
 					}
 					apRb.is_visible = false;
-					int aidRb = 0;
 					vzm::NewActor(apRb, rbName, aidRb);
 					vzm::AppendSceneItemToSceneTree(aidRb, sidScene);
 
 					if (rbName == "probe") {
-						sceneActors[rbName] = 1;
 					}
 					else {
 						std::vector<glm::fvec3> pinfo(3);
@@ -580,24 +579,21 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 						int aidLabelText = 0;
 						vzm::NewActor(apLabelText, rbName + ":Label", aidLabelText);
 						vzm::AppendSceneItemToSceneTree(aidLabelText, aidRb);
-						sceneActors[rbName] = 2;
 					}
 
 					// rigid body 의 markers 들을 최초 할당
 					for (auto& rbmk : rbmkSet) {
 						map<track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
 						string rbmk_name = std::any_cast<std::string>(rbmk_v[track_info::MKINFO::MK_NAME]);
-						auto actorId = sceneActors.find(rbmk_name);
-						if (actorId == sceneActors.end()) {
+						int aidMarker = vzmutils::GetSceneItemIdByName(rbmk_name);
+						if (aidMarker == 0) {
 							vzm::ActorParameters apMarker;
 							apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
 							apMarker.is_visible = false;
+							apMarker.is_pickable = false;
 							*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 0.f, 0.f, 0.3f); // rgba
-							int aidMarker = 0;
 							vzm::NewActor(apMarker, rbmk_name, aidMarker);
-							vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
-
-							sceneActors[rbmk_name] = 3;
+							vzm::AppendSceneItemToSceneTree(aidMarker, aidRb);
 						}
 					}
 				}
@@ -605,22 +601,19 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 		}
 
 		// tracking 된 individual markers 를 나타낼 spherical shape 의 scene actor 에 생성된 resource (oidMarker) 를 할당
-		// 최초 한 번만 할당하며 이것은 static 으로 저장된 sceneActors dictionary 에 해당 key value 가 있는지로 확인하고 없을 때, 할당
+		// 최초 한 번만 할당하며 scene 에 tracking unit 의 이름이 있는지로 확인하고 없을 때, 할당
 		for (int i = 0; i < numMKs; i++) {
 			std::map<navihelpers::track_info::MKINFO, std::any> mk;
 			if (trackInfo.GetMarkerByIdx(i, mk)) {
 				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
-				auto actorId = sceneActors.find(mkName);
-				if (actorId == sceneActors.end()) {
+				int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
+				if (aidMarker == 0) {
 					vzm::ActorParameters apMarker;
 					apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
 					apMarker.is_visible = false;
 					*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
-					int aidMarker = 0;
 					vzm::NewActor(apMarker, mkName, aidMarker);
 					vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
-
-					sceneActors[mkName] = 4;
 				}
 			}
 		}
@@ -641,21 +634,24 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			apRb.SetLocalTransform(__FP matLS2WS);
 			vzm::SetActorParams(aidRb, apRb);
 
+			glm::fmat4x4 matWS2LS = glm::inverse(matLS2WS);
+
 			for (auto& rbmk : rbmkSet) {
 				std::map<navihelpers::track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
 
 				std::string rbmk_name = std::any_cast<std::string>(rbmk_v[navihelpers::track_info::MKINFO::MK_NAME]);
 				glm::fvec3 pos = std::any_cast<glm::fvec3>(rbmk_v[navihelpers::track_info::MKINFO::POSITION]);
+				glm::fvec3 posRb = vzmutils::transformPos(pos, matWS2LS);
 
-				glm::fmat4x4 matLS2WS = glm::translate(pos);
+				glm::fmat4x4 matMkLS2WS = glm::translate(posRb);
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.007f)); // set 1 cm to the marker diameter
-				matLS2WS = matLS2WS * matScale;
+				matMkLS2WS = matMkLS2WS * matScale;
 				int aidMarker = vzmutils::GetSceneItemIdByName(rbmk_name);
 				vzm::ActorParameters apMarker;
 				vzm::GetActorParams(aidMarker, apMarker);
 				apMarker.is_visible = true;
 				apMarker.is_pickable = false;
-				apMarker.SetLocalTransform(__FP matLS2WS);
+				apMarker.SetLocalTransform(__FP matMkLS2WS);
 				vzm::SetActorParams(aidMarker, apMarker);
 			}
 		}
@@ -841,7 +837,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     bool optitrkMode = optitrk::InitOptiTrackLib();
 
-	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-05-20.motive", folder_data + "System Calibration.cal");
+	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-05.motive", folder_data + "System Calibration.cal");
 	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
 
     // 전역 문자열을 초기화합니다.
@@ -914,6 +910,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				string mkName = "Marker" + to_string(i + 1);
 				trk_info.AddMarker(mkCIDs[i], pos, mkName);
 			}
+
+			if (call_rbSet) {
+				std::vector<glm::fvec3> posWsMarkers;
+				for (int i = 0; i < (int)g_selectedMkNames.size(); i++) {
+
+					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
+					trk_info.GetMarkerByName(g_selectedMkNames[i], mkInfo);
+					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
+					posWsMarkers.push_back(pos);
+				}
+				optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&posWsMarkers[0]);
+				call_rbSet = false;
+			}
+
 			track_que.push(trk_info);
 		}
 	});
@@ -1483,7 +1493,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					return 0;
 				// to do
 				// update "c-arm" RB
-				// 이 떄마다, sceneActors["c-arm"] 의 관련 scene item 모두 지우고, 해당 element 지우기..
 				int numSelectedMKs = (int)g_selectedMkNames.size();
 				if (numSelectedMKs < 3) {
 					cout << "\n" <<"at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
@@ -1492,19 +1501,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				cout << "\n" <<"rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
 
-				navihelpers::track_info trackInfo;
-				g_track_que->wait_and_pop(trackInfo);
+				call_rbSet = true;
 
-				std::vector<glm::fvec3> posWsMarkers;
-				for (int i = 0; i < numSelectedMKs; i++) {
+				while (call_rbSet) { Sleep(2); }
 
-					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
-					trackInfo.GetMarkerByName(g_selectedMkNames[i], mkInfo);
-					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
-					posWsMarkers.push_back(pos);
-				}
-
-				optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&posWsMarkers[0]);
+				int aidRbCarm = vzmutils::GetSceneItemIdByName("c-arm");
+				vzm::RemoveSceneItem(aidRbCarm);
+				// 이 떄마다, "c-arm" 관련 scene item 모두 지우고, 해당 element 지우기..
 				break;
 			}
 			case char('X') :
@@ -1580,19 +1583,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				std::cout << "\n" <<"STORAGE COMPLETED!!!" << std::endl;
 
 				// get 2d mks info from x-ray img (g_curScanImg)
-				{
+				std::vector<cv::Point2f> points2d;
+				mystudents::Get2DPostionsFromLegoPhantom(g_curScanImg, points2d);
 
-					
-
-
-
-
-
-					// to do...
-					// imgGrayFiltered = cv.GaussianBlur(imgGray, (15, 15), 0)
-					// imgSrc = 255 - imgGrayFiltered
+				std::vector<cv::Point3f> posWsMarkers;
+				for (int i = 0; i < (int)g_selectedMkNames.size(); i++) {
+					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
+					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
+					posWsMarkers.push_back(*(cv::Point3f*)&pos);
 				}
-
+				std::vector<cv::Point3f> points3d;
+				mystudents::Get3DPostionsFromLegoPhantom(7.f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
+				
+				//cv::solvePnP(points3d, points2d, A, distCoeffs, rvec, tvec);
+				//std::cout << A << "\n";
+				//std::cout << rvec << "\n";
+				//std::cout << tvec << "\n";
 				// get 3D position
 				// determine ap or lateral
 				// check residual 

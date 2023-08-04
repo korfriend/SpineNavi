@@ -286,12 +286,43 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 
 	bool isNew = rb_idx == numRBs;
 	if (!isNew) {
-		isNew = TT_RigidBodyMarkerCount(rb_idx) != numRBs;
-		TT_RemoveRigidBody(rb_idx);
+		int numPrevMKs = TT_RigidBodyMarkerCount(rb_idx);
+		isNew = numPrevMKs != numMKs;
+		if (isNew) {
+			std::string __rbName = TT_RigidBodyName(rb_idx);
+			TT_RemoveRigidBody(rb_idx);
+			__rbName = TT_RigidBodyName(rb_idx);
+			std::vector<std::string> rbNames;
+			numRBs = optitrk::GetRigidBodies(&rbNames);
+
+			int gg = 90;
+		}
 	}
 
 	if (isNew) {
-		TT_CreateRigidBody(name.c_str(), 0, numMKs, (float*)mkPosArray);
+		static int id = 0;
+		TT_CreateRigidBody(name.c_str(), id++, numMKs, (float*)mkPosArray);
+		std::vector<std::string> rbNames;
+		numRBs = optitrk::GetRigidBodies(&rbNames);
+		int rb_idx = 0;
+		for (; rb_idx < numRBs; rb_idx++)
+			if (name == rbNames[rb_idx]) break;
+
+		float x, y, z;
+		float qx, qy, qz, qw;
+		float yaw, pitch, roll;
+		TT_RigidBodyLocation(rb_idx, &x, &y, &z, &qx, &qy, &qz, &qw, &yaw, &pitch, &roll);
+		bool is = TT_IsRigidBodyTracked(rb_idx);
+		bool is2 = TT_RigidBodyEnabled(rb_idx);
+		TT_RigidBodyResetOrientation(rb_idx);
+		TT_RigidBodyLocation(rb_idx, &x, &y, &z, &qx, &qy, &qz, &qw, &yaw, &pitch, &roll);
+		is = TT_IsRigidBodyTracked(rb_idx);
+		is2 = TT_RigidBodyEnabled(rb_idx);
+		int gg = 0;
+// 		for (int i = 0; i < numMKs; i++) {
+// 			glm::fvec3 mkPos = *(glm::fvec3*)&mkPosArray[3 * i];
+// 			TT_RigidBodyUpdateMarker(rb_idx, i, &mkPos.x, &mkPos.y, &mkPos.z);
+//		}
 	}
 	else {
 		for (int i = 0; i < numMKs; i++) {
@@ -300,22 +331,22 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 		}
 	}
 
-	//std::wstring name_w;
-	//name_w.assign(name.begin(), name.end());
+	std::wstring name_w;
+	name_w.assign(name.begin(), name.end());
 
-	//RigidBodySolver::cRigidBodySettings setting;
-	//if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
-	//	return false;
-	//
-	//ZeroMemory(setting.mName, RigidBodySolver::kRigidBodyNameMaxLen * sizeof(wchar_t));
-	//memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
-	//
-	//setting.ColorR = (float)(rand() % 100) / 100.f;
-	//setting.ColorG = (float)(rand() % 100) / 100.f;
-	//setting.ColorB = (float)(rand() % 100) / 100.f;
-	//setting.Enabled = true;
-	//if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
-	//	return false;
+	RigidBodySolver::cRigidBodySettings setting;
+	if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
+		return false;
+
+	ZeroMemory(setting.mName, RigidBodySolver::kRigidBodyNameMaxLen * sizeof(wchar_t));
+	memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
+
+	setting.ColorR = (float)(rand() % 100) / 100.f;
+	setting.ColorG = (float)(rand() % 100) / 100.f;
+	setting.ColorB = (float)(rand() % 100) / 100.f;
+	setting.Enabled = true;
+	if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
+		return false;
 
 	::LeaveCriticalSection(&mSc);
 
