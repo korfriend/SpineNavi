@@ -258,8 +258,9 @@ int main()
 
 struct avr_trk
 {
-	std::string xRayScanImg;
-	std::string xRayCirclesResult;
+	std::string xRayScanImg; // initialized
+	std::string xRayCirclesResult; // initialized
+
 	glm::fquat q_cArmRb; // c-arm rb
 	glm::fvec3 rot_cArmRb; // c-arm rb
 	float rotDeg_cArmRb; // c-arm rb

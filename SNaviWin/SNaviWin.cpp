@@ -45,9 +45,6 @@ using namespace Gdiplus;
 #define DESIRED_SCREEN_W 950
 #define DESIRED_SCREEN_H 950
 #define USE_WHND true
-bool storeAvrCarmTrackinfo = false;
-std::map<std::string, glm::fmat4x4> rbMapTrAvr;
-std::map<std::string, glm::fvec3> mkPosTest1Avr;
 
 #define MAX_LOADSTRING 100
 typedef unsigned long long u64;
@@ -86,6 +83,58 @@ std::vector<vzm::CameraParameters> cpInterCams2(numAnimationCount);
 std::string g_sceneName = "Scene1"; // Scene1, Scene2
 std::string g_camName = "Cam1"; // World Camera, CArm Camera
 std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
+
+std::vector<glm::fvec3> g_selectedWsMarkers;
+
+// implemented by 김민교 
+int GetCenterPostions(const cv::Mat& inputImg, std::vector<std::vector<cv::Point2f>>& points2Ds)
+{
+	using namespace std;
+	cv::Mat imgGray;
+	cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
+	cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+
+	//Add mask
+	//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
+	// Blob Detector Params
+	cv::SimpleBlobDetector::Params params;
+	params.filterByArea = true;
+	params.filterByCircularity = true;
+	params.filterByConvexity = false;
+	params.filterByInertia = true;
+	params.filterByColor = false;
+
+	params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+	params.maxArea = 1000;
+	params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
+	params.minInertiaRatio = 0.01; // 1 >> it detects perfect circle. short / long axis
+	params.minRepeatability = 2;
+	params.minDistBetweenBlobs = 0.1;
+
+	cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
+	vector<cv::KeyPoint> keypoints;
+	detector->detect(imgGray, keypoints); // circle detect.
+
+	// circle 좌표 저장.
+	vector<cv::Point2f> sortingCenters; // 정렬하기 위해 소수점 필요.
+
+	for (const auto& kp : keypoints) {
+		sortingCenters.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+	}
+
+	// 원의 좌표를 정렬.
+	sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+		return a.x < b.x;
+		});
+
+	sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+		return a.y < b.y;
+		});
+
+	points2Ds.push_back(sortingCenters);
+
+	return (int)points2Ds.size();
+}
 
 int main()
 {
@@ -389,9 +438,14 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 		// tracking 된 rigid bodies 중, probe 와 그외 일반 rigid body frame 을 나타낼 scene actor 에 생성된 resource (oidProbe, oidAxis) 를 할당
 		// 최초 한 번만 할당하며 이것은 static 으로 저장된 sceneActors dictionary 에 해당 key value 가 있는지로 확인하고 없을 때, 할당
+		// rigid body 에 등록된 마커도 같이 등록
 		for (int i = 0; i < numRBs; i++) {
 			std::string rbName;
-			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, NULL, NULL)) {
+			float rb_error = 0; 
+			map<string, map<track_info::MKINFO, std::any>> rbmkSet;
+			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet)) {
+				if (rb_error > 10.0) cout << "problematic error!! " << rb_error << endl;
+
 				auto actorId = sceneActors.find(rbName);
 				if (actorId == sceneActors.end()) {
 					vzm::ActorParameters apRb;
@@ -428,6 +482,23 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 						sceneActors[rbName] = 2;
 					}
 
+					// rigid body 의 markers 들을 최초 할당
+					for (auto& rbmk : rbmkSet) {
+						map<track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
+						string rbmk_name = std::any_cast<std::string>(rbmk_v[track_info::MKINFO::MK_NAME]);
+						auto actorId = sceneActors.find(rbmk_name);
+						if (actorId == sceneActors.end()) {
+							vzm::ActorParameters apMarker;
+							apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+							apMarker.is_visible = false;
+							*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 0.f, 0.f, 0.3f); // rgba
+							int aidMarker = 0;
+							vzm::NewActor(apMarker, rbmk_name, aidMarker);
+							vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
+
+							sceneActors[rbmk_name] = 3;
+						}
+					}
 				}
 			}
 		}
@@ -448,7 +519,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 					vzm::NewActor(apMarker, mkName, aidMarker);
 					vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
 
-					sceneActors[mkName] = 1;
+					sceneActors[mkName] = 4;
 				}
 			}
 		}
@@ -458,18 +529,34 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 	for (int i = 0; i < numRBs; i++) {
 		std::string rbName;
 		glm::fmat4x4 matLS2WS;
-		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL)) {
+		std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
+		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, &rbmkSet)) {
 			
 			int aidRb = vzmutils::GetSceneItemIdByName(rbName);
 			vzm::ActorParameters apRb;
 			vzm::GetActorParams(aidRb, apRb);
 			apRb.is_visible = true;
 
-			if (storeAvrCarmTrackinfo)
-				matLS2WS = rbMapTrAvr[rbName];
-
 			apRb.SetLocalTransform(__FP matLS2WS);
 			vzm::SetActorParams(aidRb, apRb);
+
+			for (auto& rbmk : rbmkSet) {
+				std::map<navihelpers::track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
+
+				std::string rbmk_name = std::any_cast<std::string>(rbmk_v[navihelpers::track_info::MKINFO::MK_NAME]);
+				glm::fvec3 pos = std::any_cast<glm::fvec3>(rbmk_v[navihelpers::track_info::MKINFO::POSITION]);
+
+				glm::fmat4x4 matLS2WS = glm::translate(pos);
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.007f)); // set 1 cm to the marker diameter
+				matLS2WS = matLS2WS * matScale;
+				int aidMarker = vzmutils::GetSceneItemIdByName(rbmk_name);
+				vzm::ActorParameters apMarker;
+				vzm::GetActorParams(aidMarker, apMarker);
+				apMarker.is_visible = true;
+				apMarker.is_pickable = false;
+				apMarker.SetLocalTransform(__FP matLS2WS);
+				vzm::SetActorParams(aidMarker, apMarker);
+			}
 		}
 	}
 
@@ -480,13 +567,6 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
 			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
 
-			if (storeAvrCarmTrackinfo)
-			{
-				auto mkp = mkPosTest1Avr.find(mkName);
-				if (mkp != mkPosTest1Avr.end())
-					pos = mkPosTest1Avr[mkName];
-			}
-
 			glm::fmat4x4 matLS2WS = glm::translate(pos);
 			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
 			matLS2WS = matLS2WS * matScale;
@@ -494,7 +574,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			vzm::ActorParameters apMarker;
 			vzm::GetActorParams(aidMarker, apMarker);
 			apMarker.is_visible = true;
-			apMarker.is_pickable = false;
+			apMarker.is_pickable = true;
 			apMarker.SetLocalTransform(__FP matLS2WS);
 			vzm::SetActorParams(aidMarker, apMarker);
 		}
@@ -971,7 +1051,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	   5, 5, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr); //-1915
+	   -1915, 5, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr); //-1915
    //HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)
@@ -1202,6 +1282,15 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 //  WM_DESTROY  - 종료 메시지를 게시하고 반환합니다.
 //
 //
+
+// DOJO IMPORTANT NOTE :
+// key 1 ~ 9 : save and add the scan geometry to the scene (global key event)
+// key S : save current camera state (main window only)
+// key L : load the latest-stored camera state (main window only)
+// key C : calibration mode for selecting markers whose position is used to compute c-arm extrinsic calibration
+// key U : update c-arm marker set
+// key X : compute c-arm extrinsics based on the c-arm marker set and the selected marker positions
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
@@ -1262,15 +1351,133 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				calribmodeToggle = !calribmodeToggle;
 
+				if (!calribmodeToggle) g_selectedWsMarkers.clear();
+
+				cout << "calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
+
 				using namespace glm;
 				fmat4x4 matCam2WS;
-				optitrk::GetCameraLocation(1, __FP matCam2WS);
+				optitrk::GetCameraLocation(0, __FP matCam2WS);
 
 				*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
 				*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
 				*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
+				cpCam1.np = 0.3f;
 
 				vzm::SetCameraParams(cidCam1, cpCam1);
+				break;
+			}
+			case char('U') :
+			{
+				if (!calribmodeToggle)
+					return 0;
+				// to do
+				// update "c-arm" RB
+				// 이 떄마다, sceneActors["c-arm"] 의 관련 scene item 모두 지우고, 해당 element 지우기..
+				if (g_selectedWsMarkers.size() < 3) {
+					cout << "at least 3 points are needed to register a rigid body!! current # of points : " << g_selectedWsMarkers.size() << endl;
+					return 0;
+				}
+
+				cout << "rigidbody for c-arm is registered with " << g_selectedWsMarkers.size() << " points" << endl;
+				optitrk::SetRigidBody("c-arm", g_selectedWsMarkers.size(), (float*)&g_selectedWsMarkers[0]);
+				break;
+			}
+			case char('X') :
+			{
+				if (!calribmodeToggle) {
+					cout << "not calibration mode!!" << endl;
+					return 0;
+				}
+				if (!download_completed) {
+					cout << "no download image!!" << endl;
+					return 0;
+				}
+				if (g_selectedWsMarkers.size() != 4) {
+					cout << "4 points are needed!!" << endl;
+					return 0;
+				}
+				// now g_curScanImg is valid
+				// test3.png is for extrinsic calibration image
+				const int extrinsicImgIndex = 3;
+				cv::Mat downloadImg;
+				cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
+				string downloadImgFileName = folder_trackingInfo + "test" + to_string(extrinsicImgIndex) + ".png";
+				cv::imwrite(downloadImgFileName, downloadImg);
+				
+				// 1st, get c-arm rb info.
+				glm::fmat4x4 matRB2WS;
+				{
+					glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
+					float rotAngleAvr = 0;
+					glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
+					int captureCount = 0;
+					const int maxSamples = 30;
+					const float normalizedNum = 1.f / (float)maxSamples;
+					while (captureCount < maxSamples) {
+						navihelpers::track_info trackInfo;
+						g_track_que->wait_and_pop(trackInfo);
+						glm::fquat q;
+						glm::fvec3 t;
+						if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+							float quatMagnitude = glm::length(q);
+							q /= quatMagnitude;
+
+							float rotationAngle = 2.0f * acos(q.w);
+
+							float sinAngle = sin(rotationAngle / 2.0f);
+							glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
+
+							rotAngleAvr += rotationAngle * normalizedNum;
+							rotAxisAvr += rotationAxis * normalizedNum;
+
+							trAvr += t * normalizedNum;
+							captureCount++;
+						}
+						else {
+							cout << "failure to c-arm tracking!!" << endl;
+							return 0;
+						}
+						//std::cout << "Capturing... " << captureCount << std::endl;
+						printf("\rCapturing... %d", captureCount);
+						fflush(stdout);
+						Sleep(10);
+					}
+					std::cout << "Capturing... DONE!" << std::endl;
+					rotAxisAvr = glm::normalize(rotAxisAvr);
+					glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
+					glm::fmat4x4 mat_t = glm::translate(trAvr);
+					matRB2WS = mat_t * mat_r;
+				}
+				// now tracking info of c-arm scan is valid.
+				// store the info.
+				StoreParams("test" + to_string(extrinsicImgIndex) + ".txt", matRB2WS, downloadImgFileName);
+				download_completed = false;
+				std::cout << "STORAGE COMPLETED!!!" << std::endl;
+
+				// get 2d mks info from x-ray img (g_curScanImg)
+				{
+
+					
+
+
+
+
+
+					// to do...
+					// imgGrayFiltered = cv.GaussianBlur(imgGray, (15, 15), 0)
+					// imgSrc = 255 - imgGrayFiltered
+				}
+
+				// get 3D position
+				// determine ap or lateral
+				// check residual 
+				// get 3d mks info from c-arm rb
+				// solve pnp
+				// update...
+
+
+				// to Taemin... intrinsic 구하기 코드... 공유... python...
 				break;
 			}
 		}
@@ -1343,6 +1550,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		if (calribmodeToggle) {
 			// to do
+			int aidPicked = 0;
+			glm::fvec3 posPick;
+			if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
+				std::string actorName;
+				vzm::GetSceneItemName(aidPicked, actorName);
+
+			}
 		}
 		else {
 			general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
