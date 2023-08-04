@@ -86,6 +86,8 @@ public:
 	}
 };
 
+CRITICAL_SECTION mSc;
+
 bool is_initialized = false;
 myListener listener;
 bool optitrk::InitOptiTrackLib()
@@ -110,6 +112,7 @@ bool optitrk::InitOptiTrackLib()
 	// Do an update to pick up any recently-arrived cameras.
 	TT_Update();
 
+	::InitializeCriticalSection(&mSc);
 	is_initialized = true;
 	return true;
 }
@@ -196,12 +199,14 @@ int optitrk::GetMarkersLocation(std::vector<float>* mk_xyz_list, std::vector<flo
 
 int optitrk::GetRigidBodies(std::vector<std::string>* rb_names)
 {
+	::EnterCriticalSection(&mSc);
 	int num_rbs = TT_RigidBodyCount();
 	if (rb_names)
 	{
 		for (int i = 0; i < num_rbs; i++)
 			rb_names->push_back(TT_RigidBodyName(i));
 	}
+	::LeaveCriticalSection(&mSc);
 	return num_rbs;
 }
 
@@ -271,6 +276,8 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 {
 	if (!is_initialized) return false;
 
+	::EnterCriticalSection(&mSc);
+
 	std::vector<std::string> rbNames;
 	int numRBs = optitrk::GetRigidBodies(&rbNames);
 	int rb_idx = 0;
@@ -278,30 +285,41 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 		if (name == rbNames[rb_idx]) break;
 
 	bool isNew = rb_idx == numRBs;
-
-	std::wstring name_w;
-	name_w.assign(name.begin(), name.end());
-
-	RigidBodySolver::cRigidBodySettings setting;
-	if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
-		return false;
-
-	memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
-
-	setting.ColorR = (float)(rand() % 100) / 100.f;
-	setting.ColorG = (float)(rand() % 100) / 100.f;
-	setting.ColorB = (float)(rand() % 100) / 100.f;
-	setting.Enabled = true;
-	if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
-		return false;
-
-	for (int i = 0; i < numMKs; i++) {
-		glm::fvec3 mkPos = *(glm::fvec3*)&mkPosArray[3 * i];
-		TT_RigidBodyUpdateMarker(rb_idx, i, &mkPos.x, &mkPos.y, &mkPos.z);
+	if (!isNew) {
+		isNew = TT_RigidBodyMarkerCount(rb_idx) != numRBs;
+		TT_RemoveRigidBody(rb_idx);
 	}
 
-	cout << TT_RigidBodyMeanError(rb_idx) << endl;
+	if (isNew) {
+		TT_CreateRigidBody(name.c_str(), 0, numMKs, (float*)mkPosArray);
+	}
+	else {
+		for (int i = 0; i < numMKs; i++) {
+			glm::fvec3 mkPos = *(glm::fvec3*)&mkPosArray[3 * i];
+			TT_RigidBodyUpdateMarker(rb_idx, i, &mkPos.x, &mkPos.y, &mkPos.z);
+		}
+	}
 
+	//std::wstring name_w;
+	//name_w.assign(name.begin(), name.end());
+
+	//RigidBodySolver::cRigidBodySettings setting;
+	//if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
+	//	return false;
+	//
+	//ZeroMemory(setting.mName, RigidBodySolver::kRigidBodyNameMaxLen * sizeof(wchar_t));
+	//memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
+	//
+	//setting.ColorR = (float)(rand() % 100) / 100.f;
+	//setting.ColorG = (float)(rand() % 100) / 100.f;
+	//setting.ColorB = (float)(rand() % 100) / 100.f;
+	//setting.Enabled = true;
+	//if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
+	//	return false;
+
+	::LeaveCriticalSection(&mSc);
+
+	cout << "\n" << name << " error : " << TT_RigidBodyMeanError(rb_idx) << endl;
 	return true;
 }
 
@@ -315,8 +333,12 @@ bool optitrk::Test(float* v) {
 bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::vector<float>* mk_quality_list, std::string* rb_name, float* qvec, float* tvec)
 {
 	if (!is_initialized) return false;
+	::EnterCriticalSection(&mSc);
 	if (rb_name) *rb_name = TT_RigidBodyName(rb_idx);
-	if (!TT_IsRigidBodyTracked(rb_idx)) return false;
+	if (!TT_IsRigidBodyTracked(rb_idx)) {
+		::LeaveCriticalSection(&mSc);
+		return false;
+	}
 
 	float   yaw, pitch, roll;
 	float   x, y, z;
@@ -455,6 +477,7 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 		cid_bs |= lbs;
 		*cid = cid_bs;
 	}
+	::LeaveCriticalSection(&mSc);
 
 	return true;
 }
@@ -522,6 +545,9 @@ bool optitrk::DeinitOptiTrackLib()
 	// Shutdown API
 	CheckResult(TT_Shutdown());
 	printf("Bye Bye~ optitracker\n");
+
+	::DeleteCriticalSection(&mSc);
+
 	return true;
 }
 

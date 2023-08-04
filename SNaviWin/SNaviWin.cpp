@@ -89,7 +89,7 @@ std::vector<std::string> g_selectedMkNames;
 namespace mystudents {
 	using namespace std;
 	// implemented by 김민교 
-	int Get2DPostionsFromLegoPhantom(const cv::Mat& inputImg, std::vector<std::vector<cv::Point2f>>& points2Ds)
+	int Get2DPostionsFromLegoPhantom(const cv::Mat& inputImg, std::vector<cv::Point2f>& points2Ds)
 	{
 		cv::Mat imgGray;
 		cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
@@ -117,22 +117,22 @@ namespace mystudents {
 		detector->detect(imgGray, keypoints); // circle detect.
 
 		// circle 좌표 저장.
-		vector<cv::Point2f> sortingCenters; // 정렬하기 위해 소수점 필요.
+		//vector<cv::Point2f> sortingCenters; // 정렬하기 위해 소수점 필요.
 
 		for (const auto& kp : keypoints) {
-			sortingCenters.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+			points2Ds.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
 		}
 
 		// 원의 좌표를 정렬.
-		sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+		sort(points2Ds.begin(), points2Ds.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
 			return a.x < b.x;
 			});
 
-		sort(sortingCenters.begin(), sortingCenters.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+		sort(points2Ds.begin(), points2Ds.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
 			return a.y < b.y;
 			});
 
-		points2Ds.push_back(sortingCenters);
+		//points2Ds.push_back(sortingCenters);
 
 		return (int)points2Ds.size();
 	}
@@ -190,10 +190,11 @@ namespace mystudents {
 		return normal_vector;
 	}
 
+	// implemented by 정태민
 	// Function to get 3D positions of markers
 	int Get3DPostionsFromLegoPhantom(const double marker_r,
-		const cv::Point3f& marker1, const cv::Point3f& marker2, const cv::Point3f& marker3, const cv::Point3f& marker4, 
-		vector<vector<cv::Point3f>>& points3Ds) {
+		const cv::Point3f& marker1, const cv::Point3f& marker2, const cv::Point3f& marker3, const cv::Point3f& marker4,
+		vector<cv::Point3f>& points3Ds) {
 
 		const double unit = 15.9375;
 
@@ -207,7 +208,7 @@ namespace mystudents {
 		cv::Point3f z = fit_plane_to_points({ marker1, marker2, marker3, marker4 });
 		cv::Point3f y = { x.y * z.z - x.z * z.y, x.z * z.x - x.x * z.z, x.x * z.y - x.y * z.x };
 
-		vector<cv::Point3f> inter_points;
+		//vector<cv::Point3f> inter_points;
 		for (int i = 0; i < 8; ++i) {
 			for (int j = 0; j < 8; ++j) {
 				if (i == 0 && j == 0)
@@ -223,12 +224,12 @@ namespace mystudents {
 				cv::Point3f estimate_marker(marker1.x + unit_position.x * unit * x.x + unit_position.y * unit * y.x + h * z.x,
 					marker1.y + unit_position.x * unit * x.y + unit_position.y * unit * y.y + h * z.y,
 					marker1.z + unit_position.x * unit * x.z + unit_position.y * unit * y.z + h * z.z);
-				inter_points.push_back(estimate_marker);
+				points3Ds.push_back(estimate_marker);
 			}
 		}
 
 		//vector<vector<cv::Point3f>> points3Ds;
-		points3Ds.push_back(inter_points);
+		//points3Ds.push_back(inter_points);
 		return (int)points3Ds.size();
 	}
 }
@@ -544,7 +545,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			float rb_error = 0; 
 			map<string, map<track_info::MKINFO, std::any>> rbmkSet;
 			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet)) {
-				if (rb_error > 10.0) cout << "problematic error!! " << rb_error << endl;
+				if (rb_error > 10.0) cout << "\n" <<"problematic error!! " << rb_error << endl;
 
 				auto actorId = sceneActors.find(rbName);
 				if (actorId == sceneActors.end()) {
@@ -675,6 +676,15 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			vzm::GetActorParams(aidMarker, apMarker);
 			apMarker.is_visible = true;
 			apMarker.is_pickable = true;
+
+			*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 1, 1);
+			for (auto& _name : g_selectedMkNames) {
+				if (_name == mkName) {
+					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 1);
+					break;
+				}
+			}
+
 			apMarker.SetLocalTransform(__FP matLS2WS);
 			vzm::SetActorParams(aidMarker, apMarker);
 		}
@@ -1334,11 +1344,11 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 						trAvr += t * normalizedNum;
 						captureCount++;
 					}
-					//std::cout << "Capturing... " << captureCount << std::endl;
+					//std::cout << "\n" <<"Capturing... " << captureCount << std::endl;
 					printf("\rCapturing... %d", captureCount);
 					fflush(stdout);
 				}
-				std::cout << "Capturing... DONE!" << std::endl;
+				std::cout << "\n" <<"Capturing... DONE!" << std::endl;
 				rotAxisAvr = glm::normalize(rotAxisAvr);
 				glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
 				glm::fmat4x4 mat_t = glm::translate(trAvr);
@@ -1347,12 +1357,12 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 				cv::Mat downloadImg;
 				cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
 				string downloadImgFileName = folder_trackingInfo + "test" + to_string(i) + ".png";
-				std::cout << "STORAGE COMPLETED!!!  1" << std::endl;
+				std::cout << "\n" <<"STORAGE COMPLETED!!!  1" << std::endl;
 				cv::imwrite(downloadImgFileName, downloadImg);
-				std::cout << "STORAGE COMPLETED!!!  2" << std::endl;
+				std::cout << "\n" <<"STORAGE COMPLETED!!!  2" << std::endl;
 				StoreParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
 				download_completed = false;
-				std::cout << "STORAGE COMPLETED!!!  3" << std::endl;
+				std::cout << "\n" <<"STORAGE COMPLETED!!!  3" << std::endl;
 			}
 			else { // !download_completed
 
@@ -1453,7 +1463,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				if (!calribmodeToggle) g_selectedMkNames.clear();
 
-				cout << "calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
+				cout << "\n" <<"calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
 
 				using namespace glm;
 				fmat4x4 matCam2WS;
@@ -1476,11 +1486,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// 이 떄마다, sceneActors["c-arm"] 의 관련 scene item 모두 지우고, 해당 element 지우기..
 				int numSelectedMKs = (int)g_selectedMkNames.size();
 				if (numSelectedMKs < 3) {
-					cout << "at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
+					cout << "\n" <<"at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
 					return 0;
 				}
 
-				cout << "rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
+				cout << "\n" <<"rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
 
 				navihelpers::track_info trackInfo;
 				g_track_que->wait_and_pop(trackInfo);
@@ -1490,25 +1500,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
 					trackInfo.GetMarkerByName(g_selectedMkNames[i], mkInfo);
+					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
+					posWsMarkers.push_back(pos);
 				}
 
-
-
-				optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&g_selectedWsMarkers[0]);
+				optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&posWsMarkers[0]);
 				break;
 			}
 			case char('X') :
 			{
 				if (!calribmodeToggle) {
-					cout << "not calibration mode!!" << endl;
+					cout << "\n" <<"not calibration mode!!" << endl;
 					return 0;
 				}
 				if (!download_completed) {
-					cout << "no download image!!" << endl;
+					cout << "\n" <<"no download image!!" << endl;
 					return 0;
 				}
-				if (g_selectedWsMarkers.size() != 4) {
-					cout << "4 points are needed!!" << endl;
+				if (g_selectedMkNames.size() != 4) {
+					cout << "\n" <<"4 points are needed!!" << endl;
 					return 0;
 				}
 				// now g_curScanImg is valid
@@ -1549,15 +1559,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 							captureCount++;
 						}
 						else {
-							cout << "failure to c-arm tracking!!" << endl;
+							cout << "\n" <<"failure to c-arm tracking!!" << endl;
 							return 0;
 						}
-						//std::cout << "Capturing... " << captureCount << std::endl;
+						//std::cout << "\n" <<"Capturing... " << captureCount << std::endl;
 						printf("\rCapturing... %d", captureCount);
 						fflush(stdout);
 						Sleep(10);
 					}
-					std::cout << "Capturing... DONE!" << std::endl;
+					std::cout << "\n" <<"Capturing... DONE!" << std::endl;
 					rotAxisAvr = glm::normalize(rotAxisAvr);
 					glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
 					glm::fmat4x4 mat_t = glm::translate(trAvr);
@@ -1567,7 +1577,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// store the info.
 				StoreParams("test" + to_string(extrinsicImgIndex) + ".txt", matRB2WS, downloadImgFileName);
 				download_completed = false;
-				std::cout << "STORAGE COMPLETED!!!" << std::endl;
+				std::cout << "\n" <<"STORAGE COMPLETED!!!" << std::endl;
 
 				// get 2d mks info from x-ray img (g_curScanImg)
 				{
@@ -1669,7 +1679,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
 				std::string actorName;
 				vzm::GetSceneItemName(aidPicked, actorName);
-
+				g_selectedMkNames.push_back(actorName);
 			}
 		}
 		else {
@@ -1710,7 +1720,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				glm::fmat4x4 matWorld = *(glm::fmat4x4*)apMK.GetWorldTransform();
 				glm::fvec3 posOrigin(0, 0, 0);
 				glm::fvec3 posMK = vzmutils::transformPos(posOrigin, matWorld);
-				std::cout << mkName << "is picked : " << ", Pos : " << posMK.x << ", " << posMK.y << ", " << posMK.z << std::endl;
+				std::cout << "\n" <<mkName << "is picked : " << ", Pos : " << posMK.x << ", " << posMK.y << ", " << posMK.z << std::endl;
 
 			}
 			
@@ -1821,13 +1831,13 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 				vzm::GetNameBySceneItemID(aidPickedMK, mkName);
 				int idx = std::stoi(mkName.substr(2, mkName.size() - 1));
 				excludedMKIndices.insert(idx);
-				std::cout << "picking index : " << idx << std::endl;
+				std::cout << "\n" <<"picking index : " << idx << std::endl;
 
-				std::cout << "excluded index list : ";
+				std::cout << "\n" <<"excluded index list : ";
 				for (auto it : excludedMKIndices) {
-					std::cout << it << ", ";
+					std::cout << "\n" <<it << ", ";
 				}
-				std::cout << std::endl;
+				std::cout << "\n" <<std::endl;
 
 				for (int i = 0; i < 2; i++) {
 					int aidMarker = vzmutils::GetSceneItemIdByName((i == 0 ? "Rb" : "Ws") + std::to_string(idx));
