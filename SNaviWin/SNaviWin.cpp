@@ -50,9 +50,7 @@ using namespace Gdiplus;
 typedef unsigned long long u64;
 
 std::string folder_data = "";
-std::string folder_capture = "";
 std::string folder_trackingInfo = "";
-std::string folder_optiSession = "";
 
 // 전역 변수:
 HWND g_hWnd, g_hWndDialog1;
@@ -85,18 +83,66 @@ std::string g_camName = "Cam1"; // World Camera, CArm Camera
 std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
 
 std::map<std::string, int> g_selectedMkNames;
+std::map<int, int> g_mapAidGroupCArmCam;
 bool call_rbSet = false;
 
 namespace mystudents {
 	using namespace std;
+
+	// BlobDetector를 통해 원이 감지되었는지 확인하는 코드입니다.
+	int CheckCircleDetect(const cv::Mat& inputImg, const std::vector<cv::KeyPoint>& keyPoints)
+	{
+		cv::Mat img = inputImg.clone();
+
+		int r = 0;
+		for (const auto& keypoint : keyPoints) {
+			int x = cvRound(keypoint.pt.x);
+			int y = cvRound(keypoint.pt.y);
+			int s = cvRound(keypoint.size);
+			r = cvRound(s / 2);
+			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
+			string text = " (" + to_string(x) + ", " + to_string(y) + ")";
+			cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
+		}
+		cv::imwrite(folder_trackingInfo + "test_circle_detect.png", img); // cv imshow()로 보이기.
+
+		return r; // 반지름 반환
+	}
+
+	// 2d 포지션의 index가 잘 정렬되었는지 확인하는 코드입니다.
+	void CheckPositionSort(const cv::Mat& inputImg, const std::vector<cv::Point2f>& point2Ds, int r)
+	{
+		cv::Mat img = inputImg.clone();
+
+		int idx = 0;
+		for (const auto& center : point2Ds) {
+			int x = cvRound(center.x);
+			int y = cvRound(center.y);
+
+			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
+			string text = " (" + to_string(x) + ", " + to_string(y) + ")";
+			cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
+
+			// index 출력
+			cv::putText(img, to_string(idx), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 1);
+			idx += 1;
+		}
+		cv::imwrite(folder_trackingInfo + "test_circle_sort.png", img); // cv imshow()로 보이기.
+	}
+
 	// implemented by 김민교 
 	int Get2DPostionsFromLegoPhantom(const cv::Mat& inputImg, std::vector<cv::Point2f>& points2Ds)
 	{
 		cv::Mat imgGray;
+		int chs = inputImg.channels();
 		if (inputImg.channels() == 3)
 			cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
-		else
+		else if(inputImg.channels() == 1)
 			imgGray = inputImg;
+		else {
+			cout << "not supported image!" << endl;
+			assert(0);
+		}
 		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
 
 		//Add mask
@@ -108,10 +154,16 @@ namespace mystudents {
 		params.filterByConvexity = false;
 		params.filterByInertia = true;
 		params.filterByColor = false;
+		params.blobColor = 0;
 
-		params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		params.maxArea = 1000;
-		params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
+		//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+		//params.maxArea = 1000;
+		//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
+
+		params.minArea = 1000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+		params.maxArea = 5500;
+		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
+
 		params.minInertiaRatio = 0.01; // 1 >> it detects perfect circle. short / long axis
 		params.minRepeatability = 2;
 		params.minDistBetweenBlobs = 0.1;
@@ -120,8 +172,8 @@ namespace mystudents {
 		vector<cv::KeyPoint> keypoints;
 		detector->detect(imgGray, keypoints); // circle detect.
 
-		// circle 좌표 저장.
-		//vector<cv::Point2f> sortingCenters; // 정렬하기 위해 소수점 필요.
+		// 원을 감지했는지 확인.
+		int r = CheckCircleDetect(inputImg, keypoints);
 
 		for (const auto& kp : keypoints) {
 			points2Ds.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
@@ -136,7 +188,8 @@ namespace mystudents {
 			return a.y < b.y;
 			});
 
-		//points2Ds.push_back(sortingCenters);
+		// 포지션 잘 정렬되었는지 확인.
+		CheckPositionSort(inputImg, points2Ds, r);
 
 		return (int)points2Ds.size();
 	}
@@ -819,9 +872,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	};
 
 	folder_data = getdatapath();
-	folder_trackingInfo = getdatapath() + "Tracking 2023-05-20/";
-	folder_capture = getdatapath() + "c-arm 2023-05-20/";
-	folder_optiSession = getdatapath() + "Session 2023-05-20/";
+	folder_trackingInfo = getdatapath() + "Tracking 2023-08-05/";
+
+	{
+		cv::Mat __curScanImg = cv::imread(folder_trackingInfo + "test3.png");
+		std::vector<cv::Point2f> points2d;
+		mystudents::Get2DPostionsFromLegoPhantom(__curScanImg, points2d);
+		int gg = 0;
+	}
+
+
 
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
@@ -1327,7 +1387,6 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) {
 	using namespace std;
 	static char LOADKEYS[10] = { '1' , '2', '3', '4', '5', '6', '7', '8', '9', '0' };
-	static map<int, int> mapAidGroupCArmCam;
 	for (int i = 0; i < 10; i++) {
 		if (keyParam == LOADKEYS[i]) {
 
@@ -1383,13 +1442,13 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 			}
 
 			// load case
-			auto it = mapAidGroupCArmCam.find(i + 1);
-			if (it != mapAidGroupCArmCam.end())
+			auto it = g_mapAidGroupCArmCam.find(i + 1);
+			if (it != g_mapAidGroupCArmCam.end())
 				vzm::RemoveSceneItem(it->second, true);
 			int aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
 			if (aidGroup == -1)
 				break;
-			mapAidGroupCArmCam[i + 1] = aidGroup;
+			g_mapAidGroupCArmCam[i + 1] = aidGroup;
 			MoveCameraToCArmView(i, cidCam, cpInterCams, arAnimationKeyFrame);
 			break;
 		}
@@ -1477,7 +1536,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				if (!calribmodeToggle) g_selectedMkNames.clear();
 
-				cout << "\n" <<"calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
+				cout << "\n" << "calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
 
 				using namespace glm;
 				fmat4x4 matCam2WS;
@@ -1499,11 +1558,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// update "c-arm" RB
 				int numSelectedMKs = (int)g_selectedMkNames.size();
 				if (numSelectedMKs < 3) {
-					cout << "\n" <<"at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
+					cout << "\n" << "at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
 					return 0;
 				}
 
-				cout << "\n" <<"rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
+				cout << "\n" << "rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
 
 				call_rbSet = true;
 
@@ -1514,23 +1573,47 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// 이 떄마다, "c-arm" 관련 scene item 모두 지우고, 해당 element 지우기..
 				break;
 			}
+			case char('D') : {
+				for (int i = 0; i++; i < 9) {
+					auto it = g_mapAidGroupCArmCam.find(i + 1);
+					if (it != g_mapAidGroupCArmCam.end())
+						vzm::RemoveSceneItem(it->second, true);
+				}
+				g_mapAidGroupCArmCam.clear();
+				break;
+			}
+			case char('T') : {
+				if (!calribmodeToggle) {
+					cout << "\n" << "not calibration mode!!" << endl;
+					return 0;
+				}
+				// 툴 등록하기..
+				break;
+			}
 			case char('X') :
 			{
+				const int extrinsicImgIndex = 3;
 				if (!calribmodeToggle) {
 					cout << "\n" <<"not calibration mode!!" << endl;
 					return 0;
 				}
+//#define MYDEFINE
+#ifdef MYDEFINE
+				download_completed = true;
+				g_curScanImg = cv::imread(folder_trackingInfo + "test" + to_string(extrinsicImgIndex) + ".png");
+				cv::cvtColor(g_curScanImg, g_curScanImg, cv::COLOR_RGB2GRAY);
+#else
 				if (!download_completed) {
 					cout << "\n" <<"no download image!!" << endl;
 					return 0;
 				}
+#endif
 				if (g_selectedMkNames.size() != 4) {
 					cout << "\n" <<"4 points are needed!!" << endl;
 					return 0;
 				}
 				// now g_curScanImg is valid
 				// test3.png is for extrinsic calibration image
-				const int extrinsicImgIndex = 3;
 				cv::Mat downloadImg;
 				cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
 				string downloadImgFileName = folder_trackingInfo + "test" + to_string(extrinsicImgIndex) + ".png";
@@ -1581,14 +1664,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					matRB2WS = mat_t * mat_r;
 				}
 				// now tracking info of c-arm scan is valid.
-				// store the info.
-				StoreParams("test" + to_string(extrinsicImgIndex) + ".txt", matRB2WS, downloadImgFileName);
-				download_completed = false;
-				std::cout << "\n" <<"STORAGE COMPLETED!!!" << std::endl;
+				std::cout << "\n" << "SCAN IMAGE LOAD COMPLETED!!!" << std::endl;
 
 				// get 2d mks info from x-ray img (g_curScanImg)
 				std::vector<cv::Point2f> points2d;
 				mystudents::Get2DPostionsFromLegoPhantom(g_curScanImg, points2d);
+				const bool mirrorHorizontal = true;
+				if (mirrorHorizontal) {
+					for (int i = 0; i < (int)points2d.size(); i++) {
+						cv::Point2f& p2 = points2d[i];
+						p2.x = g_curScanImg.cols - p2.x;
+					}
+				}
 
 				navihelpers::track_info trackInfo;
 				g_track_que->wait_and_pop(trackInfo);
@@ -1602,7 +1689,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				std::vector<cv::Point3f> points3d;
 				mystudents::Get3DPostionsFromLegoPhantom(7.f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
 				
-				//cv::solvePnP(points3d, points2d, A, distCoeffs, rvec, tvec);
+				cv::Mat cameraMatrix, distCoeffs;
+				{
+					cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+					fs["K"] >> cameraMatrix;
+					fs["DistCoeffs"] >> distCoeffs;
+					fs.release();
+				}
+
+				cv::Mat rvec, tvec;
+				cv::solvePnP(points3d, points2d, cameraMatrix, distCoeffs, rvec, tvec);
 				//std::cout << A << "\n";
 				//std::cout << rvec << "\n";
 				//std::cout << tvec << "\n";
@@ -1613,8 +1709,32 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// solve pnp
 				// update...
 
+				{
+					cv::FileStorage fs(folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::WRITE);
+					fs.write("rvec", rvec);
+					fs.write("tvec", tvec);
+					fs.release();
+				}
 
-				// to Taemin... intrinsic 구하기 코드... 공유... python...
+				//{
+				//	// Reproject the 3D points onto the image plane using the camera calibration
+				//	const vector<cv::Point3f>& pts3d_test = i == 0 ? ptsRbMk3ds_test : ptsWsMk3ds_test;
+				//	std::vector<cv::Point2f> imagePointsReprojected;
+				//	cv::projectPoints(pts3d_test, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+				//
+				//	// Compute the reprojection error
+				//	float maxErr = 0;
+				//	float reprojectionError = ComputeReprojErr(pts2ds_test, imagePointsReprojected, maxErr);
+				//	//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
+				//	cout << "************* " << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
+				//}
+
+				// store the info.
+				// note rb2carm1.txt is used in StoreParams!
+				StoreParams("test" + to_string(extrinsicImgIndex) + ".txt", matRB2WS, downloadImgFileName);
+				download_completed = false;
+				std::cout << "\n" << "STORAGE COMPLETED!!!" << std::endl;
+
 				break;
 			}
 		}
