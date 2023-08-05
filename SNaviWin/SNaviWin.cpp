@@ -153,7 +153,7 @@ namespace mystudents {
 		params.filterByCircularity = true;
 		params.filterByConvexity = false;
 		params.filterByInertia = true;
-		params.filterByColor = false;
+		params.filterByColor = true;
 		params.blobColor = 0;
 
 		//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
@@ -1590,6 +1590,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// 툴 등록하기..
 				break;
 			}
+			case char('E') : {
+				if (!calribmodeToggle) {
+					cout << "\n" << "not calibration mode!!" << endl;
+					return 0;
+				}
+				// 툴 끝점 등록하기..
+				break;
+			}
 			case char('X') :
 			{
 				const int extrinsicImgIndex = 3;
@@ -1735,6 +1743,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				download_completed = false;
 				std::cout << "\n" << "STORAGE COMPLETED!!!" << std::endl;
 
+				wParam = char('3');
 				break;
 			}
 		}

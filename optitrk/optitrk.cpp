@@ -141,6 +141,15 @@ bool optitrk::LoadProfileAndCalibInfo(const std::string& file_profile, const std
 	return true;
 }
 
+bool optitrk::StoreProfile(const std::string& file_profile)
+{
+	// Load a project file from the executable directory.
+	printf("Loading Profile: UserProfile.motive\n");
+	CheckResult(TT_SaveProfile(file_profile.c_str()));
+
+	return true;
+}
+
 bool LoadRigidBodies(const std::string& file_rbs)
 {
 	if (is_initialized) return false;

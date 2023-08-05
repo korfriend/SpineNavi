@@ -23,6 +23,7 @@ namespace optitrk
 	__dojostatic bool SetCameraFrameRate(int cam_idx, int frameRate);
 
 	__dojostatic bool LoadProfileAndCalibInfo(const std::string& file_profile, const std::string& file_calib);
+	__dojostatic bool StoreProfile(const std::string& file_profile);
 	__dojostatic int GetMarkersLocation(std::vector<float>* mk_xyz_list, std::vector<float>* mk_residual_list = NULL, std::vector<std::bitset<128>>* mk_cid_list = NULL);
 	__dojostatic int GetRigidBodies(std::vector<std::string>* rb_names = NULL);
 	// mat_ls2ws ==> glm::fmat4x4
