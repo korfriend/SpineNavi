@@ -86,8 +86,6 @@ public:
 	}
 };
 
-CRITICAL_SECTION mSc;
-
 bool is_initialized = false;
 myListener listener;
 bool optitrk::InitOptiTrackLib()
@@ -112,7 +110,6 @@ bool optitrk::InitOptiTrackLib()
 	// Do an update to pick up any recently-arrived cameras.
 	TT_Update();
 
-	::InitializeCriticalSection(&mSc);
 	is_initialized = true;
 	return true;
 }
@@ -199,14 +196,12 @@ int optitrk::GetMarkersLocation(std::vector<float>* mk_xyz_list, std::vector<flo
 
 int optitrk::GetRigidBodies(std::vector<std::string>* rb_names)
 {
-	::EnterCriticalSection(&mSc);
 	int num_rbs = TT_RigidBodyCount();
 	if (rb_names)
 	{
 		for (int i = 0; i < num_rbs; i++)
 			rb_names->push_back(TT_RigidBodyName(i));
 	}
-	::LeaveCriticalSection(&mSc);
 	return num_rbs;
 }
 
@@ -276,8 +271,6 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 {
 	if (!is_initialized) return false;
 
-	::EnterCriticalSection(&mSc);
-
 	std::vector<std::string> rbNames;
 	int numRBs = optitrk::GetRigidBodies(&rbNames);
 	int rb_idx = 0;
@@ -289,67 +282,51 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 		int numPrevMKs = TT_RigidBodyMarkerCount(rb_idx);
 		isNew = numPrevMKs != numMKs;
 		if (isNew) {
-			std::string __rbName = TT_RigidBodyName(rb_idx);
+			//std::string __rbName = TT_RigidBodyName(rb_idx);
 			TT_RemoveRigidBody(rb_idx);
-			__rbName = TT_RigidBodyName(rb_idx);
-			std::vector<std::string> rbNames;
-			numRBs = optitrk::GetRigidBodies(&rbNames);
-
-			int gg = 90;
 		}
+	}
+
+	vector<glm::fvec3> mkMkPos(numMKs);
+	memcpy(&mkMkPos[0], mkPosArray, sizeof(glm::fvec3) * numMKs);
+
+	glm::fvec3 mkPivotPos = glm::fvec3(0, 0, 0);
+	for (int i = 0; i < numMKs; i++) {
+		mkPivotPos += mkMkPos[i];
+	}
+	mkPivotPos /= (float)numMKs;
+	for (int i = 0; i < numMKs; i++) {
+		mkMkPos[i] -= mkPivotPos;
 	}
 
 	if (isNew) {
 		static int id = 0;
-		TT_CreateRigidBody(name.c_str(), id++, numMKs, (float*)mkPosArray);
-		std::vector<std::string> rbNames;
-		numRBs = optitrk::GetRigidBodies(&rbNames);
-		int rb_idx = 0;
-		for (; rb_idx < numRBs; rb_idx++)
-			if (name == rbNames[rb_idx]) break;
-
-		float x, y, z;
-		float qx, qy, qz, qw;
-		float yaw, pitch, roll;
-		TT_RigidBodyLocation(rb_idx, &x, &y, &z, &qx, &qy, &qz, &qw, &yaw, &pitch, &roll);
-		bool is = TT_IsRigidBodyTracked(rb_idx);
-		bool is2 = TT_RigidBodyEnabled(rb_idx);
-		TT_RigidBodyResetOrientation(rb_idx);
-		TT_RigidBodyLocation(rb_idx, &x, &y, &z, &qx, &qy, &qz, &qw, &yaw, &pitch, &roll);
-		is = TT_IsRigidBodyTracked(rb_idx);
-		is2 = TT_RigidBodyEnabled(rb_idx);
-		int gg = 0;
-// 		for (int i = 0; i < numMKs; i++) {
-// 			glm::fvec3 mkPos = *(glm::fvec3*)&mkPosArray[3 * i];
-// 			TT_RigidBodyUpdateMarker(rb_idx, i, &mkPos.x, &mkPos.y, &mkPos.z);
-//		}
+		TT_CreateRigidBody(name.c_str(), id++, numMKs, (float*)&mkMkPos[0]);
 	}
 	else {
 		for (int i = 0; i < numMKs; i++) {
-			glm::fvec3 mkPos = *(glm::fvec3*)&mkPosArray[3 * i];
+			glm::fvec3 mkPos = mkMkPos[i];
 			TT_RigidBodyUpdateMarker(rb_idx, i, &mkPos.x, &mkPos.y, &mkPos.z);
 		}
 	}
 
-	std::wstring name_w;
-	name_w.assign(name.begin(), name.end());
-
-	RigidBodySolver::cRigidBodySettings setting;
-	if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
-		return false;
-
-	ZeroMemory(setting.mName, RigidBodySolver::kRigidBodyNameMaxLen * sizeof(wchar_t));
-	memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
-
-	setting.ColorR = (float)(rand() % 100) / 100.f;
-	setting.ColorG = (float)(rand() % 100) / 100.f;
-	setting.ColorB = (float)(rand() % 100) / 100.f;
-	setting.Enabled = true;
-	if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
-		return false;
-
-	::LeaveCriticalSection(&mSc);
-
+	//std::wstring name_w;
+	//name_w.assign(name.begin(), name.end());
+	//
+	//RigidBodySolver::cRigidBodySettings setting;
+	//if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
+	//	return false;
+	//
+	//ZeroMemory(setting.mName, RigidBodySolver::kRigidBodyNameMaxLen * sizeof(wchar_t));
+	//memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
+	//
+	//setting.ColorR = (float)(rand() % 100) / 100.f;
+	//setting.ColorG = (float)(rand() % 100) / 100.f;
+	//setting.ColorB = (float)(rand() % 100) / 100.f;
+	//setting.Enabled = true;
+	//if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
+	//	return false;
+	//
 	cout << "\n" << name << " error : " << TT_RigidBodyMeanError(rb_idx) << endl;
 	return true;
 }
@@ -364,10 +341,8 @@ bool optitrk::Test(float* v) {
 bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<bool>* mk_tracked_list, std::vector<float>* mk_quality_list, std::string* rb_name, float* qvec, float* tvec)
 {
 	if (!is_initialized) return false;
-	::EnterCriticalSection(&mSc);
 	if (rb_name) *rb_name = TT_RigidBodyName(rb_idx);
 	if (!TT_IsRigidBodyTracked(rb_idx)) {
-		::LeaveCriticalSection(&mSc);
 		return false;
 	}
 
@@ -508,7 +483,6 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 		cid_bs |= lbs;
 		*cid = cid_bs;
 	}
-	::LeaveCriticalSection(&mSc);
 
 	return true;
 }
@@ -576,8 +550,6 @@ bool optitrk::DeinitOptiTrackLib()
 	// Shutdown API
 	CheckResult(TT_Shutdown());
 	printf("Bye Bye~ optitracker\n");
-
-	::DeleteCriticalSection(&mSc);
 
 	return true;
 }

@@ -84,7 +84,7 @@ std::string g_sceneName = "Scene1"; // Scene1, Scene2
 std::string g_camName = "Cam1"; // World Camera, CArm Camera
 std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
 
-std::vector<std::string> g_selectedMkNames;
+std::map<std::string, int> g_selectedMkNames;
 bool call_rbSet = false;
 
 namespace mystudents {
@@ -674,11 +674,8 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			apMarker.is_pickable = true;
 
 			*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 1, 1);
-			for (auto& _name : g_selectedMkNames) {
-				if (_name == mkName) {
-					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 1);
-					break;
-				}
+			if(g_selectedMkNames.find(mkName) != g_selectedMkNames.end()) {
+				*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 1);
 			}
 
 			apMarker.SetLocalTransform(__FP matLS2WS);
@@ -901,7 +898,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				}
 			}
 			vector<float> mkPts;
-			vector<float> mkResiduals;
+			vector<float> mkResiduals;	
 			vector<bitset<128>> mkCIDs;
 			optitrk::GetMarkersLocation(&mkPts, &mkResiduals, &mkCIDs);
 			int numMKs = (int)mkCIDs.size();
@@ -912,15 +909,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			}
 
 			if (call_rbSet) {
-				std::vector<glm::fvec3> posWsMarkers;
-				for (int i = 0; i < (int)g_selectedMkNames.size(); i++) {
+				std::vector<glm::fvec3> posWsMarkers(g_selectedMkNames.size());
+
+				for (auto it = g_selectedMkNames.begin(); it != g_selectedMkNames.end(); it++) {
 
 					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
-					trk_info.GetMarkerByName(g_selectedMkNames[i], mkInfo);
+					trk_info.GetMarkerByName(it->first, mkInfo);
 					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
-					posWsMarkers.push_back(pos);
+					posWsMarkers[it->second] = pos;
 				}
 				optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&posWsMarkers[0]);
+				
+				rbNames.clear();
+				int numAllFramesRBs = optitrk::GetRigidBodies(&rbNames);
+				for (int i = 0; i < numAllFramesRBs; i++) {
+					cout << rbNames[i] << endl;
+				}
 				call_rbSet = false;
 			}
 
@@ -1586,11 +1590,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				std::vector<cv::Point2f> points2d;
 				mystudents::Get2DPostionsFromLegoPhantom(g_curScanImg, points2d);
 
-				std::vector<cv::Point3f> posWsMarkers;
-				for (int i = 0; i < (int)g_selectedMkNames.size(); i++) {
+				navihelpers::track_info trackInfo;
+				g_track_que->wait_and_pop(trackInfo);
+				std::vector<cv::Point3f> posWsMarkers(g_selectedMkNames.size());
+				for (auto it = g_selectedMkNames.begin(); it != g_selectedMkNames.end(); it++) {
 					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
+					trackInfo.GetMarkerByName(it->first, mkInfo);
 					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
-					posWsMarkers.push_back(*(cv::Point3f*)&pos);
+					posWsMarkers[it->second] = *(cv::Point3f*)&pos;
 				}
 				std::vector<cv::Point3f> points3d;
 				mystudents::Get3DPostionsFromLegoPhantom(7.f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
@@ -1679,13 +1686,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		glm::ivec2 pos_ss = glm::ivec2(x, y);
 
 		if (calribmodeToggle) {
-			// to do
 			int aidPicked = 0;
 			glm::fvec3 posPick;
 			if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
 				std::string actorName;
 				vzm::GetSceneItemName(aidPicked, actorName);
-				g_selectedMkNames.push_back(actorName);
+				int idx = g_selectedMkNames.size();
+				g_selectedMkNames[actorName] = idx;
 			}
 		}
 		else {
