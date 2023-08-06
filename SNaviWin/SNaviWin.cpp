@@ -329,7 +329,7 @@ namespace mystudents {
 		using namespace glm;
 		fvec3 pts[4] = { *(fvec3*)&marker1, *(fvec3*)&marker2, *(fvec3*)&marker3, *(fvec3*)&marker4 };
 		fvec3 estimated_normal = ComputeNormalVector(pts); // return the unit length vector of the plane fitting to the input points
-		// cnormal correction
+		// normal correction
 		fvec3 v14 = pts[3] - pts[0];
 		fvec3 v12 = pts[1] - pts[0];
 		fvec3 nor_dir = cross(v14, v12);
@@ -352,19 +352,19 @@ namespace mystudents {
 		const int rows = 8;
 		const int cols = 8;
 
-		for (int i = 0; i < cols; ++i) {
-			float ratio_row = (float)i / (float)(cols - 1);
-			fvec3 interPosRow0 = (1.f - ratio_row) * pts_corrected[0] + ratio_row * pts_corrected[1];
-			fvec3 interPosRow1 = (1.f - ratio_row) * pts_corrected[3] + ratio_row * pts_corrected[2];
+		for (int i = 0; i < rows; ++i) {
+			float ratio_row = (float)i / (float)(rows - 1);
+			fvec3 interPosRow0 = (1.f - ratio_row) * pts_corrected[0] + ratio_row * pts_corrected[3];
+			fvec3 interPosRow1 = (1.f - ratio_row) * pts_corrected[1] + ratio_row * pts_corrected[2];
 
-			for (int j = 0; j < rows; ++j) {
+			for (int j = 0; j < cols; ++j) {
 				if (i == 0 && j == 0)
 					continue;
-				else if (i == cols - 1 && j == 0)
+				else if (i == rows - 1 && j == 0)
 					continue;
-				else if (i == 0 && j == rows - 1)
+				else if (i == 0 && j == cols - 1)
 					continue;
-				else if (i == cols - 1 && j == rows - 1)
+				else if (i == rows - 1 && j == cols - 1)
 					continue;
 
 				float ratio_col = (float)j / (float)(rows - 1);
@@ -774,6 +774,11 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			}
 		}
 
+		int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+		if (aidTestGroup) {
+			vzm::ActorParameters apGroup;
+			vzm::NewActor(apGroup, "testMK Group", aidTestGroup);
+		}
 		for (int i = 0; i < (int)g_testMKs.size(); i++) {
 			std::string testMkName = "testMk-" + std::to_string(i);
 			int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
@@ -783,7 +788,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				apMarker.is_visible = false;
 				*(glm::fvec4*)apMarker.color = glm::fvec4(0, 0, 1.f, 1.f); // rgba
 				vzm::NewActor(apMarker, testMkName, aidMarkerTest);
-				vzm::AppendSceneItemToSceneTree(aidMarkerTest, sidScene);
+				vzm::AppendSceneItemToSceneTree(aidMarkerTest, aidTestGroup);
 			}
 		}
 	}
@@ -829,7 +834,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				int numToolPoints = (int)g_toolLocalPoints.size();
 				fvec3 posCenter = fvec3(0, 0, 0);
 				fvec3 posTipMk = g_toolLocalPoints[numToolPoints - 1];
-				for (int i = 0; numToolPoints - 1; i++) {
+				for (int i = 0; i < numToolPoints - 1; i++) {
 					posCenter += g_toolLocalPoints[i];
 				}
 				posCenter /= (float)(numToolPoints - 1);
@@ -905,22 +910,33 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			vzm::SetActorParams(aidMarker, apMarker);
 		}
 	}
+	
+	// test display
+	{
+		// for testing
+		int test_count = 1;
+		for (int i = 0; i < (int)g_testMKs.size(); i++) {
+			std::string testMkName = "testMk-" + std::to_string(i);
+			int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
+			if (aidMarkerTest != 0) {
+				glm::fmat4x4 matLS2WS = glm::translate(g_testMKs[i]);
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
+				matLS2WS = matLS2WS * matScale;
 
-	// for testing
-	for (int i = 0; i < (int)g_testMKs.size(); i++) {
-		std::string testMkName = "testMk-" + std::to_string(i);
-		int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
-		if (aidMarkerTest != 0) {
-			glm::fmat4x4 matLS2WS = glm::translate(g_testMKs[i]);
-			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
-			matLS2WS = matLS2WS * matScale;
+				vzm::ActorParameters apMarker;
+				vzm::GetActorParams(aidMarkerTest, apMarker);
+				apMarker.is_visible = true;
 
-			vzm::ActorParameters apMarker;
-			vzm::GetActorParams(aidMarkerTest, apMarker);
-			apMarker.is_visible = true;
-			*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 0, 1.f); // rgba
-			apMarker.SetLocalTransform(__FP matLS2WS);
-			vzm::SetActorParams(aidMarkerTest, apMarker);
+				if (i == 7) test_count++;
+				else if (i == 57) test_count++;
+
+				*(glm::fvec4*)apMarker.color = glm::fvec4((test_count % 8) / 8.f, ((test_count / 8.f) + 1.f) / 8.f, 0, 1.f); // rgba
+
+				test_count++;
+
+				apMarker.SetLocalTransform(__FP matLS2WS);
+				vzm::SetActorParams(aidMarkerTest, apMarker);
+			}
 		}
 	}
 }
@@ -1063,7 +1079,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	folder_trackingInfo = getdatapath() + "Tracking 2023-08-05/";
 
 	{
-		cv::Mat __curScanImg = cv::imread(folder_trackingInfo + "test3.png");
+		cv::Mat __curScanImg = cv::imread(folder_trackingInfo + "test0.png");
 		std::vector<cv::Point2f> points2d;
 		mystudents::Get2DPostionsFromLegoPhantom(__curScanImg, points2d);
 		int gg = 0;
@@ -1082,7 +1098,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     bool optitrkMode = optitrk::InitOptiTrackLib();
 
-	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-05.motive", folder_data + "System Calibration.cal");
+	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
 	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
 
     // 전역 문자열을 초기화합니다.
@@ -1196,16 +1212,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				else if (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) {
 					if (std::time(NULL) - timeBegin > 5) {
 						cout << "\nregister tool success!" << endl;
-						optitrk::SetRigidBody("tool", g_selectedMkNames.size() - 1, (float*)&selectedMks[0]);
+						int numSelectedMKs = (int)g_selectedMkNames.size();
+						optitrk::SetRigidBody("tool", numSelectedMKs - 1, (float*)&selectedMks[0]);
 
 						glm::fvec3 mkPivotPos = glm::fvec3(0, 0, 0);
-						for (int i = 0; i < numMKs - 1; i++) {
+						for (int i = 0; i < numSelectedMKs - 1; i++) {
 							mkPivotPos += selectedMks[i];
 						}
 
 						g_toolLocalPoints = selectedMks;
-						mkPivotPos /= (float)numMKs;
-						for (int i = 0; i < numMKs; i++) {
+						mkPivotPos /= (float)numSelectedMKs;
+						for (int i = 0; i < numSelectedMKs; i++) {
 							g_toolLocalPoints[i] -= mkPivotPos;
 						}
 
@@ -1766,7 +1783,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				calribmodeToggle = !calribmodeToggle;
 
-				if (!calribmodeToggle) g_selectedMkNames.clear();
+				if (!calribmodeToggle) {
+					g_selectedMkNames.clear();
+					int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+					g_testMKs.clear();
+					if (aidTestGroup != 0)
+						vzm::RemoveSceneItem(aidTestGroup);
+				}
 
 				cout << "\n" << "calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
 
@@ -1823,7 +1846,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					cout << "\n" << "at least 4 points (last one is for tool tip) are needed!!" << endl;
 					return 0;
 				}
+
 				// 툴 등록하기..
+				g_optiMode = OPTTRK_THREAD_TOOL_REGISTER;
+
+				while (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) { Sleep(2); }
 				break;
 			}
 			//case char('E') : {
@@ -1841,7 +1868,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					cout << "\n" <<"not calibration mode!!" << endl;
 					return 0;
 				}
-#define MYDEFINE
+//#define MYDEFINE
 #ifdef MYDEFINE
 				download_completed = true;
 				g_curScanImg = cv::imread(folder_trackingInfo + "test" + to_string(extrinsicImgIndex) + ".png");
@@ -1852,6 +1879,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					return 0;
 				}
 #endif
+				cv::Mat calculImg;
+				cv::flip(g_curScanImg, calculImg, 1);
 				if (g_selectedMkNames.size() != 4) {
 					cout << "\n" <<"4 points are needed!!" << endl;
 					return 0;
@@ -1864,7 +1893,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				cv::imwrite(downloadImgFileName, downloadImg);
 				
 				// 1st, get c-arm rb info.
-				glm::fmat4x4 matRB2WS;
+				glm::fmat4x4 matRB2WS, matWS2RB;
 				{
 					glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
 					float rotAngleAvr = 0;
@@ -1906,20 +1935,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
 					glm::fmat4x4 mat_t = glm::translate(trAvr);
 					matRB2WS = mat_t * mat_r;
+					matWS2RB = glm::inverse(matRB2WS);
 				}
 				// now tracking info of c-arm scan is valid.
 				std::cout << "\n" << "SCAN IMAGE LOAD COMPLETED!!!" << std::endl;
 
-				// get 2d mks info from x-ray img (g_curScanImg)
+				// get 2d mks info from x-ray img (calculImg)
 				std::vector<cv::Point2f> points2d;
-				mystudents::Get2DPostionsFromLegoPhantom(g_curScanImg, points2d);
-				const bool mirrorHorizontal = true;
-				if (mirrorHorizontal) {
-					for (int i = 0; i < (int)points2d.size(); i++) {
-						cv::Point2f& p2 = points2d[i];
-						p2.x = g_curScanImg.cols - p2.x;
-					}
-				}
+				mystudents::Get2DPostionsFromLegoPhantom(calculImg, points2d);
+				//const bool mirrorHorizontal = true;
+				//if (mirrorHorizontal) {
+				//	for (int i = 0; i < (int)points2d.size(); i++) {
+				//		cv::Point2f& p2 = points2d[i];
+				//		p2.x = g_curScanImg.cols - p2.x;
+				//	}
+				//}
 
 				navihelpers::track_info trackInfo;
 				g_track_que->wait_and_pop(trackInfo);
@@ -1936,6 +1966,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				g_testMKs.clear();
 				g_testMKs.assign(points3d.size(), glm::fvec3(0));
 				memcpy(&g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
+
+				for (int i = 0; i < points3d.size(); i++) {
+					*(glm::fvec3*)&points3d[i] = vzmutils::transformPos(*(glm::fvec3*)&points3d[i], matWS2RB);
+				}
 				
 				cv::Mat cameraMatrix, distCoeffs;
 				{
@@ -1980,10 +2014,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// store the info.
 				// note rb2carm1.txt is used in StoreParams!
 				StoreParams("test" + to_string(extrinsicImgIndex) + ".txt", matRB2WS, downloadImgFileName);
-				download_completed = false;
 				std::cout << "\n" << "STORAGE COMPLETED!!!" << std::endl;
 
-				wParam = char('3');
+				//download_completed = false; 
+				wParam = char('3'); // to call download_completed = false;
 				break;
 			}
 		}
@@ -2060,8 +2094,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
 				std::string actorName;
 				vzm::GetSceneItemName(aidPicked, actorName);
-				int idx = g_selectedMkNames.size();
-				g_selectedMkNames[actorName] = idx;
+				if (g_selectedMkNames.find(actorName) == g_selectedMkNames.end()) {
+					int idx = g_selectedMkNames.size();
+					g_selectedMkNames[actorName] = idx;
+					std::cout << "\npicking count : " << g_selectedMkNames.size() << std::endl;
+				}
 			}
 		}
 		else {
