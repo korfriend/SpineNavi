@@ -14,6 +14,7 @@
 #include <iostream>
 #include <winsock2.h> // udp
 #include <stdio.h>
+#include <ctime>
 
 #pragma comment(lib,"ws2_32.lib")
 
@@ -24,6 +25,8 @@
 using namespace Gdiplus;
 #pragma comment (lib,"Gdiplus.lib")
 
+#include <Eigen/Dense>
+#include <Eigen/IterativeLinearSolvers>
 
 // math using GLM
 #include "glm/gtc/matrix_transform.hpp"
@@ -84,7 +87,34 @@ std::string g_camName2 = "Cam2"; // World Camera, CArm Camera
 
 std::map<std::string, int> g_selectedMkNames;
 std::map<int, int> g_mapAidGroupCArmCam;
-bool call_rbSet = false;
+#define OPTTRK_THREAD_FREE 0
+#define OPTTRK_THREAD_C_ARM_REGISTER 1
+#define OPTTRK_THREAD_TOOL_REGISTER 2
+int g_optiMode = OPTTRK_THREAD_FREE;
+
+std::vector<glm::fvec3> g_toolLocalPoints;
+std::vector<glm::fvec3> g_testMKs;
+
+glm::fvec3 ComputeNormalVector(glm::fvec3 points[4]) {
+	Eigen::Vector3d normalVector;
+	{
+		Eigen::Matrix3d A;
+
+		// Construct the matrix A for the least-squares problem
+		for (int i = 0; i < 3; ++i) {
+			A(i, 0) = points[i + 1].x - points[0].x;
+			A(i, 1) = points[i + 1].y - points[0].y;
+			A(i, 2) = points[i + 1].z - points[0].z;
+		}
+
+		// Compute the normal vector as the null space of A
+		Eigen::JacobiSVD<Eigen::Matrix3d> svd(A, Eigen::ComputeFullV);
+		normalVector = svd.matrixV().col(2);
+		normalVector.normalize();
+	}
+
+	return glm::fvec3(normalVector.x(), normalVector.y(), normalVector.z());
+};
 
 namespace mystudents {
 	using namespace std;
@@ -195,25 +225,25 @@ namespace mystudents {
 	}
 
 	// Function to calculate the normal vector of a plane given three points
-	cv::Point3f calc_normal_vector(const cv::Point3f& point1, const cv::Point3f& point2, const cv::Point3f& point3) {
-		cv::Point3f vector_x(point2.x - point1.x, point2.y - point1.y, point2.z - point1.z);
-		cv::Point3f vector_y(point3.x - point1.x, point3.y - point1.y, point3.z - point1.z);
+	// Function to calculate the normal vector of a plane given three points
+	void calc_normal_vector(const cv::Point3f& point1, const cv::Point3f& point2, const cv::Point3f& point3,
+		cv::Point3f& vectorX, cv::Point3f& vectorY, cv::Point3f& normalVector) {
+
+		cv::Point3f vector_x(point2.x - point1.x, point2.y - point1.y, point2.z - point1.z); // x축
+		cv::Point3f vector_y(point3.x - point1.x, point3.y - point1.y, point3.z - point1.z); // y축
 
 		cv::Point3f normal_vector;
-		normal_vector.x = vector_x.y * vector_y.z - vector_x.z * vector_y.y;
-		normal_vector.y = vector_x.z * vector_y.x - vector_x.x * vector_y.z;
-		normal_vector.z = vector_x.x * vector_y.y - vector_x.y * vector_y.x;
+		normal_vector = vector_x.cross(vector_y); // x축과 y축 외적을 통해 두 벡터가 이루는 평면의 법선벡터를 구함.
 
-		double norm = std::sqrt(normal_vector.x * normal_vector.x + normal_vector.y * normal_vector.y + normal_vector.z * normal_vector.z);
-		normal_vector.x /= norm;
-		normal_vector.y /= norm;
-		normal_vector.z /= norm;
-
-		return normal_vector;
+		// Normalize
+		vectorX = vector_x / norm(vector_x);
+		vectorY = vector_y / norm(vector_y);
+		normalVector = normal_vector / norm(normal_vector);
 	}
 
 	// Function to fit a plane to a set of 3D points and find its normal vector
 	cv::Point3f fit_plane_to_points(const vector<cv::Point3f>& points) {
+
 		cv::Point3f centroid(0.0, 0.0, 0.0);
 		for (const auto& point : points) {
 			centroid.x += point.x;
@@ -249,23 +279,26 @@ namespace mystudents {
 
 	// implemented by 정태민
 	// Function to get 3D positions of markers
+
 	int Get3DPostionsFromLegoPhantom(const double marker_r,
 		const cv::Point3f& marker1, const cv::Point3f& marker2, const cv::Point3f& marker3, const cv::Point3f& marker4,
 		vector<cv::Point3f>& points3Ds) {
 
-		const double unit = 15.9375;
+		const double unit = 0.0159375;
 
-		double plane_r = 3; // 홈의 반지름 
+		double plane_r = 0.003; // 홈의 반지름 
 		double big_h = marker_r - std::sqrt(marker_r * marker_r - plane_r * plane_r); //빠진 길이
-		double small_marker_r = 8 / 2;
+		double small_marker_r = 0.004; // 8 / 2 / 1000;
 		double small_h = small_marker_r - std::sqrt(small_marker_r * small_marker_r - plane_r * plane_r); //빠진 길이
 		double h = big_h - small_h;
 
-		cv::Point3f x = calc_normal_vector(marker1, marker4, marker2);
-		cv::Point3f z = fit_plane_to_points({ marker1, marker2, marker3, marker4 });
-		cv::Point3f y = { x.y * z.z - x.z * z.y, x.z * z.x - x.x * z.z, x.x * z.y - x.y * z.x };
+		cv::Point3f x, y, tempNormal;
+		calc_normal_vector(marker1, marker4, marker2, x, y, tempNormal);
+		cv::Point3f z = tempNormal;
 
-		//vector<cv::Point3f> inter_points;
+		// fit_plane_to_points() 함수에서 네 개의 포인트와 SVD를 이용해 법선벡터를 보간함...
+		// fit_plane_to_points({ marker1, marker2, marker3, marker4 });
+
 		for (int i = 0; i < 8; ++i) {
 			for (int j = 0; j < 8; ++j) {
 				if (i == 0 && j == 0)
@@ -277,11 +310,66 @@ namespace mystudents {
 				else if (i == 7 && j == 7)
 					continue;
 
-				cv::Point3f unit_position(float(i), float(j), 0.0);
-				cv::Point3f estimate_marker(marker1.x + unit_position.x * unit * x.x + unit_position.y * unit * y.x + h * z.x,
-					marker1.y + unit_position.x * unit * x.y + unit_position.y * unit * y.y + h * z.y,
-					marker1.z + unit_position.x * unit * x.z + unit_position.y * unit * y.z + h * z.z);
+				cv::Point3f unit_position(float(i), float(j), 0.0f);
+				cv::Point3f estimate_marker = cv::Point3f(marker1 + unit_position.x * unit * x + unit_position.y * unit * y + h * z);
 				points3Ds.push_back(estimate_marker);
+			}
+		}
+
+		//vector<vector<cv::Point3f>> points3Ds;
+		//points3Ds.push_back(inter_points);
+		return (int)points3Ds.size();
+	}
+
+	int Get3DPostionsFromLegoPhantom2(const float marker_r,
+		const cv::Point3f& marker1, const cv::Point3f& marker2, const cv::Point3f& marker3, const cv::Point3f& marker4,
+		vector<cv::Point3f>& points3Ds) {
+
+		// note we are using meter metric
+		using namespace glm;
+		fvec3 pts[4] = { *(fvec3*)&marker1, *(fvec3*)&marker2, *(fvec3*)&marker3, *(fvec3*)&marker4 };
+		fvec3 estimated_normal = ComputeNormalVector(pts); // return the unit length vector of the plane fitting to the input points
+		// cnormal correction
+		fvec3 v14 = pts[3] - pts[0];
+		fvec3 v12 = pts[1] - pts[0];
+		fvec3 nor_dir = cross(v14, v12);
+		if (dot(estimated_normal, nor_dir) < 0) estimated_normal *= -1.f;
+
+		// compute the aligned marker position fit to the sphere height
+		const float h_r = 0.003f;// (float)(15.9375 * 0.001);
+		const float s_r = 0.004f;
+		float m_r_sq = marker_r * marker_r;
+		float h_r_sq = h_r * h_r;
+		float s_r_sq = s_r * s_r;
+		float a = sqrt(m_r_sq - h_r_sq);
+		float b = sqrt(s_r_sq - h_r_sq);
+		float correctLength = a - b;
+		fvec3 pts_corrected[4];
+		for (int i = 0; i < 4; i++) {
+			pts_corrected[i] = pts[i] - estimated_normal * correctLength;
+		}
+
+		const int rows = 8;
+		const int cols = 8;
+
+		for (int i = 0; i < cols; ++i) {
+			float ratio_row = (float)i / (float)(cols - 1);
+			fvec3 interPosRow0 = (1.f - ratio_row) * pts_corrected[0] + ratio_row * pts_corrected[1];
+			fvec3 interPosRow1 = (1.f - ratio_row) * pts_corrected[3] + ratio_row * pts_corrected[2];
+
+			for (int j = 0; j < rows; ++j) {
+				if (i == 0 && j == 0)
+					continue;
+				else if (i == cols - 1 && j == 0)
+					continue;
+				else if (i == 0 && j == rows - 1)
+					continue;
+				else if (i == cols - 1 && j == rows - 1)
+					continue;
+
+				float ratio_col = (float)j / (float)(rows - 1);
+				fvec3 interPos = (1.f - ratio_col) * interPosRow0 + ratio_col * interPosRow1;
+				points3Ds.push_back(*(cv::Point3f*)&interPos);
 			}
 		}
 
@@ -574,6 +662,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 		static int oidAxis = 0;
 		static int oidMarker = 0;
 		static int oidProbe = 0;
+		//static int oidLine = 0;
 		// axis 를 그리는 resource object 생성
 		if (oidAxis == 0) {
 			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
@@ -591,6 +680,10 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			glm::fvec3 posE(0, 0, 0);
 			vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
 		}
+		//if (oidLine == 0) {
+		//	glm::fvec3 linePos[2] = { glm::fvec3(0, 0, 0), glm::fvec3(0, 0, 1) };
+		//	vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidLine);
+		//}
 
 		// tracking 된 rigid bodies 중, probe 와 그외 일반 rigid body frame 을 나타낼 scene actor 에 생성된 resource (oidProbe, oidAxis) 를 할당
 		// 최초 한 번만 할당하며 scene 에 tracking unit 의 이름이 있는지로 확인하고 없을 때, 할당
@@ -599,8 +692,9 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			std::string rbName;
 			float rb_error = 0; 
 			map<string, map<track_info::MKINFO, std::any>> rbmkSet;
+			// 여기에서 index 는 optitrack lib 에서 사용하는 index 와 다르다! track_info 구조체에서 사용하는 index 임!
 			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet)) {
-				if (rb_error > 10.0) cout << "\n" <<"problematic error!! " << rb_error << endl;
+				if (rb_error > 0.01) cout << "\n" <<"problematic error!! " << rbName << " : " << rb_error << endl;
 
 				int aidRb = vzmutils::GetSceneItemIdByName(rbName);
 				if (aidRb == 0) {
@@ -618,6 +712,15 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 					vzm::AppendSceneItemToSceneTree(aidRb, sidScene);
 
 					if (rbName == "probe") {
+					}
+					else if (rbName == "tool") {
+						vzm::ActorParameters apEmpty;
+						int aidToolBody = 0, aidToolTip = 0;
+						vzm::NewActor(apEmpty, rbName + ":Body", aidToolBody);
+						apEmpty.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+						vzm::NewActor(apEmpty, rbName + ":Tip", aidToolTip);
+						vzm::AppendSceneItemToSceneTree(aidToolBody, aidRb);
+						vzm::AppendSceneItemToSceneTree(aidToolTip, aidRb);
 					}
 					else {
 						std::vector<glm::fvec3> pinfo(3);
@@ -670,6 +773,19 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				}
 			}
 		}
+
+		for (int i = 0; i < (int)g_testMKs.size(); i++) {
+			std::string testMkName = "testMk-" + std::to_string(i);
+			int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
+			if (aidMarkerTest == 0) {
+				vzm::ActorParameters apMarker;
+				apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+				apMarker.is_visible = false;
+				*(glm::fvec4*)apMarker.color = glm::fvec4(0, 0, 1.f, 1.f); // rgba
+				vzm::NewActor(apMarker, testMkName, aidMarkerTest);
+				vzm::AppendSceneItemToSceneTree(aidMarkerTest, sidScene);
+			}
+		}
 	}
 
 	// DOJO : scene tree 에 배치된 (rigid body) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동 
@@ -707,6 +823,60 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				apMarker.SetLocalTransform(__FP matMkLS2WS);
 				vzm::SetActorParams(aidMarker, apMarker);
 			}
+
+			if (rbName == "tool") {
+				using namespace glm;
+				int numToolPoints = (int)g_toolLocalPoints.size();
+				fvec3 posCenter = fvec3(0, 0, 0);
+				fvec3 posTipMk = g_toolLocalPoints[numToolPoints - 1];
+				for (int i = 0; numToolPoints - 1; i++) {
+					posCenter += g_toolLocalPoints[i];
+				}
+				posCenter /= (float)(numToolPoints - 1);
+
+				// compute normal
+				fvec3 nrl = ComputeNormalVector(&g_toolLocalPoints[0]);
+
+				// correct the normal direction using cam view
+				int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName); // Cam1
+				vzm::CameraParameters cam1Param;
+				vzm::GetCameraParams(cidCam1, cam1Param);
+				fvec3 camViewLS = vzmutils::transformVec(*(fvec3*)cam1Param.view, matWS2LS);
+				if (dot(nrl, camViewLS) > 0) nrl *= -1.f;
+
+				// compute line point of the tool
+				fvec3 posLine = posCenter - nrl * 0.07f;
+
+				// compute the direction of a tip (using inverse of the cam up)
+				fvec3 camUpLS = vzmutils::transformVec(*(fvec3*)cam1Param.up, matWS2LS);
+				fvec3 dirTool = normalize(posTipMk - posLine);				
+				
+				// compute the line geometry in the tool's rigid body
+				fvec3 posTip = posTipMk - dirTool * (float)(0.019 * 0.5);
+				glm::fvec3 linePos[2] = { posLine, posTip };
+				static int oidToolLine = 0;
+				vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
+
+				int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
+				int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
+				assert(aidToolBody != 0 && aidToolTip != 0);
+
+				vzm::ActorParameters apToolBody, apToolTip;
+				vzm::GetActorParams(aidToolBody, apToolBody);
+				apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
+				apToolBody.line_thickness = 3;
+				*(fvec4*)apToolBody.color = fvec4(0, 0, 1, 1);
+				vzm::SetActorParams(aidToolBody, apToolBody);
+
+				// local transform to the tip sphere
+				vzm::GetActorParams(aidToolTip, apToolTip);
+				*(fvec4*)apToolTip.color = fvec4(1, 0, 1, 1);
+				glm::fmat4x4 matLS2WS = glm::translate(posTip);
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
+				matLS2WS = matLS2WS * matScale;
+				apToolTip.SetLocalTransform(__FP matLS2WS);
+				vzm::SetActorParams(aidToolTip, apToolTip);
+			}
 		}
 	}
 
@@ -733,6 +903,24 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 			apMarker.SetLocalTransform(__FP matLS2WS);
 			vzm::SetActorParams(aidMarker, apMarker);
+		}
+	}
+
+	// for testing
+	for (int i = 0; i < (int)g_testMKs.size(); i++) {
+		std::string testMkName = "testMk-" + std::to_string(i);
+		int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
+		if (aidMarkerTest != 0) {
+			glm::fmat4x4 matLS2WS = glm::translate(g_testMKs[i]);
+			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
+			matLS2WS = matLS2WS * matScale;
+
+			vzm::ActorParameters apMarker;
+			vzm::GetActorParams(aidMarkerTest, apMarker);
+			apMarker.is_visible = true;
+			*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 0, 1.f); // rgba
+			apMarker.SetLocalTransform(__FP matLS2WS);
+			vzm::SetActorParams(aidMarkerTest, apMarker);
 		}
 	}
 }
@@ -968,24 +1156,68 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				trk_info.AddMarker(mkCIDs[i], pos, mkName);
 			}
 
-			if (call_rbSet) {
-				std::vector<glm::fvec3> posWsMarkers(g_selectedMkNames.size());
-
-				for (auto it = g_selectedMkNames.begin(); it != g_selectedMkNames.end(); it++) {
-
+			auto GetWsMarkersFromSelectedMarkerNames = [&trk_info](const std::map<std::string, int>& selectedMkNames, std::vector<glm::fvec3>& selectedMks) {
+			
+				int numMks = (int)selectedMkNames.size();
+				selectedMks.assign(numMks, glm::fvec3(0));
+			
+				int numSuccess = 0;
+				for (auto it = selectedMkNames.begin(); it != selectedMkNames.end(); it++) {
 					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
-					trk_info.GetMarkerByName(it->first, mkInfo);
-					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
-					posWsMarkers[it->second] = pos;
+					if (trk_info.GetMarkerByName(it->first, mkInfo)) {
+						numSuccess++;
+						glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
+						selectedMks[it->second] = pos;
+					}
 				}
-				optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&posWsMarkers[0]);
-				
+			
+				return numSuccess == numMks;
+			};
+			auto UpdateRigidBodiesInThread = [&]() {
 				rbNames.clear();
-				int numAllFramesRBs = optitrk::GetRigidBodies(&rbNames);
+				numAllFramesRBs = optitrk::GetRigidBodies(&rbNames);
 				for (int i = 0; i < numAllFramesRBs; i++) {
 					cout << rbNames[i] << endl;
 				}
-				call_rbSet = false;
+			};
+			// because the critical section APIs are not successfully applied, naive path is added to avoid the read/write/modify hazard
+			// e.g., this tracking thread is trying to access the optitrack tracking resources while the main thread (event) is modifying the optitrack tracking resources
+			static std::time_t timeBegin;
+			if (g_optiMode != OPTTRK_THREAD_FREE) {
+				std::vector<glm::fvec3> selectedMks;
+				GetWsMarkersFromSelectedMarkerNames(g_selectedMkNames, selectedMks);
+
+				// if you want to use switch with g_optiMode, make sure thread-safe of g_optiMode
+				if (g_optiMode == OPTTRK_THREAD_C_ARM_REGISTER) {
+					optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&selectedMks[0]);
+					UpdateRigidBodiesInThread();
+					g_optiMode = OPTTRK_THREAD_FREE;
+				}
+				else if (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) {
+					if (std::time(NULL) - timeBegin > 5) {
+						cout << "\nregister tool success!" << endl;
+						optitrk::SetRigidBody("tool", g_selectedMkNames.size() - 1, (float*)&selectedMks[0]);
+
+						glm::fvec3 mkPivotPos = glm::fvec3(0, 0, 0);
+						for (int i = 0; i < numMKs - 1; i++) {
+							mkPivotPos += selectedMks[i];
+						}
+
+						g_toolLocalPoints = selectedMks;
+						mkPivotPos /= (float)numMKs;
+						for (int i = 0; i < numMKs; i++) {
+							g_toolLocalPoints[i] -= mkPivotPos;
+						}
+
+						// use cam direction...
+
+						UpdateRigidBodiesInThread();
+						g_optiMode = OPTTRK_THREAD_FREE;
+					}
+				}
+			}
+			else {
+				timeBegin = std::time(NULL);
 			}
 
 			track_que.push(trk_info);
@@ -1564,9 +1796,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				cout << "\n" << "rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
 
-				call_rbSet = true;
+				g_optiMode = OPTTRK_THREAD_C_ARM_REGISTER;
 
-				while (call_rbSet) { Sleep(2); }
+				while (g_optiMode == OPTTRK_THREAD_C_ARM_REGISTER) { Sleep(2); }
 
 				int aidRbCarm = vzmutils::GetSceneItemIdByName("c-arm");
 				vzm::RemoveSceneItem(aidRbCarm);
@@ -1587,17 +1819,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					cout << "\n" << "not calibration mode!!" << endl;
 					return 0;
 				}
+				if (g_selectedMkNames.size() < 4) {
+					cout << "\n" << "at least 4 points (last one is for tool tip) are needed!!" << endl;
+					return 0;
+				}
 				// 툴 등록하기..
 				break;
 			}
-			case char('E') : {
-				if (!calribmodeToggle) {
-					cout << "\n" << "not calibration mode!!" << endl;
-					return 0;
-				}
-				// 툴 끝점 등록하기..
-				break;
-			}
+			//case char('E') : {
+			//	if (!calribmodeToggle) {
+			//		cout << "\n" << "not calibration mode!!" << endl;
+			//		return 0;
+			//	}
+			//	// 툴 끝점 등록하기..
+			//	break;
+			//}
 			case char('X') :
 			{
 				const int extrinsicImgIndex = 3;
@@ -1605,7 +1841,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					cout << "\n" <<"not calibration mode!!" << endl;
 					return 0;
 				}
-//#define MYDEFINE
+#define MYDEFINE
 #ifdef MYDEFINE
 				download_completed = true;
 				g_curScanImg = cv::imread(folder_trackingInfo + "test" + to_string(extrinsicImgIndex) + ".png");
@@ -1694,8 +1930,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
 					posWsMarkers[it->second] = *(cv::Point3f*)&pos;
 				}
+
 				std::vector<cv::Point3f> points3d;
-				mystudents::Get3DPostionsFromLegoPhantom(7.f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
+				mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
+				g_testMKs.clear();
+				g_testMKs.assign(points3d.size(), glm::fvec3(0));
+				memcpy(&g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
 				
 				cv::Mat cameraMatrix, distCoeffs;
 				{
