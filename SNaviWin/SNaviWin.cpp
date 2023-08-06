@@ -70,6 +70,9 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
 #define SCANIMG_W 1296
 #define SCANIMG_H 1296
+#define FLIP_SCANIMAGE true
+#define PHANTOM_MODE "LEGO" // "FILM"
+#define EXTRINSIC_PHANTOM_IMG_INDEX 3
 cv::Mat g_curScanImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
 
 std::atomic_bool download_completed{ false };
@@ -431,6 +434,7 @@ void UpdateBMP(int cidCam, HWND hWnd) {
 			0,   // x and
 			0,   // y of upper left corner  of part of the source, from where we'd like to copy
 			SRCCOPY); // Defined DWORD to juct copy pixels. Watch more on msdn;
+		//StretchBlt(hdc, 0, 0, w, h, hdc, w - 1, 0, -w, h, SRCCOPY);
 
 		//GraphicsPostDrawing(hdc, cidCam);
 		DeleteDC(src); // Deleting temp HDC
@@ -664,16 +668,16 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 		static int oidProbe = 0;
 		//static int oidLine = 0;
 		// axis 를 그리는 resource object 생성
-		if (oidAxis == 0) {
+		if (vzm::GetResObjType(oidAxis) == vzm::ResObjType::UNDEFINED) {
 			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
 		}
 		// spherical marker 를 그리는 resource object 생성
-		if (oidMarker == 0) {
+		if (vzm::GetResObjType(oidMarker) == vzm::ResObjType::UNDEFINED) {
 			glm::fvec4 pos(0, 0, 0, 1.f);
 			vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
 		}
 		// probe 를 그리는 resource object 생성
-		if (oidProbe == 0) {
+		if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED) {
 			//vzm::LoadModelFile(folder_data + "probe.obj", oidProbe);
 
 			glm::fvec3 posS(0, 0, 0.25f);
@@ -775,7 +779,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 		}
 
 		int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
-		if (aidTestGroup) {
+		if (aidTestGroup == 0) {
 			vzm::ActorParameters apGroup;
 			vzm::NewActor(apGroup, "testMK Group", aidTestGroup);
 		}
@@ -875,7 +879,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 				// local transform to the tip sphere
 				vzm::GetActorParams(aidToolTip, apToolTip);
-				*(fvec4*)apToolTip.color = fvec4(1, 0, 1, 1);
+				*(fvec4*)apToolTip.color = fvec4(1, 0, 0, 1);
 				glm::fmat4x4 matLS2WS = glm::translate(posTip);
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
 				matLS2WS = matLS2WS * matScale;
@@ -927,8 +931,8 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				vzm::GetActorParams(aidMarkerTest, apMarker);
 				apMarker.is_visible = true;
 
-				if (i == 7) test_count++;
-				else if (i == 57) test_count++;
+				if (test_count == 7) test_count++;
+				else if (test_count == 57) test_count++;
 
 				*(glm::fvec4*)apMarker.color = glm::fvec4((test_count % 8) / 8.f, ((test_count / 8.f) + 1.f) / 8.f, 0, 1.f); // rgba
 
@@ -953,6 +957,7 @@ void Render() {
 		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
 		if (arAnimationKeyFrame1 >= 0) {
 			vzm::CameraParameters cpCam = cpInterCams1[arAnimationKeyFrame1++];
+			cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
 			vzm::SetCameraParams(cidCam1, cpCam);
 			if (arAnimationKeyFrame1 == numAnimationCount)
 				arAnimationKeyFrame1 = -1;
@@ -1679,12 +1684,14 @@ auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 				cv::Mat downloadImg;
 				cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
 				string downloadImgFileName = folder_trackingInfo + "test" + to_string(i) + ".png";
-				std::cout << "\n" <<"STORAGE COMPLETED!!!  1" << std::endl;
 				cv::imwrite(downloadImgFileName, downloadImg);
-				std::cout << "\n" <<"STORAGE COMPLETED!!!  2" << std::endl;
 				StoreParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
 				download_completed = false;
-				std::cout << "\n" <<"STORAGE COMPLETED!!!  3" << std::endl;
+				std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
+
+				auto it = g_mapAidGroupCArmCam.find(EXTRINSIC_PHANTOM_IMG_INDEX);
+				if (it != g_mapAidGroupCArmCam.end()) 
+					vzm::RemoveSceneItem(it->second, true);
 			}
 			else { // !download_completed
 
@@ -1744,6 +1751,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_KEYDOWN:
 	{
+		if (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) break;
 		using namespace std;
 		switch (wParam) {
 			case char('S') :
@@ -1784,9 +1792,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				calribmodeToggle = !calribmodeToggle;
 
 				if (!calribmodeToggle) {
+					g_testMKs.clear();
 					g_selectedMkNames.clear();
 					int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
-					g_testMKs.clear();
 					if (aidTestGroup != 0)
 						vzm::RemoveSceneItem(aidTestGroup);
 				}
@@ -1800,6 +1808,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
 				*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
 				*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
+				cpCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_FOV;
+				cpCam1.fov_y = glm::pi<float>() / 2.f;
+				cpCam1.aspect_ratio = cpCam1.ip_w / cpCam1.ip_h;
 				cpCam1.np = 0.3f;
 
 				vzm::SetCameraParams(cidCam1, cpCam1);
@@ -1849,8 +1860,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				// 툴 등록하기..
 				g_optiMode = OPTTRK_THREAD_TOOL_REGISTER;
-
-				while (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) { Sleep(2); }
 				break;
 			}
 			//case char('E') : {
@@ -1863,7 +1872,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//}
 			case char('X') :
 			{
-				const int extrinsicImgIndex = 3;
 				if (!calribmodeToggle) {
 					cout << "\n" <<"not calibration mode!!" << endl;
 					return 0;
@@ -1871,7 +1879,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 //#define MYDEFINE
 #ifdef MYDEFINE
 				download_completed = true;
-				g_curScanImg = cv::imread(folder_trackingInfo + "test" + to_string(extrinsicImgIndex) + ".png");
+				g_curScanImg = cv::imread(folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png");
 				cv::cvtColor(g_curScanImg, g_curScanImg, cv::COLOR_RGB2GRAY);
 #else
 				if (!download_completed) {
@@ -1879,19 +1887,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					return 0;
 				}
 #endif
-				cv::Mat calculImg;
-				cv::flip(g_curScanImg, calculImg, 1);
+				cv::Mat source2detImg;
+				if (FLIP_SCANIMAGE)
+					cv::flip(g_curScanImg, source2detImg, 1);
+				else
+					source2detImg = g_curScanImg;
+
 				if (g_selectedMkNames.size() != 4) {
-					cout << "\n" <<"4 points are needed!!" << endl;
+					cout << "\n4 points are needed!!" << endl;
 					return 0;
 				}
+
 				// now g_curScanImg is valid
 				// test3.png is for extrinsic calibration image
 				cv::Mat downloadImg;
 				cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
-				string downloadImgFileName = folder_trackingInfo + "test" + to_string(extrinsicImgIndex) + ".png";
+				string downloadImgFileName = folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png";
 				cv::imwrite(downloadImgFileName, downloadImg);
-				
+				// now tracking info of c-arm scan is valid.
+				std::cout << "\n" << "SCAN IMAGE LOAD COMPLETED!!!" << std::endl;
+
 				// 1st, get c-arm rb info.
 				glm::fmat4x4 matRB2WS, matWS2RB;
 				{
@@ -1899,7 +1914,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					float rotAngleAvr = 0;
 					glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
 					int captureCount = 0;
-					const int maxSamples = 30;
+					const int maxSamples = 10;
 					const float normalizedNum = 1.f / (float)maxSamples;
 					while (captureCount < maxSamples) {
 						navihelpers::track_info trackInfo;
@@ -1922,7 +1937,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 							captureCount++;
 						}
 						else {
-							cout << "\n" <<"failure to c-arm tracking!!" << endl;
+							cout << "\n" << "failure to c-arm tracking!!" << endl;
 							return 0;
 						}
 						//std::cout << "\n" <<"Capturing... " << captureCount << std::endl;
@@ -1930,26 +1945,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						fflush(stdout);
 						Sleep(10);
 					}
-					std::cout << "\n" <<"Capturing... DONE!" << std::endl;
+					std::cout << "\n" << "Capturing... DONE!" << std::endl;
 					rotAxisAvr = glm::normalize(rotAxisAvr);
 					glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
 					glm::fmat4x4 mat_t = glm::translate(trAvr);
 					matRB2WS = mat_t * mat_r;
 					matWS2RB = glm::inverse(matRB2WS);
 				}
-				// now tracking info of c-arm scan is valid.
-				std::cout << "\n" << "SCAN IMAGE LOAD COMPLETED!!!" << std::endl;
 
 				// get 2d mks info from x-ray img (calculImg)
 				std::vector<cv::Point2f> points2d;
-				mystudents::Get2DPostionsFromLegoPhantom(calculImg, points2d);
-				//const bool mirrorHorizontal = true;
-				//if (mirrorHorizontal) {
-				//	for (int i = 0; i < (int)points2d.size(); i++) {
-				//		cv::Point2f& p2 = points2d[i];
-				//		p2.x = g_curScanImg.cols - p2.x;
-				//	}
-				//}
+				mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
+				if (PHANTOM_MODE == "LEGO") {
+					if (points2d.size() != 60) {
+						cout << "\n# of circles must be 60 if PHANTOM_MODE is LEGO" << endl;
+						return 0;
+					}
+				}
+				else if (PHANTOM_MODE == "FILM") {
+					if (points2d.size() != 77) {
+						cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
+						return 0;
+					}
+				}
+				else assert(0);
 
 				navihelpers::track_info trackInfo;
 				g_track_que->wait_and_pop(trackInfo);
@@ -1961,12 +1980,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					posWsMarkers[it->second] = *(cv::Point3f*)&pos;
 				}
 
+				if (PHANTOM_MODE == "LEGO") {
+					// check the selecting direction
+					glm::fvec3 v01 = *(glm::fvec3*)&posWsMarkers[1] - *(glm::fvec3*)&posWsMarkers[0];
+					glm::fvec3 v03 = *(glm::fvec3*)&posWsMarkers[3] - *(glm::fvec3*)&posWsMarkers[0];
+					glm::fvec3 selDir = glm::cross(v01, v03);
+					glm::fvec3 posCenterCArmRB = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
+					glm::fvec3 cal2DetDir = posCenterCArmRB - *(glm::fvec3*)&posWsMarkers[0];
+					if (glm::dot(selDir, cal2DetDir) < 0) {
+						std::cout << "\ncorrecting the selecting direction!" << std::endl;
+						// 0123 to 1032
+						std::vector<cv::Point3f> posWsMarkersTmp = posWsMarkers;
+						posWsMarkers[0] = posWsMarkersTmp[1];
+						posWsMarkers[1] = posWsMarkersTmp[0];
+						posWsMarkers[2] = posWsMarkersTmp[3];
+						posWsMarkers[3] = posWsMarkersTmp[2];
+					}
+				}
+
+				// compute the estimated marker positions on the phantom (WS)
 				std::vector<cv::Point3f> points3d;
 				mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
 				g_testMKs.clear();
 				g_testMKs.assign(points3d.size(), glm::fvec3(0));
 				memcpy(&g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
 
+				// important! the 3d points must be defined in C-Arm RB space
+				// because we want to get the transform btw C-arm cam (x-ray source) space and C-Arm RB space
 				for (int i = 0; i < points3d.size(); i++) {
 					*(glm::fvec3*)&points3d[i] = vzmutils::transformPos(*(glm::fvec3*)&points3d[i], matWS2RB);
 				}
@@ -1991,6 +2031,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				// solve pnp
 				// update...
 
+				// used in SaveAndChangeViewState
 				{
 					cv::FileStorage fs(folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::WRITE);
 					fs.write("rvec", rvec);
@@ -1998,22 +2039,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					fs.release();
 				}
 
-				//{
-				//	// Reproject the 3D points onto the image plane using the camera calibration
-				//	const vector<cv::Point3f>& pts3d_test = i == 0 ? ptsRbMk3ds_test : ptsWsMk3ds_test;
-				//	std::vector<cv::Point2f> imagePointsReprojected;
-				//	cv::projectPoints(pts3d_test, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
-				//
-				//	// Compute the reprojection error
-				//	float maxErr = 0;
-				//	float reprojectionError = ComputeReprojErr(pts2ds_test, imagePointsReprojected, maxErr);
-				//	//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
-				//	cout << "************* " << (i == 0 ? "Rb" : "Ws") << " reprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
-				//}
+				{
+					auto ComputeReprojErr = [](const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
+						float avrDiff = 0;
+						maxErr = 0;
+						int numPts = (int)pts2d.size();
+						for (int i = 0; i < (int)pts2d.size(); i++) {
+							float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
+							maxErr = std::max(maxErr, diff);
+							avrDiff += diff / (float)numPts;
+						}
+						return avrDiff;
+					};
+
+					// Reproject the 3D points onto the image plane using the camera calibration
+					std::vector<cv::Point2f> imagePointsReprojected;
+					cv::projectPoints(points3d, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+				
+					// Compute the reprojection error
+					float maxErr = 0;
+					float reprojectionError = ComputeReprojErr(points2d, imagePointsReprojected, maxErr);
+					//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
+					cout << "\nreprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
+				}
 
 				// store the info.
 				// note rb2carm1.txt is used in StoreParams!
-				StoreParams("test" + to_string(extrinsicImgIndex) + ".txt", matRB2WS, downloadImgFileName);
+				StoreParams("test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".txt", matRB2WS, downloadImgFileName);
 				std::cout << "\n" << "STORAGE COMPLETED!!!" << std::endl;
 
 				//download_completed = false; 
@@ -2081,6 +2133,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 	{
+		if (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) break;
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);
 		if (x == 0 && y == 0) break;
