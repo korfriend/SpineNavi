@@ -150,6 +150,18 @@ namespace vzm
 			SAFE_GET_COPY(z_axis, __z_axis, float, 3);
 		}
 	};
+	struct TextItem
+	{
+	private: 
+		int version = 230807;
+	public:
+		std::string textStr ="";
+		std::string font = "";
+		std::string alignment = ""; // CENTER, LEFT, RIGHT to the position
+		float fontSize = 10.f;
+		int iColor = 0xFFFFFF; //RGB ==> 0xFF0000 (Red), 0x00FF00 (Green)
+		int posScreenX = 0, posScreenY = 0; // 
+	};
 
 	struct CameraParameters
 	{
@@ -224,6 +236,10 @@ namespace vzm
 		HWND hWnd = NULL; // if NULL, offscreen rendering is performed
 
 		ParamMap<std::string> script_params;
+		ParamMap<std::string> text_items; // value must be TextItem
+		bool displayCamTextItem = false;
+		bool displayActorLabel = false;
+
 		std::set<int> hidden_actors;
 		void SetCurvedSlicer(const float curved_plane_w, const float curved_plane_h, const float* curve_pos_pts, const float* curve_up_pts, const float* curve_tan_pts, const int num_curve_pts) {
 			script_params.SetParam("CURVED_PLANE_WIDTH", curved_plane_w);
@@ -333,6 +349,8 @@ namespace vzm
 		bool is_wireframe = false; // available when the object is a polygonal mesh
 		bool use_vertex_wirecolor = false; // use vertex color instead of wire_color[0,1,2], if vertex buffer contains color information. note that color[3] is always used for the transparency
 		float wire_color[4] = {1.f, 1.f, 1.f, 1.f}; // rgba [0,1].. only for wireframe object
+
+		TextItem label;
 
 		// volume 3D only
 		//float sample_rate = 1.f; // NA in this version

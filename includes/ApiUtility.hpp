@@ -774,7 +774,7 @@ namespace vzmutils {
 		_boxtr.GetMatrix(__FP mat2unitBox, __FP mat2obBox);
 
 		glm::fvec3 pos_plane_os = transformPos(pos_plane_ws, mat2unitBox);
-		glm::fvec3 vec_plane_os = transformPos(vec_plane_ws, mat2unitBox); // consider non uniform scale?!
+		glm::fvec3 vec_plane_os = transformVec(vec_plane_ws, mat2unitBox); // consider non uniform scale?!
 
 		glm::fvec3 aabb_min_os(-0.5f, -0.5f, -0.5f), aabb_max_os(0.5f, 0.5f, 0.5f);
 
@@ -796,7 +796,7 @@ namespace vzmutils {
 		glm::fmat4x4 ws2os = glm::inverse(os2ws);
 
 		glm::fvec3 pos_plane_os = transformPos(pos_plane_ws, ws2os);
-		glm::fvec3 vec_plane_os = transformPos(vec_plane_ws, ws2os); // consider non uniform scale?!
+		glm::fvec3 vec_plane_os = transformVec(vec_plane_ws, ws2os); // consider non uniform scale?!
 
 		glm::fvec3 aabb_min_os, aabb_max_os;
 		vzm::GetObjBoundingBox(obj_id, __FP aabb_min_os, __FP aabb_max_os);

@@ -508,25 +508,25 @@ void SceneInit() {
 	// 여기서 int oidFrameText; 이렇게 했는데, 새롭게 생성하는 경우 oidFrameText = 0 을 권장
 	// DEBUG 모드에서는 initialize 안 하면, 보통 0 값이 들어 가지만, 
 	// RELEASE 모드에서는 initialize 안 하면, 임의의 값이 들어 가고, 이 때, (거의 발생하진 않지만) 다른 actor resource 의 ID 값이 들어가면 비정상 동작할 수 있음
-	int oidFrameText; // recommend "int oidFrameText = 0;"
-	vzm::GenerateTextObject((float*)&pinfo[0], "Frame", 0.1, true, false, oidFrameText);
+	//int oidFrameText; // recommend "int oidFrameText = 0;"
+	//vzm::GenerateTextObject((float*)&pinfo[0], "Frame", 0.1, true, false, oidFrameText);
 
 	vzm::ActorParameters apGrid, apLines, apTextX, apTextZ, apTextFrame;
 	apGrid.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidGrid);
 	apLines.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidLines);
 	apTextX.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidTextX);
 	apTextZ.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidTextZ);
-	apTextFrame.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidFrameText);
+	//apTextFrame.SetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY, oidFrameText);
 	*(glm::fvec4*)apTextX.phong_coeffs = glm::fvec4(0, 1, 0, 0);
 	*(glm::fvec4*)apTextZ.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-	*(glm::fvec4*)apTextFrame.phong_coeffs = glm::fvec4(0, 1, 0, 0);
+	//*(glm::fvec4*)apTextFrame.phong_coeffs = glm::fvec4(0, 1, 0, 0);
 
-	int aidGrid, aidLines, aidTextX, aidTextZ, aidTextFrame;
+	int aidGrid = 0, aidLines = 0, aidTextX = 0, aidTextZ = 0;// , aidTextFrame;
 	vzm::NewActor(apGrid, "World Grid", aidGrid);
 	vzm::NewActor(apLines, "World Lines", aidLines);
 	vzm::NewActor(apTextX, "World Text X", aidTextX);
 	vzm::NewActor(apTextZ, "World Text Y", aidTextZ);
-	vzm::NewActor(apTextFrame, "Frame Text", aidTextFrame);
+	//vzm::NewActor(apTextFrame, "Frame Text", aidTextFrame);
 	
 	RECT rcWorldView;
 	GetClientRect(g_hWnd, &rcWorldView);
@@ -536,6 +536,7 @@ void SceneInit() {
 	*(glm::fvec3*)cpCam1.pos = glm::fvec3(-1.5, 1.5, -1.5);
 	*(glm::fvec3*)cpCam1.up = glm::fvec3(0, 1, 0);
 	*(glm::fvec3*)cpCam1.view = glm::fvec3(1, -1, 1);
+	cpCam1.displayActorLabel = cpCam1.displayCamTextItem = true;
 
 	// YAML 로 이전에 저장된 (world view 에서의) 카메라 위치 정보 읽어 들임
 	cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
@@ -620,7 +621,7 @@ void SceneInit() {
 	// DOJO : scene 에 ground grid 위에 있는 "Z" 글자 actor (aidTextZ) 을 연결 
 	vzm::AppendSceneItemToSceneTree(aidTextZ, sidScene);
 	// DOJO : scene 에 "Frame" 글자 actor (aidTextFrame) 을 연결 
-	vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
+	//vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 	// NOTE : 여기에서는 모든 actor 및 camera, light 등 scene item 들이 모두 scene (i.e., root) 에 바로 연결되었지만,
 	// 특정 actor 의 자식으로 붙을 수도 있다 (e.g., scene<-aidAxis<-aidTextZ<-cidCam1 ,...)
 }
@@ -1046,16 +1047,28 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 
 	// DOJO: Scene 에 "Frame : 숫자" Text 뜨게 하는 (Actor에 사용될) 리소스(오브젝트) 생성 
 	{
-		int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
-		vzm::ActorParameters apFrameText;
-		vzm::GetActorParams(aidFrameText, apFrameText);
-		int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
-		std::vector<glm::fvec3> pinfo(3);
-		pinfo[0] = glm::fvec3(0, 0.3, 0);
-		pinfo[1] = glm::fvec3(0, 0, -1);
-		pinfo[2] = glm::fvec3(0, 1, 0);
-		vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+		//int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
+		//vzm::ActorParameters apFrameText;
 		//vzm::GetActorParams(aidFrameText, apFrameText);
+		//int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
+		//std::vector<glm::fvec3> pinfo(3);
+		//pinfo[0] = glm::fvec3(0, 0.3, 0);
+		//pinfo[1] = glm::fvec3(0, 0, -1);
+		//pinfo[2] = glm::fvec3(0, 1, 0);
+		//vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+
+		int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
+		int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
+		vzm::CameraParameters cpCam1;
+		vzm::GetCameraParams(cidCam1, cpCam1);
+		vzm::TextItem textItem;
+		textItem.textStr = "Frame : " + std::to_string(frame);
+		textItem.fontSize = 30.f;
+		textItem.iColor = 0xFFFFFF;
+		textItem.posScreenX = 0;
+		textItem.posScreenY = cpCam1.h - 40;
+		cpCam1.text_items.SetParam("FRAME", textItem);
+		vzm::SetCameraParams(cidCam1, cpCam1);
 	}
 
 	navihelpers::concurrent_queue<navihelpers::track_info>* track_que = 
@@ -1812,6 +1825,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				calribmodeToggle = !calribmodeToggle;
 
+				vzm::TextItem textItem;
+				textItem.textStr = calribmodeToggle? "SELECTING MARKER MODE" : "";
+				textItem.fontSize = 30.f;
+				textItem.iColor = 0xFFFF00;
+				textItem.posScreenX = 0;
+				textItem.posScreenY = 0;
+
 				if (!calribmodeToggle) {
 					g_testMKs.clear();
 					g_selectedMkNames.clear();
@@ -1833,6 +1853,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				cpCam1.fov_y = glm::pi<float>() / 2.f;
 				cpCam1.aspect_ratio = cpCam1.ip_w / cpCam1.ip_h;
 				cpCam1.np = 0.3f;
+
+				cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
 
 				vzm::SetCameraParams(cidCam1, cpCam1);
 				break;
@@ -2083,6 +2105,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
 					cout << "\nreprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
 				}
+
+				vzm::RemoveSceneItem(1, true);
+				vzm::RemoveSceneItem(2, true);
 
 				// store the info.
 				// note rb2carm1.txt is used in StoreParams!
