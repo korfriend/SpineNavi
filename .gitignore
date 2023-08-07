@@ -48,6 +48,7 @@ bin/X64_Release/*.ini
 bin/X64_Debug/*.ini
 
 /lib/optitrk.lib
+/lib/optitrkd.lib
 *optitrk.dll
 
 # Visual Studio 2015 cache/options directory

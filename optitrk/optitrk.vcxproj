@@ -129,7 +129,8 @@
       <AdditionalLibraryDirectories>../lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>postbuild.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>
@@ -156,7 +157,8 @@
       <AdditionalLibraryDirectories>../lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>postbuild.bat</Command>
+      <Command>
+      </Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
