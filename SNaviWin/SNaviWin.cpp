@@ -98,17 +98,33 @@ int g_optiMode = OPTTRK_THREAD_FREE;
 std::vector<glm::fvec3> g_toolLocalPoints;
 std::vector<glm::fvec3> g_testMKs;
 
-glm::fvec3 ComputeNormalVector(glm::fvec3 points[4]) {
+glm::fvec3 ComputeNormalVector(std::vector<glm::fvec3>& points) {
 	Eigen::Vector3d normalVector;
 	{
 		Eigen::Matrix3d A;
 
-		// Construct the matrix A for the least-squares problem
-		for (int i = 0; i < 3; ++i) {
-			A(i, 0) = points[i + 1].x - points[0].x;
-			A(i, 1) = points[i + 1].y - points[0].y;
-			A(i, 2) = points[i + 1].z - points[0].z;
+		int nunmPts = (int)points.size();
+		if (nunmPts < 3)
+			return glm::fvec3(0, 0, 1);	// error case
+
+		glm::fvec3 centerPos = glm::fvec3(0, 0, 0);
+		for (int i = 0; i < nunmPts; i++) {
+			centerPos += points[i];
 		}
+		centerPos /= (float)nunmPts;
+
+		// Construct the matrix A for the least-squares problem
+		for (int i = 0; i < nunmPts; ++i) {
+			A(i, 0) = points[i].x - centerPos.x;
+			A(i, 1) = points[i].y - centerPos.y;
+			A(i, 2) = points[i].z - centerPos.z;
+		}
+
+		//for (int i = 0; i < 3; ++i) {
+		//	A(i, 0) = points[i + 1].x - points[0].x;
+		//	A(i, 1) = points[i + 1].y - points[0].y;
+		//	A(i, 2) = points[i + 1].z - points[0].z;
+		//}
 
 		// Compute the normal vector as the null space of A
 		Eigen::JacobiSVD<Eigen::Matrix3d> svd(A, Eigen::ComputeFullV);
@@ -330,7 +346,7 @@ namespace mystudents {
 
 		// note we are using meter metric
 		using namespace glm;
-		fvec3 pts[4] = { *(fvec3*)&marker1, *(fvec3*)&marker2, *(fvec3*)&marker3, *(fvec3*)&marker4 };
+		std::vector<fvec3> pts = { *(fvec3*)&marker1, *(fvec3*)&marker2, *(fvec3*)&marker3, *(fvec3*)&marker4 };
 		fvec3 estimated_normal = ComputeNormalVector(pts); // return the unit length vector of the plane fitting to the input points
 		// normal correction
 		fvec3 v14 = pts[3] - pts[0];
@@ -835,6 +851,8 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 			if (rbName == "tool") {
 				using namespace glm;
+
+				const float tipMarkerRadius = (float)(0.019 * 0.5);
 				int numToolPoints = (int)g_toolLocalPoints.size();
 				fvec3 posCenter = fvec3(0, 0, 0);
 				fvec3 posTipMk = g_toolLocalPoints[numToolPoints - 1];
@@ -844,7 +862,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				posCenter /= (float)(numToolPoints - 1);
 
 				// compute normal
-				fvec3 nrl = ComputeNormalVector(&g_toolLocalPoints[0]);
+				fvec3 nrl = ComputeNormalVector(g_toolLocalPoints);
 
 				// correct the normal direction using cam view
 				int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName); // Cam1
@@ -855,16 +873,19 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 				// compute line point of the tool
 				fvec3 posLine = posCenter - nrl * 0.07f;
+				fvec3 posLineLS = vzmutils::transformPos(posLine, matWS2LS);
 
 				// compute the direction of a tip (using inverse of the cam up)
+				fvec3 posTipMkLS = vzmutils::transformPos(posTipMk, matWS2LS);
 				fvec3 camUpLS = vzmutils::transformVec(*(fvec3*)cam1Param.up, matWS2LS);
-				fvec3 dirTool = normalize(posTipMk - posLine);				
+				fvec3 dirToolLS = normalize(posTipMkLS - posLineLS);
 				
 				// compute the line geometry in the tool's rigid body
-				fvec3 posTip = posTipMk - dirTool * (float)(0.019 * 0.5);
-				glm::fvec3 linePos[2] = { posLine, posTip };
+				fvec3 posTipLS = posTipMkLS - dirToolLS * tipMarkerRadius;
+				glm::fvec3 linePos[2] = { posLineLS, posTipLS };
 				static int oidToolLine = 0;
-				vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
+				if (vzm::GetResObjType(oidToolLine) == vzm::ResObjType::UNDEFINED)
+					vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
 
 				int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
 				int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
@@ -880,7 +901,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				// local transform to the tip sphere
 				vzm::GetActorParams(aidToolTip, apToolTip);
 				*(fvec4*)apToolTip.color = fvec4(1, 0, 0, 1);
-				glm::fmat4x4 matLS2WS = glm::translate(posTip);
+				glm::fmat4x4 matLS2WS = glm::translate(posTipLS);
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
 				matLS2WS = matLS2WS * matScale;
 				apToolTip.SetLocalTransform(__FP matLS2WS);
