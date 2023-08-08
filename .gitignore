@@ -46,10 +46,12 @@ bin/X64_Release/*.lib
 bin/X64_Debug/*.lib
 bin/X64_Release/*.ini
 bin/X64_Debug/*.ini
+bin/X64_Release/*.dll
+bin/X64_Debug/*.dll
 
-/lib/optitrk.lib
-/lib/optitrkd.lib
-*optitrk.dll
+#/lib/optitrk.lib
+#/lib/optitrkd.lib
+#*optitrk.dll
 
 # Visual Studio 2015 cache/options directory
 .vs/
