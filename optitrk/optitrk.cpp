@@ -286,9 +286,11 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 	for (; rb_idx < numRBs; rb_idx++)
 		if (name == rbNames[rb_idx]) break;
 
+	int userId = 1;
 	bool isNew = rb_idx == numRBs;
 	if (!isNew) {
 		int numPrevMKs = TT_RigidBodyMarkerCount(rb_idx);
+		userId = TT_RigidBodyUserData(rb_idx);
 		isNew = numPrevMKs != numMKs;
 		if (isNew) {
 			//std::string __rbName = TT_RigidBodyName(rb_idx);
@@ -309,8 +311,8 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 	}
 
 	if (isNew) {
-		static int id = 0;
-		TT_CreateRigidBody(name.c_str(), id++, numMKs, (float*)&mkMkPos[0]);
+		//static int id = 0;
+		TT_CreateRigidBody(name.c_str(), userId, numMKs, (float*)&mkMkPos[0]);
 	}
 	else {
 		for (int i = 0; i < numMKs; i++) {
@@ -361,7 +363,7 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 	TT_RigidBodyLocation(rb_idx, &x, &y, &z, &qx, &qy, &qz, &qw, &yaw, &pitch, &roll); // frame info.
 
 	auto it = rb_smooth_frcount.find(rb_idx);
-	if (it != rb_smooth_frcount.end())
+	if (it != rb_smooth_frcount.end()) 
 	{
 		rb_tr_smooth_info& tr_smooth = it->second;
 		if (tr_smooth.fr_count > 1)

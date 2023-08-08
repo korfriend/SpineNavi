@@ -48,6 +48,7 @@ using namespace Gdiplus;
 #define DESIRED_SCREEN_W 950
 #define DESIRED_SCREEN_H 950
 #define USE_WHND true
+#define RECODE_MODE
 
 #define MAX_LOADSTRING 100
 typedef unsigned long long u64;
@@ -72,10 +73,8 @@ INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 #define SCANIMG_H 1296
 #define FLIP_SCANIMAGE true
 #define PHANTOM_MODE "LEGO" // "FILM"
-#define EXTRINSIC_PHANTOM_IMG_INDEX 3
+#define EXTRINSIC_PHANTOM_IMG_INDEX 2
 cv::Mat g_curScanImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
-
-std::atomic_bool download_completed{ false };
 
 // DOJO : 특별한 기능은 아니며, 카메라 전환 시 부드러운 변화를 위해 slerp 로 카메라 정보를 저장한 구조체
 int numAnimationCount = 50;
@@ -83,6 +82,93 @@ int arAnimationKeyFrame1 = -1;
 std::vector<vzm::CameraParameters> cpInterCams1(numAnimationCount);
 int arAnimationKeyFrame2 = -1;
 std::vector<vzm::CameraParameters> cpInterCams2(numAnimationCount);
+
+// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
+// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
+// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
+void MoveCameraToCArmView(const int carmIdx, const int cidCam,
+	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) {
+
+	vzm::CameraParameters cpCam;
+	if (!vzm::GetCameraParams(cidCam, cpCam))
+		return;
+
+	cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	cv::Mat cameraMatrix;
+	fs["K"] >> cameraMatrix;
+	fs.release();
+
+	int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + std::to_string(carmIdx));
+	if (aidCArmPlane == 0)
+		return;
+
+	vzm::ActorParameters apCArmPlane;
+	vzm::GetActorParams(aidCArmPlane, apCArmPlane);
+	glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
+	glm::ivec2 imageWH = apCArmPlane.script_params.GetParam("imageWH", glm::ivec2(0));
+
+	vzm::CameraParameters cpNewCam = cpCam;
+
+	glm::fvec3 posPrev = *(glm::fvec3*)cpCam.pos;
+	glm::fvec3 viewPrev = *(glm::fvec3*)cpCam.view;
+	glm::fvec3 upPrev = *(glm::fvec3*)cpCam.up;
+
+	UINT widthWindow = cpCam.w;
+	UINT heightWindow = cpCam.h;
+
+	const float intrinsicRatioX = (float)imageWH.x / widthWindow;
+	const float intrinsicRatioY = (float)imageWH.y / heightWindow;
+
+	cpNewCam.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
+	glm::fvec3 pos(0, 0, 0);
+	glm::fvec3 view(0, 0, 1);
+	glm::fvec3 up(0, -1, 0);
+	pos = *(glm::fvec3*)cpNewCam.pos = vzmutils::transformPos(pos, matCA2WS);
+	view = *(glm::fvec3*)cpNewCam.view = vzmutils::transformVec(view, matCA2WS);
+	up = *(glm::fvec3*)cpNewCam.up = vzmutils::transformVec(up, matCA2WS);
+	cpNewCam.fx = cameraMatrix.at<double>(0, 0) / intrinsicRatioX;
+	cpNewCam.fy = cameraMatrix.at<double>(1, 1) / intrinsicRatioY;
+	cpNewCam.sc = cameraMatrix.at<double>(0, 1);
+	cpNewCam.cx = cameraMatrix.at<double>(0, 2) / intrinsicRatioX;
+	cpNewCam.cy = cameraMatrix.at<double>(1, 2) / intrinsicRatioY;
+	cpNewCam.np = 0.15f;
+
+	glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
+	//glm::fvec3 _o(0, 0, 0);
+	//glm::fmat4x4 m1 = glm::lookAtRH(_o, viewPrev, upPrev);
+	//glm::fmat4x4 m2 = glm::toMat4(q1);
+	//glm::fmat4x4 m3 = glm::inverse(m2);
+	glm::fquat q2 = glm::quatLookAtRH(glm::normalize(view), up);
+
+	float range = std::max((float)(numAnimationCount - 1), 1.f);
+	for (int i = 0; i < numAnimationCount; i++) {
+		float t = (float)i / range; // 0 to 1
+		glm::fquat q = glm::slerp(q1, q2, t);
+		glm::fmat4x4 invMatLookAt = glm::toMat4(q);
+		//glm::fmat4x4 invMat = glm::inverse(matLookAt);
+		glm::fvec3 _view(0, 0, -1);
+		glm::fvec3 _up(0, 1, 0);
+		_view = vzmutils::transformVec(_view, invMatLookAt);
+		_up = vzmutils::transformVec(_up, invMatLookAt);
+
+		vzm::CameraParameters& _cpCam = cpInterCams[i];
+		_cpCam = cpNewCam;
+		*(glm::fvec3*)_cpCam.pos = posPrev + (pos - posPrev) * t;
+		*(glm::fvec3*)_cpCam.view = _view;
+		*(glm::fvec3*)_cpCam.up = _up;
+
+#define INTERPOLCAM(PARAM) _cpCam.PARAM = cpCam.PARAM + (cpNewCam.PARAM - cpCam.PARAM) * t;
+
+		//INTERPOLCAM(w);
+		//INTERPOLCAM(h);
+		INTERPOLCAM(fx);
+		INTERPOLCAM(fy);
+		INTERPOLCAM(sc);
+		INTERPOLCAM(cx);
+		INTERPOLCAM(cy);
+	}
+	arAnimationKeyFrame = 0;
+}
 
 std::string g_sceneName = "Scene1"; // Scene1, Scene2
 std::string g_camName = "Cam1"; // World Camera, CArm Camera
@@ -93,10 +179,27 @@ std::map<int, int> g_mapAidGroupCArmCam;
 #define OPTTRK_THREAD_FREE 0
 #define OPTTRK_THREAD_C_ARM_REGISTER 1
 #define OPTTRK_THREAD_TOOL_REGISTER 2
-int g_optiMode = OPTTRK_THREAD_FREE;
+std::atomic_int g_optiEvent{ OPTTRK_THREAD_FREE };
+
+#define RENDER_THREAD_FREE 0
+#define RENDER_THREAD_CALIBRATION 1
+std::atomic_int g_renderEvent{ RENDER_THREAD_FREE };
+
+#define NETWORK_THREAD_FREE 0
+std::atomic_int g_networkEvent{ NETWORK_THREAD_FREE };
+
+
+// DOJO: asynchronous (read write modify) queue of tracking info.
+// tracking thread 에서 queue 에 등록 (최신 정보 insert) 및 삭제 (오래된 element push out)
+// timer thread (rendering thread) 에서 queue 의 정보를 pop out (삭제) 하여 사용 
+navihelpers::concurrent_queue<navihelpers::track_info>* g_track_que = NULL;
 
 std::vector<glm::fvec3> g_toolLocalPoints;
 std::vector<glm::fvec3> g_testMKs;
+std::vector<glm::fvec3> g_global_calib_MKs;
+std::atomic_bool g_calribmodeToggle{ false };
+std::atomic_int g_downloadCompleted{ 0 };
+std::atomic_int gui_banishing_count{ 0 };
 
 glm::fvec3 ComputeNormalVector(std::vector<glm::fvec3>& points) {
 	Eigen::Vector3d normalVector;
@@ -114,17 +217,17 @@ glm::fvec3 ComputeNormalVector(std::vector<glm::fvec3>& points) {
 		centerPos /= (float)nunmPts;
 
 		// Construct the matrix A for the least-squares problem
-		for (int i = 0; i < nunmPts; ++i) {
-			A(i, 0) = points[i].x - centerPos.x;
-			A(i, 1) = points[i].y - centerPos.y;
-			A(i, 2) = points[i].z - centerPos.z;
-		}
-
-		//for (int i = 0; i < 3; ++i) {
-		//	A(i, 0) = points[i + 1].x - points[0].x;
-		//	A(i, 1) = points[i + 1].y - points[0].y;
-		//	A(i, 2) = points[i + 1].z - points[0].z;
+		//for (int i = 0; i < nunmPts; ++i) {
+		//	A(i, 0) = points[i].x - centerPos.x;
+		//	A(i, 1) = points[i].y - centerPos.y;
+		//	A(i, 2) = points[i].z - centerPos.z;
 		//}
+
+		for (int i = 0; i < 3; ++i) {
+			A(i, 0) = points[i + 1].x - points[0].x;
+			A(i, 1) = points[i + 1].y - points[0].y;
+			A(i, 2) = points[i + 1].z - points[0].z;
+		}
 
 		// Compute the normal vector as the null space of A
 		Eigen::JacobiSVD<Eigen::Matrix3d> svd(A, Eigen::ComputeFullV);
@@ -398,7 +501,261 @@ namespace mystudents {
 	}
 }
 
+// DOJO : 스캔 시 정보를 저장할 파일
+// 현 버전에서는 carm_intrinsics.txt (presetting) 에 저장된 intrinsic parameter 와
+// rb2carm1.txt (presetting + 매 스캔 시 저장됨) 에 저장된 c-arm source pose (extrinsic parameter) 를 로드하여 이를 파일로 저장
+// TODO : 추후 해당 부분을 file to file 이 아닌, memory to memory 로 관리해야 함
+// TODO : 매 스캔마다 camera intrinsics 와 extrinsics 를 계산하도록 수정해야 함
+auto storeParams = [](const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
 
+	cv::FileStorage __fs(folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
+
+	cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	cv::Mat matK;
+	fs["K"] >> matK;
+	__fs << "K" << matK;
+	cv::Mat distCoeffs;
+	fs["DistCoeffs"] >> distCoeffs;
+	__fs << "DistCoeffs" << distCoeffs;
+
+	fs.open(folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
+	cv::Mat rvec, tvec;
+	fs["rvec"] >> rvec;
+	fs["tvec"] >> tvec;
+	__fs << "rvec" << rvec;
+	__fs << "tvec" << tvec;
+	fs.release();
+
+	cv::Mat ocvRb(4, 4, CV_32FC1);
+	memcpy(ocvRb.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
+	__fs << "rb2wsMat" << ocvRb;
+	__fs << "imgFile" << imgFileName;
+	__fs.release();
+};
+
+// note : this function needs to be called in the render thread
+auto phantomCalib = [](const cv::Mat& downloadedImg, const navihelpers::track_info* trk)
+{
+	using namespace std;
+	cv::Mat source2detImg;
+	if (FLIP_SCANIMAGE)
+		cv::flip(downloadedImg, source2detImg, 1);
+	else
+		source2detImg = downloadedImg;
+
+	if (g_selectedMkNames.size() != 4) {
+		cout << "\n4 points are needed!!" << endl;
+		return false;
+	}
+
+	// now g_curScanImg is valid
+	// test3.png is for extrinsic calibration image
+	cv::Mat downloadImg;
+	cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
+	string downloadImgFileName = folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png";
+	cv::imwrite(downloadImgFileName, downloadImg);
+	// now tracking info of c-arm scan is valid.
+	std::cout << "\n" << "SCAN IMAGE LOAD COMPLETED!!!" << std::endl;
+
+	// 1st, get c-arm rb info.
+	glm::fmat4x4 matRB2WS, matWS2RB;
+
+	glm::fquat q;
+	glm::fvec3 t;
+	navihelpers::track_info& trackInfo = *(navihelpers::track_info*)trk;
+	if (!trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+		cout << "\nfailure to get c-arm rigid body" << endl;
+		return false;
+	}
+
+	glm::fmat4x4 mat_r = glm::toMat4(q);
+	glm::fmat4x4 mat_t = glm::translate(t);
+	matRB2WS = mat_t * mat_r;
+	matWS2RB = glm::inverse(matRB2WS);
+
+	// get 2d mks info from x-ray img (calculImg)
+	std::vector<cv::Point2f> points2d;
+	mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
+	if (PHANTOM_MODE == "LEGO") {
+		if (points2d.size() != 60) {
+			cout << "\n# of circles must be 60 if PHANTOM_MODE is LEGO" << endl;
+			return false;
+		}
+	}
+	else if (PHANTOM_MODE == "FILM") {
+		if (points2d.size() != 77) {
+			cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
+			return false;
+		}
+	}
+	else assert(0);
+
+	std::vector<cv::Point3f> posWsMarkers(g_selectedMkNames.size());
+	for (auto it = g_selectedMkNames.begin(); it != g_selectedMkNames.end(); it++) {
+		std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
+		trackInfo.GetMarkerByName(it->first, mkInfo);
+		glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
+		posWsMarkers[it->second] = *(cv::Point3f*)&pos;
+	}
+
+	if (PHANTOM_MODE == "LEGO") {
+		// check the selecting direction
+		glm::fvec3 v01 = *(glm::fvec3*)&posWsMarkers[1] - *(glm::fvec3*)&posWsMarkers[0];
+		glm::fvec3 v03 = *(glm::fvec3*)&posWsMarkers[3] - *(glm::fvec3*)&posWsMarkers[0];
+		glm::fvec3 selDir = glm::cross(v01, v03);
+		glm::fvec3 posCenterCArmRB = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
+		glm::fvec3 cal2DetDir = posCenterCArmRB - *(glm::fvec3*)&posWsMarkers[0];
+		if (glm::dot(selDir, cal2DetDir) < 0) 
+		{
+			std::cout << "\ncorrecting the selecting direction!" << std::endl;
+			// 이상함... 아래것으로 해야 하는데... 이렇게 하면 카메라 위치가 반대로 감...
+			// 일단은 데모를 위해 주석 처리...
+			// 0123 to 1032
+			std::vector<cv::Point3f> posWsMarkersTmp = posWsMarkers;
+			posWsMarkers[0] = posWsMarkersTmp[1];
+			posWsMarkers[1] = posWsMarkersTmp[0];
+			posWsMarkers[2] = posWsMarkersTmp[3];
+			posWsMarkers[3] = posWsMarkersTmp[2];
+		}
+	}
+
+	// compute the estimated marker positions on the phantom (WS)
+
+	std::vector<cv::Point3f> points3d;
+	mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
+	//g_testMKs.clear();
+	g_testMKs.assign(points3d.size(), glm::fvec3(0));
+	memcpy(&g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
+
+	// important! the 3d points must be defined in C-Arm RB space
+	// because we want to get the transform btw C-arm cam (x-ray source) space and C-Arm RB space
+	for (int i = 0; i < points3d.size(); i++) {
+		*(glm::fvec3*)&points3d[i] = vzmutils::transformPos(*(glm::fvec3*)&points3d[i], matWS2RB);
+	}
+
+	cv::Mat cameraMatrix, distCoeffs;
+	{
+		cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+		fs["K"] >> cameraMatrix;
+		fs["DistCoeffs"] >> distCoeffs;
+		fs.release();
+	}
+
+	static std::vector<cv::Point2f> global_points2d;
+	static std::vector<cv::Point3f> global_points3d;
+	for (int i = 0; i < points2d.size(); i++) {
+		global_points2d.push_back(points2d[i]);
+		global_points3d.push_back(points3d[i]);
+	}
+	cv::Mat rvec, tvec;
+	cv::solvePnP(global_points3d, global_points2d, cameraMatrix, distCoeffs, rvec, tvec);
+	//std::cout << A << "\n";
+	//std::cout << rvec << "\n";
+	//std::cout << tvec << "\n";
+	// get 3D position
+	// determine ap or lateral
+	// check residual 
+	// get 3d mks info from c-arm rb
+	// solve pnp
+	// update...
+
+	// used in SaveAndChangeViewState
+	{
+		cv::FileStorage fs(folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::WRITE);
+		fs.write("rvec", rvec);
+		fs.write("tvec", tvec);
+		fs.release();
+	}
+
+	{
+		auto ComputeReprojErr = [](const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
+			float avrDiff = 0;
+			maxErr = 0;
+			int numPts = (int)pts2d.size();
+			for (int i = 0; i < (int)pts2d.size(); i++) {
+				float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
+				maxErr = std::max(maxErr, diff);
+				avrDiff += diff / (float)numPts;
+			}
+			return avrDiff;
+		};
+
+		// Reproject the 3D points onto the image plane using the camera calibration
+		std::vector<cv::Point2f> imagePointsReprojected;
+		cv::projectPoints(points3d, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+
+		// Compute the reprojection error
+		float maxErr = 0;
+		float reprojectionError = ComputeReprojErr(points2d, imagePointsReprojected, maxErr);
+		//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
+		cout << "\nreprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
+	}
+
+	for (int i = 1; i <= 2; i++)
+	{
+		auto it = g_mapAidGroupCArmCam.find(i);
+		if (it != g_mapAidGroupCArmCam.end())
+			vzm::RemoveSceneItem(it->second, true);
+	}
+
+	// store the info.
+	// note rb2carm1.txt is used in StoreParams!
+	storeParams("test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".txt", matRB2WS, downloadImgFileName);
+	std::cout << "\n" << "STORAGE COMPLETED!!!" << std::endl;
+
+	return true;
+};
+
+// DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
+// AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
+// note : this function needs to be called in the render thread
+auto saveAndChangeViewState = [](const navihelpers::track_info& trackInfo, const int keyParam, const int sidScene, const int cidCam,
+	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) 
+{
+
+	using namespace std;
+	char LOADKEYS[10] = { '0' , '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+	for (int i = 0; i < 10; i++) {
+		if (keyParam != LOADKEYS[i]) continue;
+
+		navihelpers::track_info* trk = (navihelpers::track_info*)&trackInfo;
+		glm::fquat q;
+		glm::fvec3 t;
+		if (!trk->GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+			cout << "\nfailure to get c-arm rigid body" << endl;
+			return false;
+		}
+
+		glm::fmat4x4 mat_r = glm::toMat4(q);
+		glm::fmat4x4 mat_t = glm::translate(t);
+		glm::fmat4x4 matRB2WS = mat_t * mat_r;
+
+		if (g_downloadCompleted == 100) {
+			cv::Mat downloadImg;
+			cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
+			string downloadImgFileName = folder_trackingInfo + "test" + to_string(i) + ".png";
+			cv::imwrite(downloadImgFileName, downloadImg);
+			storeParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
+			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
+		}
+
+		auto it = g_mapAidGroupCArmCam.find(EXTRINSIC_PHANTOM_IMG_INDEX);
+		if (it != g_mapAidGroupCArmCam.end())
+			vzm::RemoveSceneItem(it->second, true);
+
+		// load case
+		it = g_mapAidGroupCArmCam.find(i);
+		if (it != g_mapAidGroupCArmCam.end())
+			vzm::RemoveSceneItem(it->second, true);
+		int aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
+		if (aidGroup != -1) {
+			g_mapAidGroupCArmCam[i] = aidGroup;
+			MoveCameraToCArmView(i, cidCam, cpInterCams, arAnimationKeyFrame);
+		}
+		break;
+	}
+	return true;
+};
 
 
 int main()
@@ -556,7 +913,7 @@ void SceneInit() {
 	cpCam1.h = rcWorldView.bottom - rcWorldView.top;
 
 	// 렌더링 파이프라인의 View Frustum 에서의 near plane, far plane distances
-	cpCam1.np = 0.1f;
+	cpCam1.np = 0.15f;
 	cpCam1.fp = 100.f;
 
 	float vFov = 3.141592654f / 4.f;
@@ -636,6 +993,28 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 	int numMKs = trackInfo.NumMarkers();
 	int numRBs = trackInfo.NumRigidBodies();
 
+	if (g_renderEvent == RENDER_THREAD_CALIBRATION) {
+		if (g_selectedMkNames.size() == 4) {
+
+			if (phantomCalib(g_curScanImg, &trackInfo)) {
+				int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
+				int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName);
+				saveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam1, cpInterCams1, arAnimationKeyFrame1);
+				gui_banishing_count = 100;
+			}
+
+			g_calribmodeToggle = false;
+		}
+		g_renderEvent = RENDER_THREAD_FREE;
+	}
+	gui_banishing_count = std::max(--gui_banishing_count, (int)0);
+	if (gui_banishing_count == 1) {
+		g_testMKs.clear();
+		int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+		if (aidTestGroup != 0)
+			vzm::RemoveSceneItem(aidTestGroup);
+	}
+
 	// DOJO : 최초 한번만 리소스 오브젝트 생성 (static 으로 지정된 리소스 오브젝트 ID = 0 일 때, 생성) 
 	// 이를 actor 로 생성하고 scene tree 에 배치
 	{
@@ -645,40 +1024,38 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 		int sidScene = vzmutils::GetSceneItemIdByName(g_sceneName);
 
-		{
-			// tracking camera (총 세개) 를 그리는 actors
-			static int aidGroupCams = 0;
-			if (aidGroupCams == 0) {
-				vzm::ActorParameters apGroupCams;
-				vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
-				vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
+		// tracking camera (총 세개) 를 그리는 actors
+		static int aidGroupCams = 0;
+		if (aidGroupCams == 0) {
+			vzm::ActorParameters apGroupCams;
+			vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
+			vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
 
-				static int oidCamModels[3] = { 0, 0, 0 };
-				for (int i = 0; i < 3; i++) {
-					fmat4x4 matCam2WS;
-					optitrk::GetCameraLocation(i, __FP matCam2WS);
-					int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
-					Cam_Gen(matCam2WS, "CAM" + to_string(i), oidCamTris, oidCamLines, oidCamLabel);
+			static int oidCamModels[3] = { 0, 0, 0 };
+			for (int i = 0; i < 3; i++) {
+				fmat4x4 matCam2WS;
+				optitrk::GetCameraLocation(i, __FP matCam2WS);
+				int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
+				Cam_Gen(matCam2WS, "CAM" + to_string(i), oidCamTris, oidCamLines, oidCamLabel);
 
-					vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
-					apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
-					apCamTris.color[3] = 0.5f;
-					apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
-					*(fvec4*)apCamLines.phong_coeffs = fvec4(0, 1, 0, 0);
-					apCamLines.line_thickness = 2;
-					apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
-					*(fvec4*)apCamLabel.phong_coeffs = fvec4(0, 1, 0, 0);
-					int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
-					vzm::NewActor(apCamTris, "Cam" + to_string(i) + " Tris", aidCamTris);
-					vzm::NewActor(apCamLines, "Cam" + to_string(i) + " Lines", aidCamLines);
-					vzm::NewActor(apCamLabel, "Cam" + to_string(i) + " Label", aidCamLabel);
-					vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
-					vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
-					vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
-				}
+				vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
+				apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
+				apCamTris.color[3] = 0.5f;
+				apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
+				*(fvec4*)apCamLines.phong_coeffs = fvec4(0, 1, 0, 0);
+				apCamLines.line_thickness = 2;
+				apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
+				*(fvec4*)apCamLabel.phong_coeffs = fvec4(0, 1, 0, 0);
+				int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
+				vzm::NewActor(apCamTris, "Cam" + to_string(i) + " Tris", aidCamTris);
+				vzm::NewActor(apCamLines, "Cam" + to_string(i) + " Lines", aidCamLines);
+				vzm::NewActor(apCamLabel, "Cam" + to_string(i) + " Label", aidCamLabel);
+				vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
+				vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
+				vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
 			}
-			//
 		}
+		//
 
 		static int oidAxis = 0;
 		static int oidMarker = 0;
@@ -699,7 +1076,13 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 			glm::fvec3 posS(0, 0, 0.25f);
 			glm::fvec3 posE(0, 0, 0);
-			vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
+			//vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
+			glm::fvec3 pp[2] = { posE , posS };
+			float rr[2] = { 0.001, 0.001 };
+			//vzm::GenerateCylindersObject((float*)pp, __FP posE, 0.0025f, 0.0025f, oidProbe);
+			vzm::GenerateCylindersObject((float*)pp, (float*)rr, NULL, 1, oidProbe);
+			//glm::fvec4 pos(0, 0, 0, 0.001f);
+			//vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidProbe);
 		}
 		//if (oidLine == 0) {
 		//	glm::fvec3 linePos[2] = { glm::fvec3(0, 0, 0), glm::fvec3(0, 0, 1) };
@@ -711,13 +1094,32 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 		// rigid body 에 등록된 마커도 같이 등록
 		for (int i = 0; i < numRBs; i++) {
 			std::string rbName;
-			float rb_error = 0; 
+			float rb_error = 0;
+			std::bitset<128> rb_cid = 0;
 			map<string, map<track_info::MKINFO, std::any>> rbmkSet;
+			
+			static std::map<std::string, std::bitset<128>> actorTrackObjMapper;
+
 			// 여기에서 index 는 optitrack lib 에서 사용하는 index 와 다르다! track_info 구조체에서 사용하는 index 임!
-			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet)) {
-				if (rb_error > 0.01) cout << "\n" <<"problematic error!! " << rbName << " : " << rb_error << endl;
+			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet, &rb_cid)) {
 
 				int aidRb = vzmutils::GetSceneItemIdByName(rbName);
+				if (aidRb != 0) {
+					auto it = actorTrackObjMapper.find(rbName);
+					if (it == actorTrackObjMapper.end()) {
+						vzm::RemoveSceneItem(aidRb);
+						aidRb = 0;
+					}
+					else {
+						if (it->second != rb_cid) {
+							vzm::RemoveSceneItem(aidRb);
+							aidRb = 0;
+						}
+					}
+
+					actorTrackObjMapper[rbName] = rb_cid;
+				}
+
 				if (aidRb == 0) {
 					vzm::ActorParameters apRb;
 					if (rbName == "probe") {
@@ -749,7 +1151,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 						pinfo[1] = glm::fvec3(-1, 0, 0);
 						pinfo[2] = glm::fvec3(0, -1, 0);
 						int oidLabelText = 0;
-						vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.07, true, false, oidLabelText);
+						vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.035, true, false, oidLabelText);
 						vzm::ActorParameters apLabelText;
 						apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
 						*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
@@ -759,8 +1161,10 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 					}
 
 					// rigid body 의 markers 들을 최초 할당
+					// 개수가 달라질 수 있다...  방법1. rbuid (마커/RB 용 따로 작업 확인) 확인, 방법2. mk 개수 체크 
 					for (auto& rbmk : rbmkSet) {
 						map<track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
+
 						string rbmk_name = std::any_cast<std::string>(rbmk_v[track_info::MKINFO::MK_NAME]);
 						int aidMarker = vzmutils::GetSceneItemIdByName(rbmk_name);
 						if (aidMarker == 0) {
@@ -799,6 +1203,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 		if (aidTestGroup == 0) {
 			vzm::ActorParameters apGroup;
 			vzm::NewActor(apGroup, "testMK Group", aidTestGroup);
+			vzm::AppendSceneItemToSceneTree(aidTestGroup, sidScene);
 		}
 		for (int i = 0; i < (int)g_testMKs.size(); i++) {
 			std::string testMkName = "testMk-" + std::to_string(i);
@@ -819,7 +1224,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 		std::string rbName;
 		glm::fmat4x4 matLS2WS;
 		std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
-		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, &rbmkSet)) {
+		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, &rbmkSet, NULL)) {
 			
 			int aidRb = vzmutils::GetSceneItemIdByName(rbName);
 			vzm::ActorParameters apRb;
@@ -855,29 +1260,27 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 
 				const float tipMarkerRadius = (float)(0.019 * 0.5);
 				int numToolPoints = (int)g_toolLocalPoints.size();
-				fvec3 posCenter = fvec3(0, 0, 0);
-				fvec3 posTipMk = g_toolLocalPoints[numToolPoints - 1];
+				fvec3 posCenterLS = fvec3(0, 0, 0);
+				fvec3 posTipMkLS = g_toolLocalPoints[numToolPoints - 1];
 				for (int i = 0; i < numToolPoints - 1; i++) {
-					posCenter += g_toolLocalPoints[i];
+					posCenterLS += g_toolLocalPoints[i];
 				}
-				posCenter /= (float)(numToolPoints - 1);
+				posCenterLS /= (float)(numToolPoints - 1);
 
 				// compute normal
-				fvec3 nrl = ComputeNormalVector(g_toolLocalPoints);
+				fvec3 nrlLS = ComputeNormalVector(g_toolLocalPoints); // LS
 
 				// correct the normal direction using cam view
 				int cidCam1 = vzmutils::GetSceneItemIdByName(g_camName); // Cam1
 				vzm::CameraParameters cam1Param;
 				vzm::GetCameraParams(cidCam1, cam1Param);
 				fvec3 camViewLS = vzmutils::transformVec(*(fvec3*)cam1Param.view, matWS2LS);
-				if (dot(nrl, camViewLS) > 0) nrl *= -1.f;
+				if (dot(nrlLS, camViewLS) > 0) nrlLS *= -1.f;
 
 				// compute line point of the tool
-				fvec3 posLine = posCenter - nrl * 0.07f;
-				fvec3 posLineLS = vzmutils::transformPos(posLine, matWS2LS);
+				fvec3 posLineLS = posCenterLS - nrlLS * 0.07f;
 
 				// compute the direction of a tip (using inverse of the cam up)
-				fvec3 posTipMkLS = vzmutils::transformPos(posTipMk, matWS2LS);
 				fvec3 camUpLS = vzmutils::transformVec(*(fvec3*)cam1Param.up, matWS2LS);
 				fvec3 dirToolLS = normalize(posTipMkLS - posLineLS);
 				
@@ -888,6 +1291,15 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				if (vzm::GetResObjType(oidToolLine) == vzm::ResObjType::UNDEFINED)
 					vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
 
+
+				//{
+				//	// test //
+				//g_testMKs[0] = vzmutils::transformPos(posCenterLS, matLS2WS);
+				//g_testMKs[1] = vzmutils::transformPos(posLineLS, matLS2WS);
+				//g_testMKs[2] = vzmutils::transformPos(posTipLS, matLS2WS);
+				//}
+
+
 				int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
 				int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
 				assert(aidToolBody != 0 && aidToolTip != 0);
@@ -896,16 +1308,16 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				vzm::GetActorParams(aidToolBody, apToolBody);
 				apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
 				apToolBody.line_thickness = 3;
-				*(fvec4*)apToolBody.color = fvec4(0, 0, 1, 1);
+				*(fvec4*)apToolBody.color = fvec4(1, 1, 1, 1);
 				vzm::SetActorParams(aidToolBody, apToolBody);
 
 				// local transform to the tip sphere
 				vzm::GetActorParams(aidToolTip, apToolTip);
-				*(fvec4*)apToolTip.color = fvec4(1, 0, 0, 1);
-				glm::fmat4x4 matLS2WS = glm::translate(posTipLS);
+				*(fvec4*)apToolTip.color = fvec4(1, 1, 0, 1);
+				glm::fmat4x4 matLS = glm::translate(posTipLS);
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
-				matLS2WS = matLS2WS * matScale;
-				apToolTip.SetLocalTransform(__FP matLS2WS);
+				matLS = matLS * matScale;
+				apToolTip.SetLocalTransform(__FP matLS);
 				vzm::SetActorParams(aidToolTip, apToolTip);
 			}
 		}
@@ -919,7 +1331,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
 
 			glm::fmat4x4 matLS2WS = glm::translate(pos);
-			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
+			glm::fmat4x4 matScale = glm::scale(glm::fvec3(g_calribmodeToggle? 0.01f : 0.005f)); // set 1 cm to the marker diameter
 			matLS2WS = matLS2WS * matScale;
 			int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
 			vzm::ActorParameters apMarker;
@@ -946,7 +1358,7 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 			int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
 			if (aidMarkerTest != 0) {
 				glm::fmat4x4 matLS2WS = glm::translate(g_testMKs[i]);
-				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.003f)); // set 1 cm to the marker diameter
 				matLS2WS = matLS2WS * matScale;
 
 				vzm::ActorParameters apMarker;
@@ -956,7 +1368,10 @@ void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 				if (test_count == 7) test_count++;
 				else if (test_count == 57) test_count++;
 
-				*(glm::fvec4*)apMarker.color = glm::fvec4((test_count % 8) / 8.f, ((test_count / 8.f) + 1.f) / 8.f, 0, 1.f); // rgba
+				if (g_testMKs.size() > 50)
+					*(glm::fvec4*)apMarker.color = glm::fvec4((test_count % 8) / 8.f, ((test_count / 8.f) + 1.f) / 8.f, 0, 1.f); // rgba
+				else
+					*(glm::fvec4*)apMarker.color = glm::fvec4(1, 0, 1, 1);
 
 				test_count++;
 
@@ -1031,11 +1446,6 @@ void Render() {
 	}
 }
 
-// DOJO: asynchronous (read write modify) queue of tracking info.
-// tracking thread 에서 queue 에 등록 (최신 정보 insert) 및 삭제 (오래된 element push out)
-// timer thread (rendering thread) 에서 queue 의 정보를 pop out (삭제) 하여 사용 
-navihelpers::concurrent_queue<navihelpers::track_info>* g_track_que = NULL;
-
 // DOJO: windows SDK 에서 호출되는 SetTimer 의 callback 함수
 // 여기에서 UpdateTrackInfo2Scene() 과 Render() 이 호출된다.
 // rendering thread 의 process 라고 생각해도 됨
@@ -1068,6 +1478,16 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 		textItem.posScreenX = 0;
 		textItem.posScreenY = cpCam1.h - 40;
 		cpCam1.text_items.SetParam("FRAME", textItem);
+
+		textItem.textStr = g_downloadCompleted > 0 ? "Download Completed" : "";
+		textItem.fontSize = 20.f + g_downloadCompleted / 10.f;
+		textItem.iColor = 0xFF00FF;
+		textItem.posScreenX = 300;
+		textItem.posScreenY = cpCam1.h - 40;
+		cpCam1.text_items.SetParam("DOWNLOADED", textItem);
+
+		if (g_downloadCompleted > 0) g_downloadCompleted--;
+
 		vzm::SetCameraParams(cidCam1, cpCam1);
 	}
 
@@ -1117,14 +1537,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	folder_data = getdatapath();
 	folder_trackingInfo = getdatapath() + "Tracking 2023-08-05/";
 
-	{
-		cv::Mat __curScanImg = cv::imread(folder_trackingInfo + "test0.png");
+	//{
+		cv::Mat __curScanImg = cv::imread(folder_trackingInfo + "test2.png");
+		cv::flip(__curScanImg, __curScanImg, 1);
 		std::vector<cv::Point2f> points2d;
 		mystudents::Get2DPostionsFromLegoPhantom(__curScanImg, points2d);
 		int gg = 0;
-	}
-
-
+	//}
 
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
@@ -1137,7 +1556,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     bool optitrkMode = optitrk::InitOptiTrackLib();
 
-	optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
+	std::string profileFileName = folder_data + "Motive Profile - 2023-08-08.motive";
+	optitrk::LoadProfileAndCalibInfo(profileFileName, "");
+	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
 	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
 
     // 전역 문자열을 초기화합니다.
@@ -1181,6 +1602,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				fquat qvec;
 				fvec3 tvec;
 				if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, &rbCid, &rbMSE, &posMKs, NULL, &mkQualities, &rbName, (float*)&qvec, (float*)&tvec)) {
+
+					if (rbMSE > 0.01) cout << "\n" << "problematic error!! " << rbName << " : " << rbMSE << endl;
+					
 					int numRbMks = (int)posMKs.size() / 3;
 					vector<fvec3> mkPts(numRbMks);
 					memcpy(&mkPts[0], &posMKs[0], sizeof(fvec3) * numRbMks);
@@ -1192,12 +1616,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 						//MK_QUALITY = 3 // float // only for RB_MKSET
 						string mkName = rbName + ":Marker" + to_string(j + 1);
 						auto& pt = rbmkSet[mkName];
-						pt[track_info::MKINFO::CID] = rbCid;
+						pt[track_info::MKINFO::MK_CID] = 0;
 						pt[track_info::MKINFO::POSITION] = mkPts[j];
 						pt[track_info::MKINFO::MK_NAME] = mkName;
 						pt[track_info::MKINFO::MK_QUALITY] = mkQualities[j];
+
+
+						float mk_qual = mkQualities[j];
+						//if (mk_qual < 0.9) cout << "\n" << "rb(" << j << ") marker problematic error!!  : " << mk_qual << endl;
 					}
-					trk_info.AddRigidBody(rbName, matLS2WS, qvec, tvec, rbMSE, rbmkSet);
+					trk_info.AddRigidBody(rbName, rbCid, matLS2WS, qvec, tvec, rbMSE, rbmkSet);
+
 				}
 			}
 			vector<float> mkPts;
@@ -1238,37 +1667,45 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			// because the critical section APIs are not successfully applied, naive path is added to avoid the read/write/modify hazard
 			// e.g., this tracking thread is trying to access the optitrack tracking resources while the main thread (event) is modifying the optitrack tracking resources
 			static std::time_t timeBegin;
-			if (g_optiMode != OPTTRK_THREAD_FREE) {
+			if (g_optiEvent != OPTTRK_THREAD_FREE) {
 				std::vector<glm::fvec3> selectedMks;
-				GetWsMarkersFromSelectedMarkerNames(g_selectedMkNames, selectedMks);
+				GetWsMarkersFromSelectedMarkerNames(g_selectedMkNames, selectedMks); // WS
 
 				// if you want to use switch with g_optiMode, make sure thread-safe of g_optiMode
-				if (g_optiMode == OPTTRK_THREAD_C_ARM_REGISTER) {
+				if (g_optiEvent == OPTTRK_THREAD_C_ARM_REGISTER) {
 					optitrk::SetRigidBody("c-arm", g_selectedMkNames.size(), (float*)&selectedMks[0]);
 					UpdateRigidBodiesInThread();
-					g_optiMode = OPTTRK_THREAD_FREE;
+					optitrk::StoreProfile(profileFileName);
+					g_optiEvent = OPTTRK_THREAD_FREE;
 				}
-				else if (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) {
-					if (std::time(NULL) - timeBegin > 5) {
+				else if (g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) {
+					if (std::time(NULL) - timeBegin > 0) {
 						cout << "\nregister tool success!" << endl;
 						int numSelectedMKs = (int)g_selectedMkNames.size();
 						optitrk::SetRigidBody("tool", numSelectedMKs - 1, (float*)&selectedMks[0]);
 
-						glm::fvec3 mkPivotPos = glm::fvec3(0, 0, 0);
-						for (int i = 0; i < numSelectedMKs - 1; i++) {
-							mkPivotPos += selectedMks[i];
-						}
+						optitrk::UpdateFrame();
+						glm::fmat4x4 rbLS2WS;
+						int rbIdx = -1;
+						std::vector<float> buf_rb_mks;
+						//std::vector<float> ws_mks;
+						optitrk::GetRigidBodyLocationByName("tool", __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks);
+						std::vector<glm::fvec3> pos_rb_mks(buf_rb_mks.size() / 3);
+						memcpy(&pos_rb_mks[0], &buf_rb_mks[0], sizeof(float) * buf_rb_mks.size());
 
-						g_toolLocalPoints = selectedMks;
-						mkPivotPos /= (float)numSelectedMKs;
-						for (int i = 0; i < numSelectedMKs; i++) {
-							g_toolLocalPoints[i] -= mkPivotPos;
+						glm::fmat4x4 rbWS2LS = glm::inverse(rbLS2WS);
+
+						g_toolLocalPoints.clear();
+						for (int i = 0; i < selectedMks.size() - 1; i++) {
+							g_toolLocalPoints.push_back(vzmutils::transformPos(pos_rb_mks[i], rbWS2LS));
 						}
+						//g_toolLocalPoints = pos_rb_mks;
+						g_toolLocalPoints.push_back(vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS));
 
 						// use cam direction...
-
 						UpdateRigidBodiesInThread();
-						g_optiMode = OPTTRK_THREAD_FREE;
+						optitrk::StoreProfile(profileFileName);
+						g_optiEvent = OPTTRK_THREAD_FREE;
 					}
 				}
 			}
@@ -1355,7 +1792,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 		while (network_alive) {
 
-			while (true && !download_completed) {
+			while (true && g_downloadCompleted == 0) {
 				/* timeout 시간 재설정 */
 				timeout.tv_sec = 1;
 				timeout.tv_usec = 0;
@@ -1422,8 +1859,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 						fflush(stdout);
 					}
 					if (readBytes > 0) {
-						download_completed = true;
+						g_downloadCompleted = 100;
 						memcpy(g_curScanImg.ptr(), &bufferTmp[0], file_size);
+
+						g_renderEvent = RENDER_THREAD_CALIBRATION;
+						while (g_renderEvent == RENDER_THREAD_CALIBRATION) Sleep(5);
+						
+						g_downloadCompleted = 99;
 						//cv::imshow("test", g_curScanImg);
 						//cv::waitKey(1);
 					}
@@ -1478,8 +1920,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
     return (int) msg.wParam;
 }
 
-
-
 //
 //  함수: MyRegisterClass()
 //
@@ -1514,8 +1954,8 @@ ATOM MyRegisterClass(HINSTANCE hInstance)
 //   주석:
 //
 //        이 함수를 통해 인스턴스 핸들을 전역 변수에 저장하고
-//        주 프로그램 창을 만든 다음 표시합니다.
 //
+//        주 프로그램 창을 만든 다음 표시합니다.
 BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // 인스턴스 핸들을 전역 변수에 저장합니다.
@@ -1549,201 +1989,6 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
    return TRUE;
 }
-
-// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
-// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
-// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
-void MoveCameraToCArmView(const int carmIdx, const int cidCam,
-	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) {
-
-	vzm::CameraParameters cpCam;
-	if (!vzm::GetCameraParams(cidCam, cpCam))
-		return;
-
-	cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-	cv::Mat cameraMatrix;
-	fs["K"] >> cameraMatrix;
-	fs.release();
-
-	int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + std::to_string(carmIdx));
-	if (aidCArmPlane == 0)
-		return;
-
-	vzm::ActorParameters apCArmPlane;
-	vzm::GetActorParams(aidCArmPlane, apCArmPlane);
-	glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
-	glm::ivec2 imageWH = apCArmPlane.script_params.GetParam("imageWH", glm::ivec2(0));
-
-	vzm::CameraParameters cpNewCam = cpCam;
-
-	glm::fvec3 posPrev = *(glm::fvec3*)cpCam.pos;
-	glm::fvec3 viewPrev = *(glm::fvec3*)cpCam.view;
-	glm::fvec3 upPrev = *(glm::fvec3*)cpCam.up;
-
-	UINT widthWindow = cpCam.w;
-	UINT heightWindow = cpCam.h;
-
-	const float intrinsicRatioX = (float)imageWH.x / widthWindow;
-	const float intrinsicRatioY = (float)imageWH.y / heightWindow;
-
-	cpNewCam.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
-	glm::fvec3 pos(0, 0, 0);
-	glm::fvec3 view(0, 0, 1);
-	glm::fvec3 up(0, -1, 0);
-	pos = *(glm::fvec3*)cpNewCam.pos = vzmutils::transformPos(pos, matCA2WS);
-	view = *(glm::fvec3*)cpNewCam.view = vzmutils::transformVec(view, matCA2WS);
-	up = *(glm::fvec3*)cpNewCam.up = vzmutils::transformVec(up, matCA2WS);
-	cpNewCam.fx = cameraMatrix.at<double>(0, 0) / intrinsicRatioX;
-	cpNewCam.fy = cameraMatrix.at<double>(1, 1) / intrinsicRatioY;
-	cpNewCam.sc = cameraMatrix.at<double>(0, 1);
-	cpNewCam.cx = cameraMatrix.at<double>(0, 2) / intrinsicRatioX;
-	cpNewCam.cy = cameraMatrix.at<double>(1, 2) / intrinsicRatioY;
-	cpNewCam.np = 0.2;
-
-	glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
-	//glm::fvec3 _o(0, 0, 0);
-	//glm::fmat4x4 m1 = glm::lookAtRH(_o, viewPrev, upPrev);
-	//glm::fmat4x4 m2 = glm::toMat4(q1);
-	//glm::fmat4x4 m3 = glm::inverse(m2);
-	glm::fquat q2 = glm::quatLookAtRH(glm::normalize(view), up);
-
-	float range = std::max((float)(numAnimationCount - 1), 1.f);
-	for (int i = 0; i < numAnimationCount; i++) {
-		float t = (float)i / range; // 0 to 1
-		glm::fquat q = glm::slerp(q1, q2, t);
-		glm::fmat4x4 invMatLookAt = glm::toMat4(q);
-		//glm::fmat4x4 invMat = glm::inverse(matLookAt);
-		glm::fvec3 _view(0, 0, -1);
-		glm::fvec3 _up(0, 1, 0);
-		_view = vzmutils::transformVec(_view, invMatLookAt);
-		_up = vzmutils::transformVec(_up, invMatLookAt);
-
-		vzm::CameraParameters& _cpCam = cpInterCams[i];
-		_cpCam = cpNewCam;
-		*(glm::fvec3*)_cpCam.pos = posPrev + (pos - posPrev) * t;
-		*(glm::fvec3*)_cpCam.view = _view;
-		*(glm::fvec3*)_cpCam.up = _up;
-
-#define INTERPOLCAM(PARAM) _cpCam.PARAM = cpCam.PARAM + (cpNewCam.PARAM - cpCam.PARAM) * t;
-
-		//INTERPOLCAM(w);
-		//INTERPOLCAM(h);
-		INTERPOLCAM(fx);
-		INTERPOLCAM(fy);
-		INTERPOLCAM(sc);
-		INTERPOLCAM(cx);
-		INTERPOLCAM(cy);
-	}
-	arAnimationKeyFrame = 0;
-}
-
-// DOJO : 스캔 시 정보를 저장할 파일
-// 현 버전에서는 carm_intrinsics.txt (presetting) 에 저장된 intrinsic parameter 와
-// rb2carm1.txt (presetting + 매 스캔 시 저장됨) 에 저장된 c-arm source pose (extrinsic parameter) 를 로드하여 이를 파일로 저장
-// TODO : 추후 해당 부분을 file to file 이 아닌, memory to memory 로 관리해야 함
-// TODO : 매 스캔마다 camera intrinsics 와 extrinsics 를 계산하도록 수정해야 함
-auto StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
-
-	cv::FileStorage __fs(folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
-
-	cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-	cv::Mat matK;
-	fs["K"] >> matK;
-	__fs << "K" << matK;
-	cv::Mat distCoeffs;
-	fs["DistCoeffs"] >> distCoeffs;
-	__fs << "DistCoeffs" << distCoeffs;
-
-	fs.open(folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
-	cv::Mat rvec, tvec;
-	fs["rvec"] >> rvec;
-	fs["tvec"] >> tvec;
-	__fs << "rvec" << rvec;
-	__fs << "tvec" << tvec;
-	fs.release();
-
-	cv::Mat ocvRb(4, 4, CV_32FC1);
-	memcpy(ocvRb.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
-	__fs << "rb2wsMat" << ocvRb;
-	__fs << "imgFile" << imgFileName;
-	__fs.release();
-};
-
-// DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
-// AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
-auto SaveAndChangeViewState = [](const int keyParam, const int sidScene, const int cidCam,
-	std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame) {
-	using namespace std;
-	static char LOADKEYS[10] = { '1' , '2', '3', '4', '5', '6', '7', '8', '9', '0' };
-	for (int i = 0; i < 10; i++) {
-		if (keyParam == LOADKEYS[i]) {
-
-			if (download_completed) {
-				glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
-				float rotAngleAvr = 0;
-				glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
-				int captureCount = 0;
-				const int maxSamples = 30;
-				const float normalizedNum = 1.f / (float)maxSamples;
-				while (captureCount < maxSamples) {
-					navihelpers::track_info trackInfo;
-					g_track_que->wait_and_pop(trackInfo);
-					glm::fquat q;
-					glm::fvec3 t;
-					if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
-						float quatMagnitude = glm::length(q);
-						q /= quatMagnitude;
-
-						float rotationAngle = 2.0f * acos(q.w);
-
-						float sinAngle = sin(rotationAngle / 2.0f);
-						glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
-
-						rotAngleAvr += rotationAngle * normalizedNum;
-						rotAxisAvr += rotationAxis * normalizedNum;
-
-						trAvr += t * normalizedNum;
-						captureCount++;
-					}
-					//std::cout << "\n" <<"Capturing... " << captureCount << std::endl;
-					printf("\rCapturing... %d", captureCount);
-					fflush(stdout);
-				}
-				std::cout << "\n" <<"Capturing... DONE!" << std::endl;
-				rotAxisAvr = glm::normalize(rotAxisAvr);
-				glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
-				glm::fmat4x4 mat_t = glm::translate(trAvr);
-				glm::fmat4x4 matRB2WS = mat_t * mat_r;
-
-				cv::Mat downloadImg;
-				cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
-				string downloadImgFileName = folder_trackingInfo + "test" + to_string(i) + ".png";
-				cv::imwrite(downloadImgFileName, downloadImg);
-				StoreParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
-				download_completed = false;
-				std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
-
-				auto it = g_mapAidGroupCArmCam.find(EXTRINSIC_PHANTOM_IMG_INDEX);
-				if (it != g_mapAidGroupCArmCam.end()) 
-					vzm::RemoveSceneItem(it->second, true);
-			}
-			else { // !download_completed
-
-			}
-
-			// load case
-			auto it = g_mapAidGroupCArmCam.find(i + 1);
-			if (it != g_mapAidGroupCArmCam.end())
-				vzm::RemoveSceneItem(it->second, true);
-			int aidGroup = RegisterCArmImage(sidScene, folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
-			if (aidGroup == -1)
-				break;
-			g_mapAidGroupCArmCam[i + 1] = aidGroup;
-			MoveCameraToCArmView(i, cidCam, cpInterCams, arAnimationKeyFrame);
-			break;
-		}
-	}
-};
 
 //
 //  함수: WndProc(HWND, UINT, WPARAM, LPARAM)
@@ -1779,18 +2024,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 
 	static vzmutils::GeneralMove general_move;
-	static bool calribmodeToggle = false;
 
     switch (message)
 	{
 	case WM_KEYDOWN:
 	{
-		if (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) break;
+		if (g_optiEvent != OPTTRK_THREAD_FREE 
+			|| g_renderEvent != RENDER_THREAD_FREE
+			|| g_networkEvent != NETWORK_THREAD_FREE) break;
+
 		using namespace std;
 		switch (wParam) {
 			case char('S') :
 			{
-				if (calribmodeToggle) break;
+				if (g_calribmodeToggle) break;
 
 				cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
 				cv::Mat ocvVec3(1, 3, CV_32FC1);
@@ -1805,7 +2052,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case char('L') :
 			{
-				if (calribmodeToggle) break;
+				if (g_calribmodeToggle) break;
 
 				cv::FileStorage fs(folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 				if (fs.isOpened()) {
@@ -1821,18 +2068,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				vzm::SetCameraParams(cidCam1, cpCam1);
 				break;
 			}
+			case char('R') :
+			{
+				// recode mode.
+				break;
+			}
 			case char('C') :
 			{
-				calribmodeToggle = !calribmodeToggle;
+				g_calribmodeToggle = !g_calribmodeToggle;
 
 				vzm::TextItem textItem;
-				textItem.textStr = calribmodeToggle? "SELECTING MARKER MODE" : "";
+				textItem.textStr = g_calribmodeToggle? "SELECTING MARKER MODE" : "";
 				textItem.fontSize = 30.f;
 				textItem.iColor = 0xFFFF00;
 				textItem.posScreenX = 0;
 				textItem.posScreenY = 0;
 
-				if (!calribmodeToggle) {
+				if (!g_calribmodeToggle) {
 					g_testMKs.clear();
 					g_selectedMkNames.clear();
 					int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
@@ -1840,7 +2092,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						vzm::RemoveSceneItem(aidTestGroup);
 				}
 
-				cout << "\n" << "calibration mode " << (calribmodeToggle ? "ON" : "OFF") << endl;
+				cout << "\n" << "calibration mode " << (g_calribmodeToggle ? "ON" : "OFF") << endl;
 
 				using namespace glm;
 				fmat4x4 matCam2WS;
@@ -1852,7 +2104,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				cpCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_FOV;
 				cpCam1.fov_y = glm::pi<float>() / 2.f;
 				cpCam1.aspect_ratio = cpCam1.ip_w / cpCam1.ip_h;
-				cpCam1.np = 0.3f;
+				cpCam1.np = 0.15f;
 
 				cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
 
@@ -1861,7 +2113,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case char('U') :
 			{
-				if (!calribmodeToggle)
+				if (!g_calribmodeToggle)
 					return 0;
 				// to do
 				// update "c-arm" RB
@@ -1873,26 +2125,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				cout << "\n" << "rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
 
-				g_optiMode = OPTTRK_THREAD_C_ARM_REGISTER;
+				g_optiEvent = OPTTRK_THREAD_C_ARM_REGISTER;
 
-				while (g_optiMode == OPTTRK_THREAD_C_ARM_REGISTER) { Sleep(2); }
+				while (g_optiEvent == OPTTRK_THREAD_C_ARM_REGISTER) { Sleep(2); }
 
-				int aidRbCarm = vzmutils::GetSceneItemIdByName("c-arm");
-				vzm::RemoveSceneItem(aidRbCarm);
+				// int aidRbCarm = vzmutils::GetSceneItemIdByName("c-arm");
+				// vzm::RemoveSceneItem(aidRbCarm);
 				// 이 떄마다, "c-arm" 관련 scene item 모두 지우고, 해당 element 지우기..
+				// UpdateTrackInfo2Scene 에서 rigid boby name 의 cid 를 확인하여, 다를 경우 (새로 생성, rbmk 개수 변경, 경우) 기존 것 삭제하고 actor group 재생성
 				break;
 			}
 			case char('D') : {
-				for (int i = 0; i++; i < 9) {
+				for (int i = 0; i < 9;  i++) {
 					auto it = g_mapAidGroupCArmCam.find(i + 1);
 					if (it != g_mapAidGroupCArmCam.end())
 						vzm::RemoveSceneItem(it->second, true);
 				}
 				g_mapAidGroupCArmCam.clear();
+
+				g_testMKs.clear();
+				g_selectedMkNames.clear();
+				int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+				if (aidTestGroup != 0)
+					vzm::RemoveSceneItem(aidTestGroup);
 				break;
 			}
 			case char('T') : {
-				if (!calribmodeToggle) {
+				if (!g_calribmodeToggle) {
 					cout << "\n" << "not calibration mode!!" << endl;
 					return 0;
 				}
@@ -1902,7 +2161,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				}
 
 				// 툴 등록하기..
-				g_optiMode = OPTTRK_THREAD_TOOL_REGISTER;
+				g_optiEvent = OPTTRK_THREAD_TOOL_REGISTER;
+				while (g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) { Sleep(2); }
+				g_testMKs.clear();
+				g_testMKs.push_back(glm::fvec3(0));
+				g_testMKs.push_back(glm::fvec3(0));
+				g_testMKs.push_back(glm::fvec3(0));
 				break;
 			}
 			//case char('E') : {
@@ -1915,212 +2179,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//}
 			case char('X') :
 			{
-				if (!calribmodeToggle) {
-					cout << "\n" <<"not calibration mode!!" << endl;
+				if (!g_calribmodeToggle) {
+					cout << "\n" << "not calibration mode!!" << endl;
 					return 0;
 				}
-//#define MYDEFINE
-#ifdef MYDEFINE
-				download_completed = true;
+				//#define MYDEFINE
 				g_curScanImg = cv::imread(folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png");
+				if (g_curScanImg.empty()) {
+					cout << "\n" << "no test3 image" << endl;
+					return false;
+				}
+				g_downloadCompleted = 100;
 				cv::cvtColor(g_curScanImg, g_curScanImg, cv::COLOR_RGB2GRAY);
-#else
-				if (!download_completed) {
-					cout << "\n" <<"no download image!!" << endl;
-					return 0;
-				}
-#endif
-				cv::Mat source2detImg;
-				if (FLIP_SCANIMAGE)
-					cv::flip(g_curScanImg, source2detImg, 1);
-				else
-					source2detImg = g_curScanImg;
+				cout << "\n" << "calibration with the previous test2 image" << endl;
 
-				if (g_selectedMkNames.size() != 4) {
-					cout << "\n4 points are needed!!" << endl;
-					return 0;
-				}
-
-				// now g_curScanImg is valid
-				// test3.png is for extrinsic calibration image
-				cv::Mat downloadImg;
-				cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
-				string downloadImgFileName = folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png";
-				cv::imwrite(downloadImgFileName, downloadImg);
-				// now tracking info of c-arm scan is valid.
-				std::cout << "\n" << "SCAN IMAGE LOAD COMPLETED!!!" << std::endl;
-
-				// 1st, get c-arm rb info.
-				glm::fmat4x4 matRB2WS, matWS2RB;
-				{
-					glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
-					float rotAngleAvr = 0;
-					glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
-					int captureCount = 0;
-					const int maxSamples = 10;
-					const float normalizedNum = 1.f / (float)maxSamples;
-					while (captureCount < maxSamples) {
-						navihelpers::track_info trackInfo;
-						g_track_que->wait_and_pop(trackInfo);
-						glm::fquat q;
-						glm::fvec3 t;
-						if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
-							float quatMagnitude = glm::length(q);
-							q /= quatMagnitude;
-
-							float rotationAngle = 2.0f * acos(q.w);
-
-							float sinAngle = sin(rotationAngle / 2.0f);
-							glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
-
-							rotAngleAvr += rotationAngle * normalizedNum;
-							rotAxisAvr += rotationAxis * normalizedNum;
-
-							trAvr += t * normalizedNum;
-							captureCount++;
-						}
-						else {
-							cout << "\n" << "failure to c-arm tracking!!" << endl;
-							return 0;
-						}
-						//std::cout << "\n" <<"Capturing... " << captureCount << std::endl;
-						printf("\rCapturing... %d", captureCount);
-						fflush(stdout);
-						Sleep(10);
-					}
-					std::cout << "\n" << "Capturing... DONE!" << std::endl;
-					rotAxisAvr = glm::normalize(rotAxisAvr);
-					glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
-					glm::fmat4x4 mat_t = glm::translate(trAvr);
-					matRB2WS = mat_t * mat_r;
-					matWS2RB = glm::inverse(matRB2WS);
-				}
-
-				// get 2d mks info from x-ray img (calculImg)
-				std::vector<cv::Point2f> points2d;
-				mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
-				if (PHANTOM_MODE == "LEGO") {
-					if (points2d.size() != 60) {
-						cout << "\n# of circles must be 60 if PHANTOM_MODE is LEGO" << endl;
-						return 0;
-					}
-				}
-				else if (PHANTOM_MODE == "FILM") {
-					if (points2d.size() != 77) {
-						cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
-						return 0;
-					}
-				}
-				else assert(0);
-
-				navihelpers::track_info trackInfo;
-				g_track_que->wait_and_pop(trackInfo);
-				std::vector<cv::Point3f> posWsMarkers(g_selectedMkNames.size());
-				for (auto it = g_selectedMkNames.begin(); it != g_selectedMkNames.end(); it++) {
-					std::map<navihelpers::track_info::MKINFO, std::any> mkInfo;
-					trackInfo.GetMarkerByName(it->first, mkInfo);
-					glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[navihelpers::track_info::MKINFO::POSITION]);
-					posWsMarkers[it->second] = *(cv::Point3f*)&pos;
-				}
-
-				if (PHANTOM_MODE == "LEGO") {
-					// check the selecting direction
-					glm::fvec3 v01 = *(glm::fvec3*)&posWsMarkers[1] - *(glm::fvec3*)&posWsMarkers[0];
-					glm::fvec3 v03 = *(glm::fvec3*)&posWsMarkers[3] - *(glm::fvec3*)&posWsMarkers[0];
-					glm::fvec3 selDir = glm::cross(v01, v03);
-					glm::fvec3 posCenterCArmRB = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
-					glm::fvec3 cal2DetDir = posCenterCArmRB - *(glm::fvec3*)&posWsMarkers[0];
-					if (glm::dot(selDir, cal2DetDir) < 0) {
-						std::cout << "\ncorrecting the selecting direction!" << std::endl;
-						// 0123 to 1032
-						std::vector<cv::Point3f> posWsMarkersTmp = posWsMarkers;
-						posWsMarkers[0] = posWsMarkersTmp[1];
-						posWsMarkers[1] = posWsMarkersTmp[0];
-						posWsMarkers[2] = posWsMarkersTmp[3];
-						posWsMarkers[3] = posWsMarkersTmp[2];
-					}
-				}
-
-				// compute the estimated marker positions on the phantom (WS)
-				std::vector<cv::Point3f> points3d;
-				mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
-				g_testMKs.clear();
-				g_testMKs.assign(points3d.size(), glm::fvec3(0));
-				memcpy(&g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
-
-				// important! the 3d points must be defined in C-Arm RB space
-				// because we want to get the transform btw C-arm cam (x-ray source) space and C-Arm RB space
-				for (int i = 0; i < points3d.size(); i++) {
-					*(glm::fvec3*)&points3d[i] = vzmutils::transformPos(*(glm::fvec3*)&points3d[i], matWS2RB);
-				}
-				
-				cv::Mat cameraMatrix, distCoeffs;
-				{
-					cv::FileStorage fs(folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-					fs["K"] >> cameraMatrix;
-					fs["DistCoeffs"] >> distCoeffs;
-					fs.release();
-				}
-
-				cv::Mat rvec, tvec;
-				cv::solvePnP(points3d, points2d, cameraMatrix, distCoeffs, rvec, tvec);
-				//std::cout << A << "\n";
-				//std::cout << rvec << "\n";
-				//std::cout << tvec << "\n";
-				// get 3D position
-				// determine ap or lateral
-				// check residual 
-				// get 3d mks info from c-arm rb
-				// solve pnp
-				// update...
-
-				// used in SaveAndChangeViewState
-				{
-					cv::FileStorage fs(folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::WRITE);
-					fs.write("rvec", rvec);
-					fs.write("tvec", tvec);
-					fs.release();
-				}
-
-				{
-					auto ComputeReprojErr = [](const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
-						float avrDiff = 0;
-						maxErr = 0;
-						int numPts = (int)pts2d.size();
-						for (int i = 0; i < (int)pts2d.size(); i++) {
-							float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
-							maxErr = std::max(maxErr, diff);
-							avrDiff += diff / (float)numPts;
-						}
-						return avrDiff;
-					};
-
-					// Reproject the 3D points onto the image plane using the camera calibration
-					std::vector<cv::Point2f> imagePointsReprojected;
-					cv::projectPoints(points3d, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
-				
-					// Compute the reprojection error
-					float maxErr = 0;
-					float reprojectionError = ComputeReprojErr(points2d, imagePointsReprojected, maxErr);
-					//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
-					cout << "\nreprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
-				}
-
-				vzm::RemoveSceneItem(1, true);
-				vzm::RemoveSceneItem(2, true);
-
-				// store the info.
-				// note rb2carm1.txt is used in StoreParams!
-				StoreParams("test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".txt", matRB2WS, downloadImgFileName);
-				std::cout << "\n" << "STORAGE COMPLETED!!!" << std::endl;
+				navihelpers::track_info trk;
+				g_track_que->wait_and_pop(trk);
+				phantomCalib(g_curScanImg, &trk);
 
 				//download_completed = false; 
-				wParam = char('3'); // to call download_completed = false;
+				saveAndChangeViewState(trk, char('2'), sidScene, cidCam1, cpInterCams1, arAnimationKeyFrame1);
+				gui_banishing_count = 100;
+				break;
+			}
+			default: {
+				navihelpers::track_info trk;
+				g_track_que->wait_and_pop(trk);
+				saveAndChangeViewState(trk, wParam, sidScene, cidCam1, cpInterCams1, arAnimationKeyFrame1);
 				break;
 			}
 		}
 
-		SaveAndChangeViewState(wParam, sidScene, cidCam1, cpInterCams1, arAnimationKeyFrame1);
 		break;
 	}
     case WM_COMMAND:
@@ -2179,7 +2268,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 	{
-		if (g_optiMode == OPTTRK_THREAD_TOOL_REGISTER) break;
+		if (g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) break;
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);
 		if (x == 0 && y == 0) break;
@@ -2187,7 +2276,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// renderer does not need to be called
 		glm::ivec2 pos_ss = glm::ivec2(x, y);
 
-		if (calribmodeToggle) {
+		if (g_calribmodeToggle && message != WM_RBUTTONDOWN) {
 			int aidPicked = 0;
 			glm::fvec3 posPick;
 			if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
@@ -2207,7 +2296,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_MOUSEMOVE:
 	{
-		if (calribmodeToggle) break;
+		if (g_calribmodeToggle && (wParam & MK_LBUTTON)) break;
 
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);
@@ -2296,7 +2385,9 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	{
 	case WM_KEYDOWN:
 	{
-		SaveAndChangeViewState(wParam, sidScene, cidCam2, cpInterCams2, arAnimationKeyFrame2);
+		navihelpers::track_info trk;
+		g_track_que->wait_and_pop(trk);
+		saveAndChangeViewState(trk, wParam, sidScene, cidCam2, cpInterCams2, arAnimationKeyFrame2);
 		break;
 	}
 	case WM_SIZE:

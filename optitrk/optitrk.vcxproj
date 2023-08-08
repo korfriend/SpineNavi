@@ -167,9 +167,6 @@
   <ItemGroup>
     <ClCompile Include="optitrk.cpp" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="postbuild.bat" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

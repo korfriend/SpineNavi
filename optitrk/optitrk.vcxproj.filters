@@ -12,7 +12,4 @@
   <ItemGroup>
     <ClInclude Include="optitrk.h" />
   </ItemGroup>
-  <ItemGroup>
-    <None Include="postbuild.bat" />
-  </ItemGroup>
 </Project>

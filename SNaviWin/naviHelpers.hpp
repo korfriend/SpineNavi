@@ -293,33 +293,51 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 	public:
 		enum MKINFO : int
 		{
-			CID = 0, // std::bitset<128>
+			MK_CID = 0, // std::bitset<128>
 			POSITION = 1, // glm::fvec3, world space
 			MK_NAME = 2, // string
-			MK_QUALITY = 3 // float // only for RB_MKSET
+			MK_QUALITY = 3, // float // only for RB_MKSET
 		};
-		std::map<string, std::any> testData;
+		std::map<string, std::any> testData; // including serialized...
 	private:
 		enum RBINFO : int
 		{
-			LS2WS = 0, // glm::fmat4x4
-			MK_MSE = 1, // float
-			RB_MKSET = 2, // map<string, map<MKINFO, any>>
-			QT_LS2WS = 3, // glm::fquat
-			TV_LS2WS = 4, // glm::fvec3
+			RB_CID = 0, // std::bitset<128>
+			LS2WS = 1, // glm::fmat4x4
+			MK_MSE = 2, // float
+			RB_MKSET = 3, // map<string, map<MKINFO, any>>
+			QT_LS2WS = 4, // glm::fquat
+			TV_LS2WS = 5, // glm::fvec3
 		};
 
 		std::map<string, map<RBINFO, std::any>> __rbinfo;
 		std::map<std::bitset<128>, map<MKINFO, std::any>, bitset_comparer<128>> __mksByCid;
 		std::map<string, std::bitset<128>> __mksByName;
+
+		void MKInfoSerialize() {
+
+		}
+		void MKInfoDeserialize() {
+
+		}
 	public:
 		track_info() { }
+
+		void Serialize(std::vector<char>& buffer) {
+			// first : __rbinfo
+			// 4 bytes : num items
+			// 
+		}
+
+		void Deserialize(const std::vector<char>& buffer) {
+
+		}
 
 		int NumRigidBodies() {
 			return (int)__rbinfo.size();
 		}
 
-		bool GetRigidBodyByIdx(const int rbIdx, string* rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet) {
+		bool GetRigidBodyByIdx(const int rbIdx, string* rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet, std::bitset<128>* cid) {
 			auto it = __rbinfo.begin();
 			std::advance(it, rbIdx);
 
@@ -334,11 +352,13 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 				*mkMSE = std::any_cast<float>(v[MK_MSE]);
 			if (rbmkSet)
 				*rbmkSet = std::any_cast<map<string, map<MKINFO, std::any>>>(v[RB_MKSET]);
+			if (cid)
+				*cid = std::any_cast<std::bitset<128>>(v[RB_CID]);
 
 			return true;
 		}
 
-		bool GetRigidBodyByName(const string& rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet) {
+		bool GetRigidBodyByName(const string& rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet, std::bitset<128>* cid) {
 			auto it = __rbinfo.find(rbName);
 			if (it == __rbinfo.end())
 				return false;
@@ -350,6 +370,8 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 				*mkMSE = std::any_cast<float>(v[MK_MSE]);
 			if (rbmkSet)
 				*rbmkSet = std::any_cast<map<string, map<MKINFO, std::any>>>(v[RB_MKSET]);
+			if (cid)
+				*cid = std::any_cast<std::bitset<128>>(v[RB_CID]);
 
 			return true;
 		}
@@ -366,15 +388,18 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 				*t = std::any_cast<glm::fvec3>(v[TV_LS2WS]);
 		}
 
-		void AddRigidBody(const string& rbName, const glm::fmat4x4& matLS2WS, const glm::fquat& qtLS2WS, const glm::fvec3& tvec, const float mkMSE,
+		void AddRigidBody(const string& rbName, const std::bitset<128>& cid,  const glm::fmat4x4& matLS2WS, const glm::fquat& qtLS2WS, const glm::fvec3& tvec, const float mkMSE,
 			const map<string, map<MKINFO, std::any>>& rbmkSet)
 		{
 			map<RBINFO, std::any>& v = __rbinfo[rbName];
+			v[RB_CID] = cid;
 			v[LS2WS] = matLS2WS;
 			v[MK_MSE] = mkMSE;
 			v[RB_MKSET] = rbmkSet;
 			v[QT_LS2WS] = qtLS2WS;
 			v[TV_LS2WS] = tvec;
+
+			//std::vector<char> _buffer(sizeof(glm::fmat4x4) + sizeof(glm::fquat) + sizeof(glm::fvec3) + sizeof(float) + sizeof(___));
 		}
 
 		bool GetMarkerByName(const string& mkName, map<MKINFO, std::any>& mk)
@@ -427,9 +452,10 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		void AddMarker(const std::bitset<128>& cid, const glm::fvec3& mkPos, const string& mkName)
 		{
 			map<MKINFO, std::any>& v = __mksByCid[cid];
-			v[CID] = cid;
+			v[MK_CID] = cid;
 			v[POSITION] = mkPos;
 			v[MK_NAME] = mkName;
+			v[MK_QUALITY] = 1.f;
 
 			__mksByName[mkName] = cid;
 		}
