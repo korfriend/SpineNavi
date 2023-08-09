@@ -151,16 +151,23 @@
   <ItemGroup>
     <ClInclude Include="CArmCalibration.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="GlobalParams.h" />
     <ClInclude Include="naviHelpers.hpp" />
+    <ClInclude Include="NetworkTask.h" />
+    <ClInclude Include="RenderingTask.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SNaviWin.h" />
     <ClInclude Include="targetver.h" />
     <ClInclude Include="tinyxml2.h" />
+    <ClInclude Include="TrackingTask.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="CArmCalibration.cpp" />
+    <ClCompile Include="NetworkTask.cpp" />
+    <ClCompile Include="RenderingTask.cpp" />
     <ClCompile Include="SNaviWin.cpp" />
     <ClCompile Include="tinyxml2.cpp" />
+    <ClCompile Include="TrackingTask.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="SNaviWin.rc" />

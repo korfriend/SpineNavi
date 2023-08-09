@@ -26,6 +26,10 @@
       <Filter>tinyXML</Filter>
     </ClInclude>
     <ClInclude Include="CArmCalibration.h" />
+    <ClInclude Include="GlobalParams.h" />
+    <ClInclude Include="TrackingTask.h" />
+    <ClInclude Include="NetworkTask.h" />
+    <ClInclude Include="RenderingTask.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="small.ico">
@@ -41,6 +45,9 @@
       <Filter>tinyXML</Filter>
     </ClCompile>
     <ClCompile Include="CArmCalibration.cpp" />
+    <ClCompile Include="TrackingTask.cpp" />
+    <ClCompile Include="NetworkTask.cpp" />
+    <ClCompile Include="RenderingTask.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="SNaviWin.rc">

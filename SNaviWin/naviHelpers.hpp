@@ -1,16 +1,5 @@
 ﻿#pragma once
 
-#include <iostream>
-#include <windows.h>
-
-#include <any>
-#include <map>
-#include <queue>
-#include <bitset>
-#include <string>
-#include <sstream>
-#include <iomanip>
-
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtc/constants.hpp>
@@ -18,14 +7,13 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/vector_angle.hpp>
 
-#include <opencv2/opencv.hpp>
+#include "VisMtvApi.h"
+#include "ApiUtility.hpp"
 
+#include "GlobalParams.h"
 
-//#include <boost/thread/mutex.hpp>
-//#include <boost/thread/thread.hpp>
-#include <mutex>
-#include <thread>
-
+#include <Eigen/Dense>
+#include <Eigen/IterativeLinearSolvers>
 
 #define __cv3__ *(glm::fvec3*)
 #define __cv4__ *(glm::fvec4*)
@@ -34,7 +22,6 @@
 
 namespace navihelpers {
 	using namespace std;
-	using namespace cv;
 
 	inline glm::fvec3 tr_pt(const glm::fmat4x4& mat, const glm::fvec3& p)
 	{
@@ -69,6 +56,7 @@ namespace navihelpers {
 		tokens.push_back(text.substr(start));
 		return tokens;
 	}
+
 	// https://stackoverflow.com/questions/9150538/how-do-i-tostring-an-enum-in-c
 #define ENUM(name, ...)\
 enum name \
@@ -78,388 +66,6 @@ __VA_ARGS__\
 std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
     std::string EtoString(const name v) { return name##Map.at(v);}
 
-	/*
-// https://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html
-	template<typename Data>
-	class concurrent_queue2 // single consumer
-	{
-	private:
-		std::queue<Data> the_queue;
-		mutable boost::mutex the_mutex;
-
-		boost::condition_variable the_condition_variable;
-		int MAX_QUEUE;
-
-	public:
-		concurrent_queue2(int cap = 10)
-		{
-			MAX_QUEUE = cap;
-		}
-
-		void wait_for_data()
-		{
-			boost::mutex::scoped_lock lock(the_mutex);
-			while (the_queue.empty())
-			{
-				the_condition_variable.wait(lock);
-			}
-		}
-
-		void wait_and_pop(Data& popped_value)
-		{
-			boost::mutex::scoped_lock lock(the_mutex);
-			while (the_queue.empty())
-			{
-				the_condition_variable.wait(lock);
-			}
-
-			popped_value = the_queue.front();
-			the_queue.pop();
-		}
-
-		//void postphone_back_and_clear(Data& popped_value)
-		//{
-		//	boost::mutex::scoped_lock lock(the_mutex);
-		//	while (the_queue.size() < MAX_QUEUE)
-		//	{
-		//		the_condition_variable.wait(lock);
-		//	}
-		//
-		//	popped_value = the_queue.back();
-		//	std::queue<Data> empty_queue;
-		//	std::swap(the_queue, empty_queue);
-		//}
-
-		void push(const Data& data) //enque
-		{
-			//boost::mutex::scoped_lock lock(the_mutex);
-			//the_queue.push(data);
-
-			boost::mutex::scoped_lock lock(the_mutex);
-			bool const was_empty = the_queue.empty();
-			the_queue.push(data);
-			if (the_queue.size() > MAX_QUEUE)
-			{
-				the_queue.pop();
-			}
-
-			lock.unlock(); // unlock the mutex
-
-			if (was_empty)
-			{
-				the_condition_variable.notify_one();
-			}
-		}
-
-		bool empty() const
-		{
-			boost::mutex::scoped_lock lock(the_mutex);
-			return the_queue.empty();
-		}
-
-		Data& front()
-		{
-			boost::mutex::scoped_lock lock(the_mutex);
-			return the_queue.front();
-		}
-
-		Data const& front() const
-		{
-			boost::mutex::scoped_lock lock(the_mutex);
-			return the_queue.front();
-		}
-
-		void pop() // deque
-		{
-			boost::mutex::scoped_lock lock(the_mutex);
-			the_queue.pop();
-		}
-	};
-	/**/
-// https://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html
-	template<typename Data>
-	class concurrent_queue // single consumer
-	{
-	private:
-		std::queue<Data> the_queue;
-		mutable std::mutex the_mutex;
-
-		std::condition_variable the_condition_variable;
-		int MAX_QUEUE;
-
-	public:
-		concurrent_queue(int cap = 10)
-		{
-			MAX_QUEUE = cap;
-		}
-
-		void wait_for_data()
-		{
-			//std::lock_guard<std::mutex> lock(the_mutex);
-			std::unique_lock<std::mutex> lock(the_mutex);
-			while (the_queue.empty())
-			{
-				the_condition_variable.wait(lock);
-			}
-		}
-
-		void wait_and_pop(Data& popped_value)
-		{
-			//std::lock_guard<std::mutex> lock(the_mutex);
-			std::unique_lock<std::mutex> lock(the_mutex);
-			while (the_queue.empty())
-			{
-				the_condition_variable.wait(lock);
-			}
-
-			popped_value = the_queue.front();
-			the_queue.pop();
-		}
-
-		//void postphone_back_and_clear(Data& popped_value)
-		//{
-		//	boost::mutex::scoped_lock lock(the_mutex);
-		//	while (the_queue.size() < MAX_QUEUE)
-		//	{
-		//		the_condition_variable.wait(lock);
-		//	}
-		//
-		//	popped_value = the_queue.back();
-		//	std::queue<Data> empty_queue;
-		//	std::swap(the_queue, empty_queue);
-		//}
-
-		void push(const Data& data) //enque
-		{
-			//boost::mutex::scoped_lock lock(the_mutex);
-			//the_queue.push(data);
-
-			std::unique_lock<std::mutex> lock(the_mutex);
-			bool const was_empty = the_queue.empty();
-			the_queue.push(data);
-			if (the_queue.size() > MAX_QUEUE)
-			{
-				the_queue.pop();
-			}
-
-			lock.unlock(); // unlock the mutex
-
-			if (was_empty)
-			{
-				the_condition_variable.notify_one();
-			}
-		}
-
-		bool empty() const
-		{
-			//std::lock_guard<std::mutex> lock(the_mutex);
-			std::unique_lock<std::mutex> lock(the_mutex);
-			return the_queue.empty();
-		}
-
-		Data& front()
-		{
-			//std::lock_guard<std::mutex> lock(the_mutex);
-			std::unique_lock<std::mutex> lock(the_mutex);
-			return the_queue.front();
-		}
-
-		Data const& front() const
-		{
-			//std::lock_guard<std::mutex> lock(the_mutex);
-			std::unique_lock<std::mutex> lock(the_mutex);
-			return the_queue.front();
-		}
-
-		void pop() // deque
-		{
-			//std::lock_guard<std::mutex> lock(the_mutex);
-			std::unique_lock<std::mutex> lock(the_mutex);
-			the_queue.pop();
-		}
-	};
-
-	template<size_t sz> struct bitset_comparer {
-		bool operator() (const bitset<sz>& b1, const bitset<sz>& b2) const {
-			string b1ll = b1.to_string();
-			string b2ll = b2.to_string();
-			return b1ll < b2ll;
-		}
-	};
-
-	struct track_info
-	{
-		// key : rigidbody name
-	public:
-		enum MKINFO : int
-		{
-			MK_CID = 0, // std::bitset<128>
-			POSITION = 1, // glm::fvec3, world space
-			MK_NAME = 2, // string
-			MK_QUALITY = 3, // float // only for RB_MKSET
-		};
-		std::map<string, std::any> testData; // including serialized...
-	private:
-		enum RBINFO : int
-		{
-			RB_CID = 0, // std::bitset<128>
-			LS2WS = 1, // glm::fmat4x4
-			MK_MSE = 2, // float
-			RB_MKSET = 3, // map<string, map<MKINFO, any>>
-			QT_LS2WS = 4, // glm::fquat
-			TV_LS2WS = 5, // glm::fvec3
-		};
-
-		std::map<string, map<RBINFO, std::any>> __rbinfo;
-		std::map<std::bitset<128>, map<MKINFO, std::any>, bitset_comparer<128>> __mksByCid;
-		std::map<string, std::bitset<128>> __mksByName;
-
-		void MKInfoSerialize() {
-
-		}
-		void MKInfoDeserialize() {
-
-		}
-	public:
-		track_info() { }
-
-		void Serialize(std::vector<char>& buffer) {
-			// first : __rbinfo
-			// 4 bytes : num items
-			// 
-		}
-
-		void Deserialize(const std::vector<char>& buffer) {
-
-		}
-
-		int NumRigidBodies() {
-			return (int)__rbinfo.size();
-		}
-
-		bool GetRigidBodyByIdx(const int rbIdx, string* rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet, std::bitset<128>* cid) {
-			auto it = __rbinfo.begin();
-			std::advance(it, rbIdx);
-
-			if (it == __rbinfo.end()) return false;
-
-			auto& v = it->second;
-			if (rbName)
-				*rbName = it->first;
-			if (matLS2WS)
-				*matLS2WS = std::any_cast<glm::fmat4x4>(v[LS2WS]);
-			if (mkMSE)
-				*mkMSE = std::any_cast<float>(v[MK_MSE]);
-			if (rbmkSet)
-				*rbmkSet = std::any_cast<map<string, map<MKINFO, std::any>>>(v[RB_MKSET]);
-			if (cid)
-				*cid = std::any_cast<std::bitset<128>>(v[RB_CID]);
-
-			return true;
-		}
-
-		bool GetRigidBodyByName(const string& rbName, glm::fmat4x4* matLS2WS, float* mkMSE, map<string, map<MKINFO, std::any>>* rbmkSet, std::bitset<128>* cid) {
-			auto it = __rbinfo.find(rbName);
-			if (it == __rbinfo.end())
-				return false;
-
-			auto& v = it->second;
-			if (matLS2WS)
-				*matLS2WS = std::any_cast<glm::fmat4x4>(v[LS2WS]);
-			if (mkMSE)
-				*mkMSE = std::any_cast<float>(v[MK_MSE]);
-			if (rbmkSet)
-				*rbmkSet = std::any_cast<map<string, map<MKINFO, std::any>>>(v[RB_MKSET]);
-			if (cid)
-				*cid = std::any_cast<std::bitset<128>>(v[RB_CID]);
-
-			return true;
-		}
-
-		bool GetRigidBodyQuatTVecByName(const string& rbName, glm::fquat* q, glm::fvec3* t) {
-			auto it = __rbinfo.find(rbName);
-			if (it == __rbinfo.end())
-				return false;
-
-			auto& v = it->second;
-			if (q)
-				*q = std::any_cast<glm::fquat>(v[QT_LS2WS]);
-			if (t)
-				*t = std::any_cast<glm::fvec3>(v[TV_LS2WS]);
-		}
-
-		void AddRigidBody(const string& rbName, const std::bitset<128>& cid,  const glm::fmat4x4& matLS2WS, const glm::fquat& qtLS2WS, const glm::fvec3& tvec, const float mkMSE,
-			const map<string, map<MKINFO, std::any>>& rbmkSet)
-		{
-			map<RBINFO, std::any>& v = __rbinfo[rbName];
-			v[RB_CID] = cid;
-			v[LS2WS] = matLS2WS;
-			v[MK_MSE] = mkMSE;
-			v[RB_MKSET] = rbmkSet;
-			v[QT_LS2WS] = qtLS2WS;
-			v[TV_LS2WS] = tvec;
-
-			//std::vector<char> _buffer(sizeof(glm::fmat4x4) + sizeof(glm::fquat) + sizeof(glm::fvec3) + sizeof(float) + sizeof(___));
-		}
-
-		bool GetMarkerByName(const string& mkName, map<MKINFO, std::any>& mk)
-		{
-			auto it = __mksByName.find(mkName);
-			if (it == __mksByName.end()) return false;
-			return GetMarkerByCID(it->second, mk);
-		}
-
-		bool GetMarkerByCID(const std::bitset<128>& cid, map<MKINFO, std::any>& mk)
-		{
-			auto it = __mksByCid.find(cid);
-			if (it == __mksByCid.end()) return false;
-			mk = it->second;
-			return true;
-		}
-
-		int NumMarkers() {
-			return (int)__mksByName.size();
-		}
-
-		bool GetMarkerByIdx(const int mkIdx, map<MKINFO, std::any>& mk)
-		{
-			if (mkIdx >= __mksByCid.size()) return false;
-			auto it = __mksByCid.begin();
-			std::advance(it, mkIdx);
-			mk = it->second;
-			return true;
-		}
-
-		//void SetMarkers(const std::vector<std::bitset<128>>& cids, const std::vector<glm::fvec3>& mkPts,
-		//	const std::vector<string>& rbNames, const std::vector<float>& residues)
-		//{
-		//	int count = (int)cids.size();
-		//	for (int i = 0; i < count; i++) {
-		//		const std::bitset<128> cid = cids[i];
-		//		const glm::fvec3 pos = mkPts[i];
-		//		const string rbName = rbNames[i];
-		//		const float residue = residues[i];
-		//		map<MKINFO, std::any>& v = __mksByCid[cid];
-		//		v[CID] = cid;
-		//		v[POSITION] = pos;
-		//		v[RB_NAME] = rbName;
-		//		v[RESIDUE] = residue;
-		//
-		//		__mksByName[rbName] = cid;
-		//	}
-		//}
-
-		void AddMarker(const std::bitset<128>& cid, const glm::fvec3& mkPos, const string& mkName)
-		{
-			map<MKINFO, std::any>& v = __mksByCid[cid];
-			v[MK_CID] = cid;
-			v[POSITION] = mkPos;
-			v[MK_NAME] = mkName;
-			v[MK_QUALITY] = 1.f;
-
-			__mksByName[mkName] = cid;
-		}
-	};
 
 	inline void Make_Viewport(std::vector<glm::fvec3>& pos_tris, std::vector<glm::fvec3>& clr_tris, std::vector<glm::fvec3>& pos_lines, std::vector<glm::fvec3>& clr_lines,
 		const glm::fvec3 clr_tri, const glm::fvec3 clr_line,
@@ -721,335 +327,42 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 		vzm::GenerateTextObject((float*)&pinfo[0], "Z", 0.1, true, false, axis_texZ_obj_id);
 	}
 
-	inline void ComputeClosestPointBetweenLineAndPoint(const glm::fvec3& pos_line, const glm::fvec3& dir_line, const glm::fvec3& pos_point, glm::fvec3& pos_closest_point)
-	{
-		float len = glm::length(dir_line);
-		if (len <= 0.000001f) return;
-		//http://math.stackexchange.com/questions/748315/finding-the-coordinates-of-a-point-on-a-line-that-produces-the-shortest-distance
-		float t = ((pos_point.x * dir_line.x + pos_point.y * dir_line.y + pos_point.z * dir_line.z) - (pos_line.x * dir_line.x + pos_line.y * dir_line.y + pos_line.z * dir_line.z)) / len;
-		pos_closest_point = pos_line + dir_line * t;
-	}
 
-	template <typename T>
-	std::string to_string_with_precision(const T a_value, const int n = 6)
-	{
-		std::ostringstream out;
-		out << std::setprecision(n) << a_value;
-		return out.str();
-	}
 
-	//void MakeTrackeffect(const int track_fade_num, const glm::fvec3& pos_dst, int& track_spheres_id, std::vector<glm::fvec3>& track_points)
-	inline void MakeTrackeffect(const int track_fade_num, const float min_move_dist, const glm::fvec3& pos_dst, int& track_spheres_id)
-	{
-		//const int track_fade_num = 100;
-		//static int track_spheres_id = 0;
-		static std::vector<glm::fvec3> track_points;
-		if (track_points.size() == 0 || glm::length(track_points[0] - pos_dst) > min_move_dist)
+	inline glm::fvec3 ComputeNormalVector(std::vector<glm::fvec3>& points) {
+		Eigen::Vector3d normalVector;
 		{
-			if (track_points.size() < track_fade_num)
-			{
-				track_points.push_back(pos_dst);
+			Eigen::Matrix3d A;
+
+			int nunmPts = (int)points.size();
+			if (nunmPts < 3)
+				return glm::fvec3(0, 0, 1);	// error case
+
+			glm::fvec3 centerPos = glm::fvec3(0, 0, 0);
+			for (int i = 0; i < nunmPts; i++) {
+				centerPos += points[i];
 			}
-			else
-			{
-				memcpy(&track_points[0], &track_points[1], sizeof(glm::fvec3) * (track_fade_num - 1));
-				track_points[track_fade_num - 1] = pos_dst;
+			centerPos /= (float)nunmPts;
+
+			// Construct the matrix A for the least-squares problem
+			//for (int i = 0; i < nunmPts; ++i) {
+			//	A(i, 0) = points[i].x - centerPos.x;
+			//	A(i, 1) = points[i].y - centerPos.y;
+			//	A(i, 2) = points[i].z - centerPos.z;
+			//}
+
+			for (int i = 0; i < 3; ++i) {
+				A(i, 0) = points[i + 1].x - points[0].x;
+				A(i, 1) = points[i + 1].y - points[0].y;
+				A(i, 2) = points[i + 1].z - points[0].z;
 			}
-			std::vector<glm::fvec4> trackspheres(track_points.size());
-			for (int i = 0; i < (int)track_points.size(); i++)
-			{
-				trackspheres[i] = glm::fvec4(track_points[i], 0.001f + i * 0.005f / track_fade_num);
-			}
-			vzm::GenerateSpheresObject(__FP trackspheres[0], NULL, track_points.size(), track_spheres_id);
-			//vzm::ObjStates obj_state_track_spheres;
-			//vzm::ReplaceOrAddSceneObject(0, track_spheres_id, obj_state_track_spheres);
-		}
-	}
 
-#define GL_CLR_CHANNELS 4
-
-	inline void copy_back_ui_buffer(unsigned char* data_ui, unsigned char* data_render_bf, int w, int h, bool v_flib)
-	{
-		// cpu mem ==> dataPtr
-		int width_uibuf_pitch = w * 3;
-		int width_fbbuf_pitch = w * GL_CLR_CHANNELS;
-#pragma omp parallel for 
-		for (int i = 0; i < h; i++)
-			for (int j = 0; j < w; j++)
-			{
-				int y = v_flib ? (h - 1 - i) : i;
-
-				unsigned int rgba;
-				memcpy(&rgba, &data_render_bf[y * width_fbbuf_pitch + j * GL_CLR_CHANNELS + 0], sizeof(int));
-
-				//unsigned char r = data_render_bf[y * width_fbbuf_pitch + j * GL_CLR_CHANNELS + 0];
-				//unsigned char g = data_render_bf[y * width_fbbuf_pitch + j * GL_CLR_CHANNELS + 1];
-				//unsigned char b = data_render_bf[y * width_fbbuf_pitch + j * GL_CLR_CHANNELS + 2];
-				//unsigned char a = data_render_bf[y * width_fbbuf_pitch + j * GL_CLR_CHANNELS + 3];
-
-				unsigned char r = rgba & 0xFF;
-				unsigned char g = (rgba >> 8) & 0xFF;
-				unsigned char b = (rgba >> 16) & 0xFF;
-				unsigned char a = (rgba >> 24) & 0xFF;
-
-				if (a > 0)
-				{
-					unsigned int rgb;
-					memcpy(&rgb, &data_ui[i * width_uibuf_pitch + j * 3 + 0], 3);
-
-					//unsigned char _r = data_ui[i * width_uibuf_pitch + j * 3 + 0];
-					//unsigned char _g = data_ui[i * width_uibuf_pitch + j * 3 + 1];
-					//unsigned char _b = data_ui[i * width_uibuf_pitch + j * 3 + 2];
-
-					unsigned char _r = rgb & 0xFF;
-					unsigned char _g = (rgb >> 8) & 0xFF;
-					unsigned char _b = (rgb >> 16) & 0xFF;
-
-					float fa = (float)a / 255.f;
-					float fr = (1.f - fa) * (float)_r + (float)r * fa;
-					float fg = (1.f - fa) * (float)_g + (float)g * fa;
-					float fb = (1.f - fa) * (float)_b + (float)b * fa;
-
-					//data_ui[i * width_uibuf_pitch + j * 3 + 0] = (unsigned char)min((int)fr, (int)255);
-					//data_ui[i * width_uibuf_pitch + j * 3 + 1] = (unsigned char)min((int)fg, (int)255);
-					//data_ui[i * width_uibuf_pitch + j * 3 + 2] = (unsigned char)min((int)fb, (int)255);
-
-					rgb = (unsigned char)min((int)fr, (int)255) | ((unsigned char)min((int)fg, (int)255) << 8) | ((unsigned char)min((int)fb, (int)255) << 16);
-					memcpy(&data_ui[i * width_uibuf_pitch + j * 3 + 0], &rgb, 3);
-				}
-			}
-	};
-
-	inline void copy_back_ui_buffer_local(unsigned char* data_ui, int w, int h, unsigned char* data_render_bf, int w_bf, int h_bf, int offset_x, int offset_y, bool v_flib, bool smooth_mask, float _a, float _b, bool opaque_bg)
-	{
-		auto alpha_mask = [&smooth_mask, &_a, &_b](float r) -> float
-		{
-			if (!smooth_mask) return 1.f;
-			//const float _a = 0.2;
-			return min(max((atan(_a * (r - _b)) + atan(_a * 100.f)) / (atan(_a * 1000.f) * 2.f), 0.f), 1.f) * 0.8f;
-		};
-		// cpu mem ==> dataPtr
-		int width_uibuf_pitch = w * 3;
-		int width_fbbuf_pitch = w_bf * GL_CLR_CHANNELS;
-		glm::fvec2 _c = glm::fvec2(w_bf * 0.5, h_bf * 0.5);
-#pragma omp parallel for 
-		for (int i = 0; i < h_bf; i++)
-			for (int j = 0; j < w_bf; j++)
-			{
-				min(offset_y + h_bf, h);
-				min(offset_x + w_bf, w);//
-
-				int y = v_flib ? (h - 1 - i) : i;
-
-				unsigned int rgba;
-				memcpy(&rgba, &data_render_bf[y * width_fbbuf_pitch + j * GL_CLR_CHANNELS + 0], sizeof(int));
-
-				unsigned char r = rgba & 0xFF;
-				unsigned char g = (rgba >> 8) & 0xFF;
-				unsigned char b = (rgba >> 16) & 0xFF;
-				unsigned char a = opaque_bg ? 255 : (rgba >> 24) & 0xFF;
-
-				if ((a > 0) && (j + offset_y < w) && (i + offset_y < h))
-				{
-					unsigned int rgb;
-					int ui_x = j + offset_x;
-					int ui_y = i + offset_y;
-					memcpy(&rgb, &data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 0], 3);
-
-					//unsigned char _r = data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 0];
-					//unsigned char _g = data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 1];
-					//unsigned char _b = data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 2];
-
-					unsigned char _r = rgb & 0xFF;
-					unsigned char _g = (rgb >> 8) & 0xFF;
-					unsigned char _b = (rgb >> 16) & 0xFF;
-
-					//float _a = alpha_mask(glm::length(_c - glm::fvec2(j, i)));
-					int _x = min(min(i, j), min(w_bf - j, h_bf - i));
-					float _a = alpha_mask((float)_x);
-					//if (i % 20 == 1 && j % 20 == 1)
-					//	cout << _a << ", ";
-					float fa = (float)a / 255.f * _a;
-					float fr = (1.f - fa) * (float)_r + (float)r * fa;
-					float fg = (1.f - fa) * (float)_g + (float)g * fa;
-					float fb = (1.f - fa) * (float)_b + (float)b * fa;
-
-					//data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 0] = (unsigned char)min((int)fr, (int)255);
-					//data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 1] = (unsigned char)min((int)fg, (int)255);
-					//data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 2] = (unsigned char)min((int)fb, (int)255);
-
-					rgb = (unsigned char)min((int)fr, (int)255) | ((unsigned char)min((int)fg, (int)255) << 8) | ((unsigned char)min((int)fb, (int)255) << 16);
-					memcpy(&data_ui[ui_y * width_uibuf_pitch + ui_x * 3 + 0], &rgb, 3);
-				}
-			}
-	};
-
-#define PAIR_MAKE(P2D, P3D) std::pair<cv::Point2f, cv::Point3f>(cv::Point2f(P2D.x, P2D.y), cv::Point3f(P3D.x, P3D.y, P3D.z))
-#define double_vec3(D) ((double*)D.data)[0], ((double*)D.data)[1], ((double*)D.data)[2]
-	inline bool CalibrteCamLocalFrame(const vector<glm::fvec2>& points_2d, const vector<glm::fvec3>& points_3dws, const glm::fmat4x4& mat_ws2clf,
-		const float fx, const float fy, const float cx, const float cy, glm::fmat4x4& mat_rscs2clf, float* err, int* num_samples,
-		vector<pair<Point2f, Point3f>>& pair_pts)//, const int img_w, const int img_h
-
-	{
-		if (points_2d.size() == 0) return false;
-		if (points_2d.size() != points_3dws.size()) return false;
-		using namespace glm;
-
-		//	pair<Point2f, Point3f>& _pair = pair_pts
-
-		vector<Point3f> points_buf_3d_clf;
-		vector<Point2f> points_buf_2d;
-		for (int i = 0; i < (int)pair_pts.size(); i++)
-		{
-			pair<Point2f, Point3f>& _pair = pair_pts[i];
-			points_buf_2d.push_back(std::get<0>(_pair));
-			points_buf_3d_clf.push_back(std::get<1>(_pair));
+			// Compute the normal vector as the null space of A
+			Eigen::JacobiSVD<Eigen::Matrix3d> svd(A, Eigen::ComputeFullV);
+			normalVector = svd.matrixV().col(2);
+			normalVector.normalize();
 		}
 
-		int num_incoming_pts = (int)points_3dws.size();
-		for (int i = 0; i < num_incoming_pts; i++)
-		{
-			Point2f p2d = *(Point2f*)&points_2d[i];
-			glm::fvec3 ppp = tr_pt(mat_ws2clf, points_3dws[i]);
-			Point3f p3d = *(Point3f*)&ppp;
-
-			points_buf_2d.push_back(p2d);
-			points_buf_3d_clf.push_back(p3d);
-		}
-
-		if (num_samples) *num_samples = points_buf_2d.size();
-		if (points_buf_2d.size() < 12)
-		{
-			for (int i = 0; i < (int)points_buf_2d.size(); i++)
-			{
-				Point2f p2d = *(Point2f*)&points_buf_2d[i];
-				Point3f p3d = *(Point3f*)&points_buf_3d_clf[i];
-
-				pair_pts.push_back(PAIR_MAKE(p2d, p3d));
-			}
-			return false;
-		}
-
-		Mat cam_mat = cv::Mat::zeros(3, 3, CV_64FC1); // intrinsic camera parameters
-		cam_mat.at<double>(0, 0) = fx;       //      [ fx   0  cx ]
-		cam_mat.at<double>(1, 1) = fy;       //      [  0  fy  cy ]
-		cam_mat.at<double>(0, 2) = cx;       //      [  0   0   1 ]
-		cam_mat.at<double>(1, 2) = cy;
-		cam_mat.at<double>(2, 2) = 1;
-		cv::Mat distCoeffs = cv::Mat::zeros(4, 1, CV_64FC1);    // vector of distortion coefficients
-		cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64FC1);          // output rotation vector
-		cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64FC1);          // output translation vector
-		//cv::solvePnP(Mat(*(vector<Point3f>*)&points_buf_3d_clf), Mat(*(vector<Point2f>*)&points_buf_2d), cam_mat, distCoeffs, rvec, tvec, false, SOLVEPNP_DLS);
-		//cv::solvePnP(Mat(*(vector<Point3f>*)&points_buf_3d_clf), Mat(*(vector<Point2f>*)&points_buf_2d), cam_mat, distCoeffs, rvec, tvec, true, SOLVEPNP_ITERATIVE);
-		cv::solvePnP(points_buf_3d_clf, points_buf_2d, cam_mat, distCoeffs, rvec, tvec, false, SOLVEPNP_DLS);
-		cv::solvePnP(points_buf_3d_clf, points_buf_2d, cam_mat, distCoeffs, rvec, tvec, true, SOLVEPNP_ITERATIVE);
-
-		float err_proj = 0;
-		{
-			vector<cv::Point2f> reprojectPoints;
-			cv::projectPoints(Mat(*(vector<Point3f>*) & points_buf_3d_clf), rvec, tvec, cam_mat, cv::noArray(), reprojectPoints);
-			float reproj_err_sum = 0.;
-			reproj_err_sum = cv::norm(Mat(reprojectPoints), Mat(*(vector<Point2f>*) & points_buf_2d)); //  default L2
-			err_proj = sqrt(reproj_err_sum * reproj_err_sum / points_buf_2d.size());
-			//cout << "PnP reprojection error : " << err_proj << " pixels, # of point pairs L " << points_buf_2d.size() << endl;
-		}
-
-		const float err_criterion = 7.f;
-		Mat inliers_ids;
-		if ((pair_pts.size() > 20 && err_proj > 5.f)
-			|| (pair_pts.size() > 50 && err_proj > 3.f)
-			|| (pair_pts.size() > 100 && err_proj > 2.f))
-		{
-			float confidence = 0.9f;
-			if (pair_pts.size() >= 100) confidence = 0.8f;
-			cv::solvePnPRansac(Mat(*(vector<Point3f>*) & points_buf_3d_clf), Mat(*(vector<Point2f>*) & points_buf_2d), cam_mat, distCoeffs, rvec, tvec, true, 5, err_criterion, confidence, inliers_ids, SOLVEPNP_ITERATIVE);
-			cout << "# of inliers : " << inliers_ids.rows << endl;
-			if (inliers_ids.rows > 0)
-			{
-				vector<Point3f> points_buf_3d_clf_tmp = points_buf_3d_clf;
-				vector<Point2f> points_buf_2d_tmp = points_buf_2d;
-				points_buf_3d_clf.clear();
-				points_buf_2d.clear();
-				for (int i = 0; i < inliers_ids.rows; i++)
-				{
-					int index = inliers_ids.at<int>(i, 0);
-					//cout << i << ",";
-					points_buf_3d_clf.push_back(points_buf_3d_clf_tmp[index]);
-					points_buf_2d.push_back(points_buf_2d_tmp[index]);
-				}
-				//cout << endl;
-			}
-		}
-
-		pair_pts.clear();
-		for (int i = 0; i < (int)points_buf_2d.size(); i++)
-		{
-			Point2f p2d = *(Point2f*)&points_buf_2d[i];
-			Point3f p3d = *(Point3f*)&points_buf_3d_clf[i];
-
-			pair_pts.push_back(PAIR_MAKE(p2d, p3d));
-		}
-
-		//cv::calibrateCamera(Mat(*(vector<Point3f>*)&points_buf_3d_clf), Mat(*(vector<Point2f>*)&points_buf_2d), Size(img_w, img_h), cam_mat, distCoeffs, rvec, tvec, 
-		//	CALIB_USE_INTRINSIC_GUESS | CALIB_FIX_PRINCIPAL_POINT | CALIB_FIX_ASPECT_RATIO | CALIB_ZERO_TANGENT_DIST | CALIB_FIX_K1 | CALIB_FIX_K2 | CALIB_FIX_K3 | CALIB_FIX_K4 | CALIB_FIX_K5 | CALIB_FIX_K6, 
-		//	TermCriteria(TermCriteria::COUNT + TermCriteria::EPS, 30, DBL_EPSILON));
-
-		glm::fvec3 rot_v = glm::fvec3(double_vec3(rvec));
-		float rad = glm::length(rot_v);
-
-		fmat4x4 mat_clf2cvf = glm::translate(glm::fvec3(double_vec3(tvec)));
-		mat_clf2cvf = glm::rotate(mat_clf2cvf, rad, rot_v / rad);
-		fmat4x4 mat_cvf2clf = glm::inverse(mat_clf2cvf);
-
-		fmat4x4 mat_cvf2rscs = glm::rotate((float)CV_PI, glm::fvec3(1, 0, 0));
-		fmat4x4 mat_rscs2cvf = glm::inverse(mat_cvf2rscs);
-
-		mat_rscs2clf = mat_cvf2clf * mat_rscs2cvf;
-
-		if (err)
-		{
-			vector<cv::Point2f> reprojectPoints;
-			cv::projectPoints(Mat(*(vector<Point3f>*) & points_buf_3d_clf), rvec, tvec, cam_mat, cv::noArray(), reprojectPoints);
-
-			float reproj_err_sum = 0.;
-			reproj_err_sum = cv::norm(Mat(reprojectPoints), Mat(*(vector<Point2f>*) & points_buf_2d)); //  default L2
-			*err = sqrt(reproj_err_sum * reproj_err_sum / points_buf_2d.size());
-			cout << "PnP reprojection error : " << *err << " pixels, # of point pairs L " << points_buf_2d.size() << endl;
-		}
-
-		// TEST //
-		//if (points_buf_2d.size() > 100)
-		//{
-		//	cv::solvePnPRansac(Mat(*(vector<Point3f>*)&points_buf_3d_clf), Mat(*(vector<Point2f>*)&points_buf_2d), cam_mat, distCoeffs, rvec, tvec, false);
-		//
-		//	vector<cv::Point2f> reprojectPoints;
-		//	cv::projectPoints(Mat(*(vector<Point3f>*)&points_buf_3d_clf), rvec, tvec, cam_mat, cv::noArray(), reprojectPoints);
-		//	float reproj_err_sum = 0.;
-		//	reproj_err_sum = cv::norm(Mat(reprojectPoints), Mat(*(vector<Point2f>*)&points_buf_2d)); //  default L2
-		//	*err = sqrt(reproj_err_sum * reproj_err_sum / points_buf_2d.size());
-		//	cout << "PnP Ransac reprojection error : " << *err << " pixels" << endl;
-		//}
-
-		return true;
-	};
-
-	inline void ComputeCameraStates(const glm::fmat4x4& mat_rscs2clf, // computed through calibration using CalibrteCamLocalFrame
-		const glm::fmat4x4& mat_clf2ws, // at every frame, stereo IR cams gives this matrix by tracking rs's rigid IR markers
-		vzm::CameraParameters& cam_state // only update CameraParameters::pos, up, view
-	)
-	{
-		using namespace glm;
-		fvec3 pos_c_rscs(0);
-		fvec3 vec_up_rscs(0, 1, 0);
-		fvec3 vec_view_rscs(0, 0, -1);
-
-		fmat4x4 mat_rscs2ws = mat_clf2ws * mat_rscs2clf;
-		pos_c_rscs = tr_pt(mat_rscs2ws, pos_c_rscs);
-		vec_up_rscs = normalize(tr_vec(mat_rscs2ws, vec_up_rscs));
-		vec_view_rscs = normalize(tr_vec(mat_rscs2ws, vec_view_rscs));
-
-		__cv3__ cam_state.pos = pos_c_rscs;
-		__cv3__ cam_state.up = vec_up_rscs;
-		__cv3__ cam_state.view = vec_view_rscs;
+		return glm::fvec3(normalVector.x(), normalVector.y(), normalVector.z());
 	};
 }
