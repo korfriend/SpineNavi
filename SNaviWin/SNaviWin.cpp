@@ -108,6 +108,13 @@ namespace mystudents {
 		cv::imwrite(__gc.g_folder_trackingInfo + "test_circle_sort.png", img); // cv imshow()로 보이기.
 	}
 
+	// 원의 점을 직선의 거리에 대하여 비교하는 함수.
+	bool sortByDistance(const cv::Point2f& a, const cv::Point2f& b, const int m, const int n) {
+		float distanceA = abs(m * a.x + n * a.y + n);//std::sqrt((a.x - center.x) * (a.x - center.x) + (a.y - center.y) * (a.y - center.y));
+		float distanceB = abs(m * b.x + n * b.y + n);//std::sqrt((b.x - center.x) * (b.x - center.x) + (b.y - center.y) * (b.y - center.y));
+		return distanceA < distanceB;
+	}
+
 	// implemented by 김민교 
 	int Get2DPostionsFromLegoPhantom(const cv::Mat& inputImg, std::vector<cv::Point2f>& points2Ds)
 	{
@@ -153,18 +160,59 @@ namespace mystudents {
 		// 원을 감지했는지 확인.
 		int r = CheckCircleDetect(inputImg, keypoints);
 
+		// 벡터에 일단 원의 점을 넣는다.
+		vector<cv::Point2f> circlePoints;
+
 		for (const auto& kp : keypoints) {
-			points2Ds.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+			circlePoints.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
 		}
 
-		// 원의 좌표를 정렬.
-		sort(points2Ds.begin(), points2Ds.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-			return a.x < b.x;
-			});
+		int col = 6; int row = 8;
+		int top_bottom = 6; // 위 아래 6개
+		int middle = 8;     // 가운데 8개
 
-		sort(points2Ds.begin(), points2Ds.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-			return a.y < b.y;
-			});
+		for (int i = 0; i < row; i++) {
+			int pointNum = middle;
+			if (i == 0 || i == row - 1) // 맨 처음줄과 아랫줄이면 6개만 감지한다.
+				pointNum = top_bottom;
+
+			// 1. y축 정렬
+			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+				return a.y < b.y;
+				});
+
+			// 2. 가장 위의 점 두개 뽑기
+			cv::Point2f first = circlePoints[0];
+			cv::Point2f second = circlePoints[1];
+
+			// 3. 두점을 잇는 선
+			float m = second.y - first.y / second.x - first.x;
+			float n = first.y - m * first.x;
+
+			// 4. 직선의 방정식 : y = mx + n
+			// 직선과 가까운 점 정렬.		
+			std::sort(circlePoints.begin(), circlePoints.end(),
+				[&](const cv::Point2f& a, const cv::Point2f& b) {
+					return sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
+				});
+
+			// 6개 or 8개 빼기			
+			vector<cv::Point2f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
+			for (int j = 0; j < pointNum; j++)
+			{
+				rowPoints.push_back(circlePoints[0]); // 거리가 가장 가까운 것을 뽑음. 가장 가까운건 0번째
+				circlePoints.erase(circlePoints.begin()); // 뽑았으면 삭제.
+			}
+
+			// 5. x 방향으로 정렬.
+			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+				return a.x < b.x;
+				});
+
+			// 6. point2Ds에 넣음.
+			for (int j = 0; j < pointNum; j++)
+				points2Ds.push_back(rowPoints[j]);
+		}
 
 		// 포지션 잘 정렬되었는지 확인.
 		CheckPositionSort(inputImg, points2Ds, r);
