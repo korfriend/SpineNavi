@@ -1,21 +1,43 @@
 #include "Engine.h"
 
-Engine::Engine(QString optiProfilePath, QString optiCalfilePath)
+#define USE_MOTIVE
+
+Engine::Engine(ViewLayout* layout, QString dataPath, QString optiProfilePath, QString optiCalfilePath)
 {
 	m_optiProfilePath = optiProfilePath;
 	m_optiCalfilepath = optiCalfilePath;
 	m_numImg = 0;
 
 	m_network_processing_thread = new networkThread();
+	m_trackingThread = new trackingThread();
 	m_qtimer = new QTimer();
 
 
 	connect(m_network_processing_thread, SIGNAL(sigImageArrived(cv::Mat)), this, SLOT(slotImageArrived(cv::Mat)));
+	m_sceneName = "Scene1";
+	m_camAPName = "Cam1";
+	m_camLateralName = "Cam2";
+
+	cv::FileStorage fs(dataPath.toStdString() + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	fs["K"] >> m_cameraMatrix;
+	fs.release();
+
+	m_dataPath = dataPath.toStdString();
+
+	m_isAP = true;
+	m_track_que = nullptr;
+
+	m_InterCamsAP.resize(2);
+	m_InterCamsLateral.resize(2);
+
+	m_AP_set = false;
+	m_Lateral_set = false;
+
 
 	this->EngineInit();
 
 	
-
+	m_viewMgr = new ViewMgr(layout, this);
 }
 
 Engine::~Engine()
@@ -23,12 +45,14 @@ Engine::~Engine()
 	SAFE_DELETE_OBJECT(m_qtimer);
 
 #ifdef USE_MOTIVE
-	tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
-	tracker_processing_thread.join();
+	m_trackingThread->terminate();
 
 	optitrk::DeinitOptiTrackLib();
 #endif
 	vzm::DeinitEngineLib();
+
+	m_network_processing_thread->terminate();
+	
 	SAFE_DELETE_OBJECT(m_network_processing_thread);
 
 
@@ -42,6 +66,7 @@ void Engine::EngineInit()
 
 #ifdef USE_MOTIVE
 	m_optitrackMode = optitrk::InitOptiTrackLib();
+	optitrk::LoadProfileAndCalibInfo(m_optiProfilePath.toStdString(), m_optiCalfilepath.toStdString());
 #else
 
 	auto getdatapath = []()
@@ -73,66 +98,7 @@ void Engine::EngineInit()
 #endif
 
 #ifdef USE_MOTIVE
-	std::vector<std::string> rbNames;
-	int numAllFramesRBs = optitrk::GetRigidBodies(&rbNames);
-
-	static navihelpers::concurrent_queue<navihelpers::track_info> track_que(10);
-	g_track_que = &track_que;
-	tracker_processing_thread = std::thread([&]() {
-		using namespace std;
-		using namespace navihelpers;
-		using namespace glm;
-		while (tracker_alive)
-		{
-			int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
-			if (sidScene == 0) continue;
-			//Sleep(postpone);
-			optitrk::UpdateFrame();
-
-			track_info trk_info;
-			for (int i = 0; i < numAllFramesRBs; i++)
-			{
-				string rbName;// = rbNames[i];
-				fmat4x4 matLS2WS;
-				float rbMSE;
-				vector<float> posMKs;
-				vector<float> mkQualities;
-				bitset<128> rbCid;
-				fquat qvec;
-				fvec3 tvec;
-				if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, &rbCid, &rbMSE, &posMKs, NULL, &mkQualities, &rbName, (float*)&qvec, (float*)&tvec)) {
-					int numRbMks = (int)posMKs.size() / 3;
-					vector<fvec3> mkPts(numRbMks);
-					memcpy(&mkPts[0], &posMKs[0], sizeof(fvec3) * numRbMks);
-					map<string, map<track_info::MKINFO, std::any>> rbmkSet;
-					for (int j = 0; j < numRbMks; j++) {
-						//CID = 0, // std::bitset<128>
-						//POSITION = 1, // glm::fvec3, world space
-						//MK_NAME = 2, // string
-						//MK_QUALITY = 3 // float // only for RB_MKSET
-						string mkName = rbName + ":Marker" + to_string(j + 1);
-						auto& pt = rbmkSet[mkName];
-						pt[track_info::MKINFO::CID] = rbCid;
-						pt[track_info::MKINFO::POSITION] = mkPts[j];
-						pt[track_info::MKINFO::MK_NAME] = mkName;
-						pt[track_info::MKINFO::MK_QUALITY] = mkQualities[j];
-					}
-					trk_info.AddRigidBody(rbName, matLS2WS, qvec, tvec, rbMSE, rbmkSet);
-				}
-			}
-			vector<float> mkPts;
-			vector<float> mkResiduals;
-			vector<bitset<128>> mkCIDs;
-			optitrk::GetMarkersLocation(&mkPts, &mkResiduals, &mkCIDs);
-			int numMKs = (int)mkCIDs.size();
-			for (int i = 0; i < numMKs; i++) {
-				fvec3 pos = fvec3(mkPts[3 * i + 0], mkPts[3 * i + 1], mkPts[3 * i + 2]);
-				string mkName = "Marker" + to_string(i + 1);
-				trk_info.AddMarker(mkCIDs[i], pos, mkName);
-			}
-			track_que.push(trk_info);
-		}
-		});
+	
 #else
 	// trackingData
 	int frameRowIdx = trackingData.GetRowIdx("Frame");
@@ -288,7 +254,12 @@ void Engine::EngineInit()
 		}
 	}
 
-	m_cidCam1 = 0;
+	
+
+	
+#endif	
+	m_cidCamAP = 0;
+	m_cidCamLateral = 0;
 	m_Light1.is_on_camera = true;
 	m_Light1.is_pointlight = false;
 	m_lidLight1 = 0;
@@ -297,75 +268,318 @@ void Engine::EngineInit()
 
 	connect(m_qtimer, SIGNAL(timeout()), this, SLOT(TimerProc()));
 	this->SceneInit();
-#endif	
 }
 
 void Engine::SceneInit()
 {
 	
-	*(glm::fvec3*)m_cpCam1.pos = glm::fvec3(-1.5, 1.5, -1.5);
-	*(glm::fvec3*)m_cpCam1.up = glm::fvec3(0, 1, 0);
-	*(glm::fvec3*)m_cpCam1.view = glm::fvec3(1, -1, 1);
-	m_cpCam1.w = SCANIMG_W;
-	m_cpCam1.h = SCANIMG_H;
-	m_cpCam1.np = 0.1f;
-	m_cpCam1.fp = 100.f;
+	*(glm::fvec3*)m_cpCamAP.pos = glm::fvec3(-1.5, 1.5, -1.5);
+	*(glm::fvec3*)m_cpCamAP.up = glm::fvec3(0, 1, 0);
+	*(glm::fvec3*)m_cpCamAP.view = glm::fvec3(1, -1, 1);
+	m_cpCamAP.w = SCANIMG_W;
+	m_cpCamAP.h = SCANIMG_H;
+	m_cpCamAP.np = 0.1f;
+	m_cpCamAP.fp = 100.f;
 	float vFov = 3.141592654f / 4.f;
-	float aspect_ratio = (float)m_cpCam1.w / (float)m_cpCam1.h;
+	float aspect_ratio = (float)m_cpCamAP.w / (float)m_cpCamAP.h;
 	float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
-	m_cpCam1.fx = m_cpCam1.w / (2.f * tan(hFov / 2.f));
-	m_cpCam1.fy = m_cpCam1.h / (2.f * tan(vFov / 2.f));
-	m_cpCam1.sc = 0;
-	m_cpCam1.cx = m_cpCam1.w / 2.f;
-	m_cpCam1.cy = m_cpCam1.h / 2.f;
-	m_cpCam1.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+	m_cpCamAP.fx = m_cpCamAP.w / (2.f * tan(hFov / 2.f));
+	m_cpCamAP.fy = m_cpCamAP.h / (2.f * tan(vFov / 2.f));
+	m_cpCamAP.sc = 0;
+	m_cpCamAP.cx = m_cpCamAP.w / 2.f;
+	m_cpCamAP.cy = m_cpCamAP.h / 2.f;
+	m_cpCamAP.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
 
-	
-	vzm::NewCamera(m_cpCam1, "Cam1", m_cidCam1);
 
-	*(glm::fvec3*)m_Light1.pos = *(glm::fvec3*)m_cpCam1.pos;
-	*(glm::fvec3*)m_Light1.dir = *(glm::fvec3*)m_cpCam1.view;
-	*(glm::fvec3*)m_Light1.up = *(glm::fvec3*)m_cpCam1.up;
+	vzm::NewCamera(m_cpCamAP, m_camAPName, m_cidCamAP);
+	vzm::NewCamera(m_cpCamAP, m_camLateralName, m_cidCamLateral);
+
+	*(glm::fvec3*)m_Light1.pos = *(glm::fvec3*)m_cpCamAP.pos;
+	*(glm::fvec3*)m_Light1.dir = *(glm::fvec3*)m_cpCamAP.view;
+	*(glm::fvec3*)m_Light1.up = *(glm::fvec3*)m_cpCamAP.up;
 
 	vzm::NewLight(m_Light1, "World Light", m_lidLight1);
 
-	vzm::NewScene("Scene1", m_sidScene);
+	vzm::NewScene(m_sceneName, m_sidScene);
 
-	vzm::AppendSceneItemToSceneTree(m_cidCam1, m_sidScene);
+
+	vzm::AppendSceneItemToSceneTree(m_cidCamAP, m_sidScene);
+	vzm::AppendSceneItemToSceneTree(m_cidCamLateral, m_sidScene);
 	vzm::AppendSceneItemToSceneTree(m_lidLight1, m_sidScene);
 	
 
 	m_qtimer->start(10);
 	m_network_processing_thread->start();
+
+#ifdef USE_MOTIVE
+	m_trackingThread->start();
+#else
+#endif
+
 }
 
-void Engine::Render(vzm::CameraParameters cpCam)
+void Engine::Render()
 {
-	int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
-	int cidCam1 = vzmutils::GetSceneItemIdByName("Cam1");
-	//int cidCam2 = vzmutils::GetSceneItemIdByName("Cam2");
+	int sidScene = vzmutils::GetSceneItemIdByName(m_sceneName);
+	int cidCam1 = vzmutils::GetSceneItemIdByName(m_camAPName);
+	int cidCam2 = vzmutils::GetSceneItemIdByName(m_camLateralName);
 
-	if (sidScene != 0 && cidCam1 != 0) {
+	if (sidScene != 0 && cidCam1 != 0 && cidCam2 != 0) {
 		// show case
 		
-		vzm::SetCameraParams(cidCam1, cpCam);
+		
 
-		vzm::RenderScene(sidScene, cidCam1);
-		//vzm::RenderScene(sidScene, cidCam2);
+		
+		
 
-		//vp->setLeftRightImg();
+		unsigned char* ptr_rgba;
+		float* ptr_zdepth;
+		int bufW, bufH;
+		if (m_AP_set) {
+			vzm::CameraParameters cpCam = m_InterCamsAP[1];
+			vzm::SetCameraParams(cidCam1, cpCam);
+			vzm::GetCameraParams(cidCam1, m_cpCamAP);
+			vzm::RenderScene(sidScene, cidCam1);
+			if (vzm::GetRenderBufferPtrs(cidCam1, &ptr_rgba, &ptr_zdepth, &bufW, &bufH)) {
+				QImage qimg = QImage(ptr_rgba, bufW, bufW, QImage::Format_RGBA8888);
+				//qlabel->setPixmap(QPixmap::fromImage(qimg).scaled(w, h, Qt::KeepAspectRatio));
+				Image2D tempImg(-1, VIEW_TYPE::AP, qimg);
+				m_viewMgr->setAPImg(tempImg);
+			}
+		}
 
-		//TODO : 여기서 image return???
-		//
+		unsigned char* ptr_rgbaL;
+		float* ptr_zdepthL;
+		int bufWL, bufHL;
+
+		if (m_Lateral_set)
+		{
+			vzm::CameraParameters cpCam = m_InterCamsLateral[1];
+			vzm::SetCameraParams(cidCam2, cpCam);
+			vzm::GetCameraParams(cidCam2, m_cpCamLateral);
+			vzm::RenderScene(sidScene, cidCam2);
+			if (vzm::GetRenderBufferPtrs(cidCam2, &ptr_rgbaL, &ptr_zdepthL, &bufWL, &bufHL)) {
+				QImage qimg = QImage(ptr_rgbaL, bufWL, bufWL, QImage::Format_RGBA8888);
+				//qlabel->setPixmap(QPixmap::fromImage(qimg).scaled(w, h, Qt::KeepAspectRatio));
+				Image2D tempImg(-1, VIEW_TYPE::LATERAL, qimg);
+				m_viewMgr->setLateralImg(tempImg);
+			}
+		}
 	}
+}
+
+void Engine::StoreParams(std::string& paramsFileName, glm::fmat4x4& matRB2WS, std::string& imgFileName)
+{
+	cv::FileStorage __fs(m_dataPath + paramsFileName, cv::FileStorage::Mode::WRITE);
+
+	cv::FileStorage fs(m_dataPath + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	cv::Mat matK;
+	fs["K"] >> matK;
+	__fs << "K" << matK;
+	cv::Mat distCoeffs;
+	fs["DistCoeffs"] >> distCoeffs;
+	__fs << "DistCoeffs" << distCoeffs;
+
+	fs.open(m_dataPath + "rb2carm1.txt", cv::FileStorage::Mode::READ);
+	cv::Mat rvec, tvec;
+	fs["rvec"] >> rvec;
+	fs["tvec"] >> tvec;
+	__fs << "rvec" << rvec;
+	__fs << "tvec" << tvec;
+	fs.release();
+
+	cv::Mat ocvRb(4, 4, CV_32FC1);
+	memcpy(ocvRb.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
+	__fs << "rb2wsMat" << ocvRb;
+	__fs << "imgFile" << imgFileName;
+	__fs.release();
+}
+
+void Engine::SaveAndChangeViewState(const int keyParam, const int sidScene, const int cidCam, std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame)
+{
+	using namespace std;
+	static char LOADKEYS[10] = { '1' , '2', '3', '4', '5', '6', '7', '8', '9', '0' };
+	static map<int, int> mapAidGroupCArmCam;
+	for (int i = 0; i < 10; i++) {
+		if (keyParam == i) {
+			glm::fvec3 rotAxisAvr = glm::fvec3(0, 0, 0);
+			float rotAngleAvr = 0;
+			glm::fvec3 trAvr = glm::fvec3(0, 0, 0);
+			int captureCount = 0;
+			const int maxSamples = 30;
+			const float normalizedNum = 1.f / (float)maxSamples;
+			while (captureCount < maxSamples) {
+				navihelpers::track_info trackInfo;
+				m_trackingThread->pop(trackInfo);
+				//g_track_que->wait_and_pop(trackInfo);
+				glm::fquat q;
+				glm::fvec3 t;
+				if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+					float quatMagnitude = glm::length(q);
+					q /= quatMagnitude;
+
+					float rotationAngle = 2.0f * acos(q.w);
+
+					float sinAngle = sin(rotationAngle / 2.0f);
+					glm::fvec3 rotationAxis = glm::fvec3(q.x, q.y, q.z) / sinAngle;
+
+					rotAngleAvr += rotationAngle * normalizedNum;
+					rotAxisAvr += rotationAxis * normalizedNum;
+
+					trAvr += t * normalizedNum;
+					captureCount++;
+				}
+				//std::cout << "Capturing... " << captureCount << std::endl;
+				printf("\rCapturing... %d", captureCount);
+				fflush(stdout);
+			}
+			std::cout << "Capturing... DONE!" << std::endl;
+			rotAxisAvr = glm::normalize(rotAxisAvr);
+			glm::fmat4x4 mat_r = glm::rotate(rotAngleAvr, rotAxisAvr);
+			glm::fmat4x4 mat_t = glm::translate(trAvr);
+			glm::fmat4x4 matRB2WS = mat_t * mat_r;
+
+			cv::Mat downloadImg;
+			cv::cvtColor(m_cvImgList[m_numImg-1], downloadImg, cv::COLOR_GRAY2RGB);
+			string downloadImgFileName = m_dataPath + "test" + to_string(i) + ".png";
+			std::cout << "STORAGE COMPLETED!!!  1" << std::endl;
+			cv::imwrite(downloadImgFileName, downloadImg);
+			std::cout << "STORAGE COMPLETED!!!  2" << std::endl;
+			std::string paramname = "test" + to_string(i) + ".txt";
+			StoreParams(paramname, matRB2WS, downloadImgFileName);
+			std::cout << "STORAGE COMPLETED!!!  3" << std::endl;
+
+			// load case
+			auto it = mapAidGroupCArmCam.find(i + 1);
+			if (it != mapAidGroupCArmCam.end())
+				vzm::RemoveSceneItem(it->second, true);
+			int aidGroup = RegisterCArmImage(sidScene, m_dataPath + "test" + to_string(i) + ".txt", "test" + to_string(i));
+			if (aidGroup == -1)
+				break;
+			mapAidGroupCArmCam[i + 1] = aidGroup;
+			MoveCameraToCArmView(i, cidCam, cpInterCams, arAnimationKeyFrame);
+			break;
+		}
+	}
+}
+
+void Engine::MoveCameraToCArmView(int carmIdx, int cidCam, std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame)
+{
+
+	vzm::CameraParameters cpCam;
+	if (!vzm::GetCameraParams(cidCam, cpCam))
+		return;
+
+	cv::FileStorage fs(m_dataPath + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	cv::Mat cameraMatrix;
+	fs["K"] >> cameraMatrix;
+	fs.release();
+
+	int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + std::to_string(carmIdx));
+	if (aidCArmPlane == 0)
+		return;
+
+	vzm::ActorParameters apCArmPlane;
+	vzm::GetActorParams(aidCArmPlane, apCArmPlane);
+	glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
+	glm::ivec2 imageWH = apCArmPlane.script_params.GetParam("imageWH", glm::ivec2(0));
+
+	vzm::CameraParameters cpNewCam = cpCam;
+
+	glm::fvec3 posPrev = *(glm::fvec3*)cpCam.pos;
+	glm::fvec3 viewPrev = *(glm::fvec3*)cpCam.view;
+	glm::fvec3 upPrev = *(glm::fvec3*)cpCam.up;
+
+	UINT widthWindow = cpCam.w;
+	UINT heightWindow = cpCam.h;
+
+	const float intrinsicRatioX = (float)imageWH.x / widthWindow;
+	const float intrinsicRatioY = (float)imageWH.y / heightWindow;
+
+	cpNewCam.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_INTRINSICS;
+	glm::fvec3 pos(0, 0, 0);
+	glm::fvec3 view(0, 0, 1);
+	glm::fvec3 up(0, -1, 0);
+	pos = *(glm::fvec3*)cpNewCam.pos = vzmutils::transformPos(pos, matCA2WS);
+	view = *(glm::fvec3*)cpNewCam.view = vzmutils::transformVec(view, matCA2WS);
+	up = *(glm::fvec3*)cpNewCam.up = vzmutils::transformVec(up, matCA2WS);
+	cpNewCam.fx = cameraMatrix.at<double>(0, 0) / intrinsicRatioX;
+	cpNewCam.fy = cameraMatrix.at<double>(1, 1) / intrinsicRatioY;
+	cpNewCam.sc = cameraMatrix.at<double>(0, 1);
+	cpNewCam.cx = cameraMatrix.at<double>(0, 2) / intrinsicRatioX;
+	cpNewCam.cy = cameraMatrix.at<double>(1, 2) / intrinsicRatioY;
+	cpNewCam.np = 0.2;
+
+	glm::fquat q1 = glm::quatLookAtRH(glm::normalize(viewPrev), upPrev); // to world
+	//glm::fvec3 _o(0, 0, 0);
+	//glm::fmat4x4 m1 = glm::lookAtRH(_o, viewPrev, upPrev);
+	//glm::fmat4x4 m2 = glm::toMat4(q1);
+	//glm::fmat4x4 m3 = glm::inverse(m2);
+	glm::fquat q2 = glm::quatLookAtRH(glm::normalize(view), up);
+
+	float range = std::max((float)(2 - 1), 1.f);
+	for (int i = 0; i < 2; i++) {
+		float t = (float)i / range; // 0 to 1
+		glm::fquat q = glm::slerp(q1, q2, t);
+		glm::fmat4x4 invMatLookAt = glm::toMat4(q);
+		//glm::fmat4x4 invMat = glm::inverse(matLookAt);
+		glm::fvec3 _view(0, 0, -1);
+		glm::fvec3 _up(0, 1, 0);
+		_view = vzmutils::transformVec(_view, invMatLookAt);
+		_up = vzmutils::transformVec(_up, invMatLookAt);
+
+		vzm::CameraParameters& _cpCam = cpInterCams[i];
+		_cpCam = cpNewCam;
+		*(glm::fvec3*)_cpCam.pos = posPrev + (pos - posPrev) * t;
+		*(glm::fvec3*)_cpCam.view = _view;
+		*(glm::fvec3*)_cpCam.up = _up;
+
+#define INTERPOLCAM(PARAM) _cpCam.PARAM = cpCam.PARAM + (cpNewCam.PARAM - cpCam.PARAM) * t;
+
+		//INTERPOLCAM(w);
+		//INTERPOLCAM(h);
+		INTERPOLCAM(fx);
+		INTERPOLCAM(fy);
+		INTERPOLCAM(sc);
+		INTERPOLCAM(cx);
+		INTERPOLCAM(cy);
+	}
+	arAnimationKeyFrame = 0;
 }
 
 void Engine::slotImageArrived(cv::Mat img)
 {
-	QImage tempimg = QImage((uchar*)img.data, SCANIMG_W, SCANIMG_H, QImage::Format_RGBA8888);
-	Image2D temp(m_numImg++, 0, tempimg);
-	m_ImgList.push_back(temp);
+	// image 다운 받았을 때. slot
 
+#ifdef DEBUG
+	qDebug() << "Imagearrived called";
+#endif
+	int sidScene = vzmutils::GetSceneItemIdByName(m_sceneName);
+
+	if (m_isAP)
+	{
+		m_AP_set = true;
+		int cidCam1 = vzmutils::GetSceneItemIdByName(m_camAPName);
+		QImage tempimg = QImage((uchar*)img.data, SCANIMG_W, SCANIMG_H, QImage::Format_Grayscale8);
+		Image2D temp(m_numImg++, VIEW_TYPE::AP, tempimg);
+		m_ImgList.push_back(temp);
+		m_cvImgList.push_back(img);
+
+
+		SaveAndChangeViewState(0, sidScene, cidCam1, m_InterCamsAP, m_arAnimationKeyFrame);
+	}
+	else
+	{
+		m_Lateral_set = true;
+		int cidCam2 = vzmutils::GetSceneItemIdByName(m_camLateralName);
+		QImage tempimg = QImage((uchar*)img.data, SCANIMG_W, SCANIMG_H, QImage::Format_Grayscale8);
+		Image2D temp(m_numImg++, VIEW_TYPE::LATERAL, tempimg);
+		m_ImgList.push_back(temp);
+		m_cvImgList.push_back(img);
+
+		SaveAndChangeViewState(1, sidScene, cidCam2, m_InterCamsLateral, m_arAnimationKeyFrame);
+	}
+	m_isAP = !m_isAP;
 	m_network_processing_thread->setDownloadFlag(false);
 }
 
@@ -428,9 +642,10 @@ void Engine::TimerProc()
 #endif
 
 #ifdef USE_MOTIVE
-	navihelpers::concurrent_queue<navihelpers::track_info>* track_que = g_track_que;
+	//navihelpers::concurrent_queue<navihelpers::track_info>* track_que = g_track_que;
 	navihelpers::track_info trackInfo;
-	track_que->wait_and_pop(trackInfo);
+	//track_que->wait_and_pop(trackInfo);
+	m_trackingThread->pop(trackInfo);
 
 	// generate scene actors with updated trackInfo
 	{
@@ -542,12 +757,8 @@ void Engine::TimerProc()
 
 	UpdateTrackInfo2Scene(trackInfo);
 #else
-
-	// 제일 최근 trackinfo 만 저장해두고
-	//viewer 에서 요청시 update and render 하는 식으로 해야함.
-
-	//UpdateTrackInfo2Scene(trackingFrames[frame]);
+	UpdateTrackInfo2Scene(trackingFrames[frame]);
 #endif
-	//Render();
+	Render();
 
 }

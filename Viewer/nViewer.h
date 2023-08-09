@@ -3,6 +3,7 @@
 #include "Engine.h"
 #include "ui_Viewer.h"
 #include "ViewMgr.h"
+#include "ViewLayout.h"
 
 
 #include <QMainWindow>
@@ -16,6 +17,7 @@
 #include <qtimer.h>
 #include <QMouseEvent>
 #include <QKeyEvent>
+#include <QPalette>
 
 
 #include <filesystem>
@@ -33,6 +35,7 @@ public:
     nViewer(QWidget* parent = nullptr);
     ~nViewer();
 
+    void initLayout();
 
 private:
     Ui::ViewerClass ui;
@@ -48,11 +51,11 @@ private:
     Engine* m_engine;
 
     QString m_folder_data;
+
+    ViewLayout* m_mainFrame;
+
+    QListWidget* m_thumbnails;
 };
 
 
-//TODO : timer 계속 돌아 가는지 확인.
-// thread 동작하는지 확인.
-// 이미지 받아오면 띄우기.
-//
-// layout.
+//TODO : image setting만 되면 끝.

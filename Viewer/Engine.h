@@ -3,10 +3,14 @@
 #include<QWidget>
 #include<QString>
 #include<QTimer>
+#include<QImage>
 
 #include "Defines.h"
 #include "networkThread.h"
 #include "Image2D.h"
+#include "ViewLayout.h"
+#include "ViewMgr.h"
+#include "trackingThread.h"
 
 #include <regex>
 #include <vector>
@@ -38,7 +42,7 @@ class Q_DECL_EXPORT Engine : public QWidget
 
 public:
 
-	Engine(QString optiProfilePath, QString optiCalfilePath);
+	Engine(ViewLayout* layout, QString dataPath ,QString optiProfilePath, QString optiCalfilePath);
 	~Engine();
 
 	void EngineInit();
@@ -46,7 +50,12 @@ public:
 	void setCameraPrams(int id, vzm::CameraParameters prams);
 
 	void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo);
-	void Render(vzm::CameraParameters cpCam);
+	void Render();
+
+	void StoreParams(std::string& paramsFileName, glm::fmat4x4& matRB2WS, std::string& imgFileName);
+	void SaveAndChangeViewState(int keyParam, int sidScene, int cidCam,
+		std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame);
+	void MoveCameraToCArmView(int carmIdx, int cidCam, std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame);
 
 
 private slots:
@@ -62,8 +71,16 @@ private:
 	QString m_optiCalfilepath;
 
 	// Camera
-	vzm::CameraParameters m_cpCam1;
-	int m_cidCam1;
+	std::string m_camAPName;
+	vzm::CameraParameters m_cpCamAP;
+	std::vector<vzm::CameraParameters> m_InterCamsAP;
+	int m_cidCamAP;
+	int m_arAnimationKeyFrame;
+
+	std::string m_camLateralName;
+	vzm::CameraParameters m_cpCamLateral;
+	std::vector<vzm::CameraParameters> m_InterCamsLateral;
+	int m_cidCamLateral;
 
 	//Light
 	vzm::LightParameters m_Light1;
@@ -71,16 +88,37 @@ private:
 
 	//Scene
 	int m_sidScene;
+	std::string m_sceneName;
 
 	//timer for rendering
 	QTimer* m_qtimer;
 
 	//thread
 	networkThread* m_network_processing_thread;
+	trackingThread* m_trackingThread;
 
 	std::vector<Image2D> m_ImgList;
+	std::vector<cv::Mat> m_cvImgList;
 	int m_numImg;
+
+	// without optitrack
 	std::vector<navihelpers::track_info> m_trackingFrames;
 
+	//UI
+	ViewMgr* m_viewMgr;
+
+	//intrinsic
+	cv::Mat m_cameraMatrix;
+
+	//image type flag
+	bool m_isAP;
+	bool m_AP_set;
+	bool m_Lateral_set;
+
+	// dataPath
+	std::string m_dataPath;
+
+	//track info
+	navihelpers::concurrent_queue<navihelpers::track_info>* m_track_que;
 	
 };

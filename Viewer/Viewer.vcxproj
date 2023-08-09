@@ -107,8 +107,11 @@
     <ClCompile Include="Image2D.cpp" />
     <ClCompile Include="networkThread.cpp" />
     <ClCompile Include="nViewer.cpp" />
+    <ClCompile Include="trackingThread.cpp" />
     <ClCompile Include="View2D.cpp" />
     <ClCompile Include="ViewLayout.cpp" />
+    <ClCompile Include="ViewMgr.cpp" />
+    <ClCompile Include="WindowCArm.cpp" />
     <QtRcc Include="Viewer.qrc" />
     <QtUic Include="Viewer.ui" />
     <QtMoc Include="Viewer.h" />
@@ -118,7 +121,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\SNaviWin\CArmCalibration.h" />
+    <QtMoc Include="trackingThread.h" />
     <QtMoc Include="Engine.h" />
+    <ClInclude Include="Defines.h" />
     <ClInclude Include="Image2D.h" />
     <QtMoc Include="networkThread.h" />
     <QtMoc Include="nViewer.h" />

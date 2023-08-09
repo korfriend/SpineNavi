@@ -48,6 +48,8 @@ std::atomic_bool network_alive{ true };
 std::thread tracker_processing_thread;
 std::thread network_processing_thread;
 
+#define USE_MOTIVE
+
 #ifdef USE_MOTIVE
 navihelpers::concurrent_queue<navihelpers::track_info>* g_track_que = NULL;
 #else
@@ -58,7 +60,7 @@ int g_numAllFramesMKs = 0;
 
 #include "Viewer.h"
 
-int numAnimationCount = 5;
+int numAnimationCount = 50;
 int arAnimationKeyFrame = -1;
 std::vector<vzm::CameraParameters> cpInterCams(numAnimationCount);
 
@@ -1305,7 +1307,7 @@ void Viewer::keyPressEvent(QKeyEvent* event) {
 				}
 				//std::cout << "Capturing... " << captureCount << std::endl;
 				printf("\rCapturing... %d", captureCount);
-				fflush(stdout)
+				fflush(stdout);
 			}
 			std::cout << "Capturing... DONE!" << std::endl;
 			rotAxisAvr = glm::normalize(rotAxisAvr);

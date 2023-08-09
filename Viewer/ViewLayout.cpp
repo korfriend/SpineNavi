@@ -8,12 +8,7 @@ ViewLayout::ViewLayout(QWidget* parent)
 	QVBoxLayout* layout = new QVBoxLayout;
 	this->setLayout(layout);
 
-	QSizePolicy expandingPolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-	expandingPolicy.setHorizontalStretch(0);
-	expandingPolicy.setVerticalStretch(0);
-	setSizePolicy(expandingPolicy);
-
-	this->layout()->setContentsMargins(QMargins(0, 0, 0, 0));
+	this->layout()->setContentsMargins(QMargins(1, 1, 1, 1));
 
 	setMouseTracking(true);
 }
@@ -45,7 +40,8 @@ bool ViewLayout::setDoubleLayout(QWidget* view1, QWidget* view2)
 	if (view1 == nullptr || view2 == nullptr) return false;
 
 	QHBoxLayout* LRLayout = new QHBoxLayout;
-	LRLayout->setSpacing(0);
+
+	LRLayout->setSpacing(1);
 	LRLayout->addWidget(view1);
 	LRLayout->setStretch(0, 1);
 	LRLayout->addWidget(view2);
