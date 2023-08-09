@@ -109,9 +109,9 @@ namespace mystudents {
 	}
 
 	// 원의 점을 직선의 거리에 대하여 비교하는 함수.
-	bool sortByDistance(const cv::Point2f& a, const cv::Point2f& b, const int m, const int n) {
-		float distanceA = abs(m * a.x + n * a.y + n);//std::sqrt((a.x - center.x) * (a.x - center.x) + (a.y - center.y) * (a.y - center.y));
-		float distanceB = abs(m * b.x + n * b.y + n);//std::sqrt((b.x - center.x) * (b.x - center.x) + (b.y - center.y) * (b.y - center.y));
+	bool sortByDistance(const cv::Point2f& a, const cv::Point2f& b, const float m, const float n) {
+		float distanceA = abs(-m * a.x + a.y - n);//std::sqrt((a.x - center.x) * (a.x - center.x) + (a.y - center.y) * (a.y - center.y));
+		float distanceB = abs(-m * a.x + a.y - n);//std::sqrt((b.x - center.x) * (b.x - center.x) + (b.y - center.y) * (b.y - center.y));
 		return distanceA < distanceB;
 	}
 
@@ -186,11 +186,11 @@ namespace mystudents {
 			cv::Point2f second = circlePoints[1];
 
 			// 3. 두점을 잇는 선
-			float m = second.y - first.y / second.x - first.x;
-			float n = first.y - m * first.x;
+			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
+			float n = first.y - (m * first.x); // y절편.
 
-			// 4. 직선의 방정식 : y = mx + n
-			// 직선과 가까운 점 정렬.		
+			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
+			// 직선과 가까운 점 정렬.
 			std::sort(circlePoints.begin(), circlePoints.end(),
 				[&](const cv::Point2f& a, const cv::Point2f& b) {
 					return sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
