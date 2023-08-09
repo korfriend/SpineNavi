@@ -17,6 +17,8 @@ namespace nettask {
 	}
 
 	int NetworkProcess() {
+		if (__gc == NULL) return -1;
+
 
 		WSADATA wsaData;
 		WSAStartup(MAKEWORD(2, 2), &wsaData);

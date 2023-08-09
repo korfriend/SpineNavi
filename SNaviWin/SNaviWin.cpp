@@ -671,13 +671,11 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	track_info trackInfo;
 
 	//for smaller overhead
-	//__gc.g_track_que.wait_and_pop(trackInfo);
-	//UpdateTrackInfo2Scene(trackInfo);
-	//Render();
+	__gc.g_track_que.wait_and_pop(trackInfo);
 
 	if (__gc.g_renderEvent == RENDER_THREAD_CALIBRATION) {
+		memcpy(g_curScanImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
 		if (__gc.g_selectedMkNames.size() == 4) {
-
 			if (phantomCalib(g_curScanImg, &trackInfo)) {
 				int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
 				int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
@@ -690,13 +688,13 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 		__gc.g_renderEvent = RENDER_THREAD_FREE;
 	}
 
-	track_info* ptrackInfo = NULL;
-	if (!__gc.g_track_que.empty()) {
-		trackInfo = __gc.g_track_que.front();
-		ptrackInfo = &trackInfo;
-	}
+	//track_info* ptrackInfo = NULL;
+	//if (!__gc.g_track_que.empty()) {
+	//	trackInfo = __gc.g_track_que.front();
+	//	ptrackInfo = &trackInfo;
+	//}
 
-	rendertask::RenderTrackingScene(ptrackInfo);
+	rendertask::RenderTrackingScene(&trackInfo);
 
 	// DOJO : windows SDK 에서 화면 업데이트 (QT 방식은 UpdateBMP 참조)
 	// USE_WHND 가 false 로 되어 있어야 함
@@ -748,6 +746,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-08-05/";
 	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-08-08.motive";
 
+	rendertask::SetGlobalContainer(&__gc);
+	nettask::SetGlobalContainer(&__gc);
+	trackingtask::SetGlobalContainer(&__gc);
+
 	//{
 		cv::Mat __curScanImg = cv::imread(__gc.g_folder_trackingInfo + "test2.png");
 		cv::flip(__curScanImg, __curScanImg, 1);
@@ -787,10 +789,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	GetClientRect(g_hWndDialog1, &rcView2);
 
 	rendertask::SceneInit(USE_WHND ? g_hWnd : NULL, rcView1, USE_WHND ? g_hWndDialog1 : NULL, rcView2);
-	SetTimer(g_hWnd, NULL, 10, TimerProc);
 
 	std::thread tracker_processing_thread(trackingtask::OptiTrackingProcess);
 	std::thread network_processing_thread(nettask::NetworkProcess);
+
+	SetTimer(g_hWnd, NULL, 10, TimerProc);
 
     MSG msg;
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAVIWIN));
@@ -1068,7 +1071,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				// 툴 등록하기..
 				__gc.g_optiEvent = OPTTRK_THREAD_TOOL_REGISTER;
-				while (__gc.g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) { Sleep(2); }
+				while (__gc.g_optiEvent != OPTTRK_THREAD_FREE) { Sleep(2); }
 				__gc.g_testMKs.clear();
 				__gc.g_testMKs.push_back(glm::fvec3(0));
 				__gc.g_testMKs.push_back(glm::fvec3(0));

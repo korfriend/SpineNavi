@@ -346,7 +346,7 @@ typedef struct GlobalContainer {
 	std::map<std::string, int> g_selectedMkNames;
 	std::map<int, int> g_mapAidGroupCArmCam;
 
-	std::vector<glm::fvec3> g_toolLocalPoints;
+	glm::fvec3 g_toolTipPointLS;
 	std::vector<glm::fvec3> g_testMKs;
 	std::vector<glm::fvec3> g_global_calib_MKs;
 
@@ -356,6 +356,7 @@ typedef struct GlobalContainer {
 #define OPTTRK_THREAD_FREE 0
 #define OPTTRK_THREAD_C_ARM_REGISTER 1
 #define OPTTRK_THREAD_TOOL_REGISTER 2
+#define OPTTRK_THREAD_TOOL_UPDATE 3
 	std::atomic_int g_optiEvent; // { OPTTRK_THREAD_FREE };
 
 

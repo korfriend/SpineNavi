@@ -27,6 +27,7 @@ namespace rendertask {
 	}
 
 	void SceneInit(const HWND view1Hwnd, const RECT rcWorldView1, const HWND view2Hwnd, const RECT rcWorldView2) {
+		if (__gc == NULL) return;
 
 		// DOJO : Axis 를 위한 actor resource 를 생성
 		// oidAxis (objId) 은 생성된 actor resource 의 ID 를 받아옴
@@ -192,6 +193,8 @@ namespace rendertask {
 		const float fx, const float fy, const float s, const float cx, const float cy, 
 		const glm::fmat4x4& matCS2WS)
 	{
+		if (__gc == NULL) return;
+
 		if (viewIdx >= g_arAnimationKeyFrame.size() || viewIdx < 0)
 			return;
 
@@ -278,6 +281,8 @@ namespace rendertask {
 	// numMKs : 개별 markers
 	void UpdateTrackInfo2Scene(track_info& trackInfo)
 	{
+		if (__gc == NULL) return;
+
 		int numMKs = trackInfo.NumMarkers();
 		int numRBs = trackInfo.NumRigidBodies();
 
@@ -534,16 +539,25 @@ namespace rendertask {
 					using namespace glm;
 
 					const float tipMarkerRadius = (float)(0.019 * 0.5);
-					int numToolPoints = (int)__gc->g_toolLocalPoints.size();
+					int numToolPoints = rbmkSet.size();
+
+					std::vector<fvec3> toolLocalPts;
+					for (auto& rbmk : rbmkSet) {
+						std::map<track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
+						glm::fvec3 pos = std::any_cast<glm::fvec3>(rbmk_v[track_info::MKINFO::POSITION]);
+						glm::fvec3 posRb = vzmutils::transformPos(pos, matWS2LS);
+						toolLocalPts.push_back(posRb);
+					}
+
 					fvec3 posCenterLS = fvec3(0, 0, 0);
-					fvec3 posTipMkLS = __gc->g_toolLocalPoints[numToolPoints - 1];
+					fvec3 posTipMkLS = __gc->g_toolTipPointLS;
 					for (int i = 0; i < numToolPoints - 1; i++) {
-						posCenterLS += __gc->g_toolLocalPoints[i];
+						posCenterLS += toolLocalPts[i];
 					}
 					posCenterLS /= (float)(numToolPoints - 1);
 
 					// compute normal
-					fvec3 nrlLS = navihelpers::ComputeNormalVector(__gc->g_toolLocalPoints); // LS
+					fvec3 nrlLS = navihelpers::ComputeNormalVector(toolLocalPts); // LS
 
 					// correct the normal direction using cam view
 					int cidCam1 = vzmutils::GetSceneItemIdByName(__gc->g_camName); // Cam1
@@ -661,6 +675,8 @@ namespace rendertask {
 	// Timer 에 등록된 CALLBACK TimerProc 에서 호출됨 (note: Timer 가 본 어플리케이션에서 rendering thread 로 사용됨)
 	void RenderTrackingScene(const track_info* trackInfo)
 	{
+		if (__gc == NULL) return;
+
 		// DOJO : Tracking 되는 기본 세트 (individual markers + rigid body frames) 를 Scene 에 반영시키는 함수
 		if (trackInfo)
 			UpdateTrackInfo2Scene(*(track_info*)trackInfo);
@@ -671,7 +687,7 @@ namespace rendertask {
 
 		int sidScene = vzmutils::GetSceneItemIdByName(__gc->g_sceneName);
 		int cidCam1 = vzmutils::GetSceneItemIdByName(__gc->g_camName);
-		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc->g_camName);
+		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc->g_camName2);
 
 		if ((sidScene & cidCam1 & cidCam2) == 0)
 			return;

@@ -5,6 +5,8 @@
 
 #include "../optitrk/optitrk.h"
 
+#include <opencv2/opencv.hpp>
+
 namespace trackingtask {
 
 	__GC* __gc = NULL;
@@ -14,8 +16,18 @@ namespace trackingtask {
 	}
 
 	void OptiTrackingProcess() {
+		if (__gc == NULL) return;
+
 		using namespace std;
 		using namespace glm;
+
+		cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::READ);
+		if (fs.isOpened()) {
+			cv::Mat ocv3(1, 3, CV_32FC1);
+			fs["ToolTip"] >> ocv3;
+			memcpy(&__gc->g_toolTipPointLS, ocv3.ptr(), sizeof(glm::fvec3));
+		}
+		fs.release();
 
 		while (__gc->g_tracker_alive)
 		{
@@ -127,23 +139,28 @@ namespace trackingtask {
 						int numSelectedMKs = (int)__gc->g_selectedMkNames.size();
 						optitrk::SetRigidBody("tool", numSelectedMKs - 1, (float*)&selectedMks[0]);
 
-						optitrk::UpdateFrame();
-						glm::fmat4x4 rbLS2WS;
-						int rbIdx = -1;
-						std::vector<float> buf_rb_mks;
-						//std::vector<float> ws_mks;
-						optitrk::GetRigidBodyLocationByName("tool", __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks);
+						__gc->g_optiEvent = OPTTRK_THREAD_TOOL_UPDATE;
+					}
+				}
+				else if (__gc->g_optiEvent == OPTTRK_THREAD_TOOL_UPDATE) {
+
+					glm::fmat4x4 rbLS2WS;
+					int rbIdx = -1;
+					std::vector<float> buf_rb_mks;
+					//std::vector<float> ws_mks;
+					if (optitrk::GetRigidBodyLocationByName("tool", __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks)) {
 						std::vector<glm::fvec3> pos_rb_mks(buf_rb_mks.size() / 3);
 						memcpy(&pos_rb_mks[0], &buf_rb_mks[0], sizeof(float) * buf_rb_mks.size());
 
 						glm::fmat4x4 rbWS2LS = glm::inverse(rbLS2WS);
 
-						__gc->g_toolLocalPoints.clear();
-						for (int i = 0; i < selectedMks.size() - 1; i++) {
-							__gc->g_toolLocalPoints.push_back(vzmutils::transformPos(pos_rb_mks[i], rbWS2LS));
-						}
-						//g_toolLocalPoints = pos_rb_mks;
-						__gc->g_toolLocalPoints.push_back(vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS));
+						__gc->g_toolTipPointLS = vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS);
+
+						cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
+						cv::Mat ocv3(1, 3, CV_32FC1);
+						memcpy(ocv3.ptr(), &__gc->g_toolTipPointLS, sizeof(glm::fvec3));
+						fs << "ToolTip" << ocv3;
+						fs.release();
 
 						// use cam direction...
 						UpdateRigidBodiesInThread();
