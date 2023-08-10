@@ -286,13 +286,13 @@ namespace rendertask {
 		int numMKs = trackInfo.NumMarkers();
 		int numRBs = trackInfo.NumRigidBodies();
 
-		__gc->g_ui_banishing_count = std::max(--__gc->g_ui_banishing_count, (int)0);
-		if (__gc->g_ui_banishing_count == 1) {
-			__gc->g_testMKs.clear();
-			int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
-			if (aidTestGroup != 0)
-				vzm::RemoveSceneItem(aidTestGroup);
-		}
+		//__gc->g_ui_banishing_count = std::max(--__gc->g_ui_banishing_count, (int)0);
+		//if (__gc->g_ui_banishing_count == 1) {
+		//	__gc->g_testMKs.clear();
+		//	int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+		//	if (aidTestGroup != 0)
+		//		vzm::RemoveSceneItem(aidTestGroup);
+		//}
 
 		// DOJO : 최초 한번만 리소스 오브젝트 생성 (static 으로 지정된 리소스 오브젝트 ID = 0 일 때, 생성) 
 		// 이를 actor 로 생성하고 scene tree 에 배치
@@ -630,7 +630,7 @@ namespace rendertask {
 
 				*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 1, 1);
 				if (__gc->g_selectedMkNames.find(mkName) != __gc->g_selectedMkNames.end()) {
-					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 1);
+					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 0.5);
 				}
 
 				apMarker.SetLocalTransform(__FP matLS2WS);
@@ -647,7 +647,7 @@ namespace rendertask {
 				int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
 				if (aidMarkerTest != 0) {
 					glm::fmat4x4 matLS2WS = glm::translate(__gc->g_testMKs[i]);
-					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.003f)); // set 1 cm to the marker diameter
+					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.001f)); // set 1 cm to the marker diameter
 					matLS2WS = matLS2WS * matScale;
 
 					vzm::ActorParameters apMarker;
@@ -714,6 +714,13 @@ namespace rendertask {
 			textItem.posScreenY = cpCam1.h - 40;
 			cpCam1.text_items.SetParam("FRAME", textItem);
 
+			textItem.textStr = __gc->g_useGlobalPairs? "Global Pairs (" + std::to_string(__gc->g_homographyPairs.size()) + ")" : "Local Pairs";
+			textItem.fontSize = 30.f;
+			textItem.iColor = 0xFFFFFF;
+			textItem.posScreenX = 0;
+			textItem.posScreenY = cpCam1.h - 80;
+			cpCam1.text_items.SetParam("FRAME", textItem);
+
 			textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
 			textItem.fontSize = 20.f + __gc->g_downloadCompleted / 10.f;
 			textItem.iColor = 0xFF00FF;
@@ -731,13 +738,15 @@ namespace rendertask {
 			// DOJO : Animation effect
 			// cpInterCams 는 매 스캔 시 업데이트되며, 
 			// slerp 로 인터폴레이션된 camera 정보를 받아 옴
+			int cidCams[2] = { cidCam1 , cidCam2 };
+
 			for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
 
 				int frameIdx = g_arAnimationKeyFrame[i];
 				if (frameIdx >= 0) {
 					vzm::CameraParameters& cpCam = g_cpInterCams[i][frameIdx];
 					cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
-					vzm::SetCameraParams(cidCam1, cpCam);
+					vzm::SetCameraParams(cidCams[i], cpCam);
 					if (frameIdx == g_numAnimationCount - 1)
 						frameIdx = -1;
 					else

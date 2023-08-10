@@ -15,8 +15,10 @@
 #include <Eigen/Dense>
 #include <Eigen/IterativeLinearSolvers>
 
+#define __cv2__ *(glm::fvec2*)
 #define __cv3__ *(glm::fvec3*)
 #define __cv4__ *(glm::fvec4*)
+
 #define __cm4__ *(glm::fmat4x4*)
 #define __PR(A, INTERVAL) A[0] << INTERVAL << A[1] << INTERVAL << A[2]
 
@@ -332,11 +334,11 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 	inline glm::fvec3 ComputeNormalVector(std::vector<glm::fvec3>& points) {
 		Eigen::Vector3d normalVector;
 		{
-			Eigen::Matrix3d A;
-
 			int nunmPts = (int)points.size();
 			if (nunmPts < 3)
 				return glm::fvec3(0, 0, 1);	// error case
+
+			Eigen::MatrixXd A(nunmPts, 3); // Matrix to store points
 
 			glm::fvec3 centerPos = glm::fvec3(0, 0, 0);
 			for (int i = 0; i < nunmPts; i++) {
@@ -351,16 +353,21 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			//	A(i, 2) = points[i].z - centerPos.z;
 			//}
 
-			for (int i = 0; i < 3; ++i) {
-				A(i, 0) = points[i + 1].x - points[0].x;
-				A(i, 1) = points[i + 1].y - points[0].y;
-				A(i, 2) = points[i + 1].z - points[0].z;
+			for (int i = 0; i < nunmPts; ++i) {
+				A(i, 0) = points[i].x - centerPos.x;
+				A(i, 1) = points[i].y - centerPos.y;
+				A(i, 2) = points[i].z - centerPos.z;
 			}
 
+			// Compute SVD
 			// Compute the normal vector as the null space of A
-			Eigen::JacobiSVD<Eigen::Matrix3d> svd(A, Eigen::ComputeFullV);
+			Eigen::JacobiSVD<Eigen::MatrixXd> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+
+			// Normal vector
 			normalVector = svd.matrixV().col(2);
 			normalVector.normalize();
+
+			std::cout << "\nNormal vector: " << normalVector << std::endl;
 		}
 
 		return glm::fvec3(normalVector.x(), normalVector.y(), normalVector.z());

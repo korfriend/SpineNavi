@@ -24,8 +24,8 @@
 #define SCANIMG_W 1296
 #define SCANIMG_H 1296
 #define FLIP_SCANIMAGE true
-#define PHANTOM_MODE "LEGO" // "FILM"
-#define EXTRINSIC_PHANTOM_IMG_INDEX 2
+#define PHANTOM_MODE "LEGO" // "LEGO" "FILM" "FMARKERS"
+#define EXTRINSIC_PHANTOM_IMG_INDEX 3
 
 // https://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html
 template<typename Data>
@@ -352,6 +352,52 @@ typedef struct GlobalContainer {
 
 	std::vector<char> g_downloadImgBuffer; // grayscale
 
+	struct mfvec3
+	{
+		glm::fvec3 p;
+		mfvec3()
+		{
+		}
+		mfvec3(glm::fvec3 _p)
+		{
+			p = _p;
+		}
+		bool operator == (mfvec3 other) const
+		{
+			if (p.x == other.p.x && p.y == other.p.y && p.z == other.p.z)
+				return true;
+			else
+				return false;
+		}
+		bool operator < (mfvec3 other) const
+		{
+			double dTemp = 100000;
+			double d1 = p.z * dTemp * dTemp + p.y * dTemp + p.x;
+			double d2 = other.p.z * dTemp * dTemp + other.p.y * dTemp + other.p.x;
+			if (d1 < d2)
+				return true;
+			else
+				return false;
+		}
+	};
+
+	struct homographyPairCompare
+	{
+		bool operator() (const glm::fvec3& lhs, const glm::fvec3& rhs) const
+		{
+			double dTemp = 100; // enough for  meter scale...
+			double d1 = lhs.z * dTemp * dTemp + lhs.y * dTemp + lhs.x;
+			double d2 = rhs.z * dTemp * dTemp + rhs.y * dTemp + rhs.x;
+			if (d1 < d2)
+				return true;
+			else
+				return false;
+		}
+	};
+
+	bool g_useGlobalPairs;
+	std::map<glm::fvec3, glm::fvec2, homographyPairCompare> g_homographyPairs;
+
 	//================ THREAD SAFE GROUP ==================
 #define OPTTRK_THREAD_FREE 0
 #define OPTTRK_THREAD_C_ARM_REGISTER 1
@@ -390,6 +436,8 @@ typedef struct GlobalContainer {
 		g_sceneName = "Scene1"; // Scene1, Scene2
 		g_camName = "Cam1"; // World Camera, CArm Camera
 		g_camName2 = "Cam2"; // World Camera, CArm Camera
+
+		g_useGlobalPairs = true;
 
 		g_optiEvent = OPTTRK_THREAD_FREE;
 		g_renderEvent = RENDER_THREAD_FREE;

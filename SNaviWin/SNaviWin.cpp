@@ -60,327 +60,39 @@ LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK    DiagProc1(HWND, UINT, WPARAM, LPARAM);
 INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
 
-cv::Mat g_curScanImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
+cv::Mat g_curScanGrayImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
 
 __GC __gc;
 
-namespace mystudents {
-	using namespace std;
+auto ___LoadMyVariable = [](const std::string& pname, const int idx) {
+	cv::Mat ocvVec3(1, 3, CV_32FC1);
+	cv::FileStorage fs(__gc.g_folder_trackingInfo + "my_test_variables.txt", cv::FileStorage::Mode::READ);
+	fs[pname] >> ocvVec3;
+	glm::fvec3 p1;
+	memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
+	fs.release();
 
-	// BlobDetector를 통해 원이 감지되었는지 확인하는 코드입니다.
-	int CheckCircleDetect(const cv::Mat& inputImg, const std::vector<cv::KeyPoint>& keyPoints)
-	{
-		cv::Mat img = inputImg.clone();
-
-		int r = 0;
-		for (const auto& keypoint : keyPoints) {
-			int x = cvRound(keypoint.pt.x);
-			int y = cvRound(keypoint.pt.y);
-			int s = cvRound(keypoint.size);
-			r = cvRound(s / 2);
-			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
-			string text = " (" + to_string(x) + ", " + to_string(y) + ")";
-			cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
-		}
-		cv::imwrite(__gc.g_folder_trackingInfo + "test_circle_detect.png", img); // cv imshow()로 보이기.
-
-		return r; // 반지름 반환
-	}
-
-	// 2d 포지션의 index가 잘 정렬되었는지 확인하는 코드입니다.
-	void CheckPositionSort(const cv::Mat& inputImg, const std::vector<cv::Point2f>& point2Ds, int r)
-	{
-		cv::Mat img = inputImg.clone();
-
-		int idx = 0;
-		for (const auto& center : point2Ds) {
-			int x = cvRound(center.x);
-			int y = cvRound(center.y);
-
-			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
-			string text = " (" + to_string(x) + ", " + to_string(y) + ")";
-			cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
-
-			// index 출력
-			cv::putText(img, to_string(idx), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 1);
-			idx += 1;
-		}
-		cv::imwrite(__gc.g_folder_trackingInfo + "test_circle_sort.png", img); // cv imshow()로 보이기.
-	}
-
-	// 원의 점을 직선의 거리에 대하여 비교하는 함수.
-	bool sortByDistance(const cv::Point2f& a, const cv::Point2f& b, const int m, const int n) {
-		float distanceA = abs(m * a.x + n * a.y + n);//std::sqrt((a.x - center.x) * (a.x - center.x) + (a.y - center.y) * (a.y - center.y));
-		float distanceB = abs(m * b.x + n * b.y + n);//std::sqrt((b.x - center.x) * (b.x - center.x) + (b.y - center.y) * (b.y - center.y));
-		return distanceA < distanceB;
-	}
-
-	// implemented by 김민교 
-	int Get2DPostionsFromLegoPhantom(const cv::Mat& inputImg, std::vector<cv::Point2f>& points2Ds)
-	{
-		cv::Mat imgGray;
-		int chs = inputImg.channels();
-		if (inputImg.channels() == 3)
-			cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
-		else if(inputImg.channels() == 1)
-			imgGray = inputImg;
-		else {
-			cout << "not supported image!" << endl;
-			assert(0);
-		}
-		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
-
-		//Add mask
-		//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
-		// Blob Detector Params
-		cv::SimpleBlobDetector::Params params;
-		params.filterByArea = true;
-		params.filterByCircularity = true;
-		params.filterByConvexity = false;
-		params.filterByInertia = true;
-		params.filterByColor = true;
-		params.blobColor = 0;
-
-		//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		//params.maxArea = 1000;
-		//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
-
-		params.minArea = 1000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		params.maxArea = 5500;
-		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
-
-		params.minInertiaRatio = 0.01; // 1 >> it detects perfect circle. short / long axis
-		params.minRepeatability = 2;
-		params.minDistBetweenBlobs = 0.1;
-
-		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
-		vector<cv::KeyPoint> keypoints;
-		detector->detect(imgGray, keypoints); // circle detect.
-
-		// 원을 감지했는지 확인.
-		int r = CheckCircleDetect(inputImg, keypoints);
-
-		// 벡터에 일단 원의 점을 넣는다.
-		vector<cv::Point2f> circlePoints;
-
-		for (const auto& kp : keypoints) {
-			circlePoints.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
-		}
-
-		int col = 6; int row = 8;
-		int top_bottom = 6; // 위 아래 6개
-		int middle = 8;     // 가운데 8개
-
-		for (int i = 0; i < row; i++) {
-			int pointNum = middle;
-			if (i == 0 || i == row - 1) // 맨 처음줄과 아랫줄이면 6개만 감지한다.
-				pointNum = top_bottom;
-
-			// 1. y축 정렬
-			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-				return a.y < b.y;
-				});
-
-			// 2. 가장 위의 점 두개 뽑기
-			cv::Point2f first = circlePoints[0];
-			cv::Point2f second = circlePoints[1];
-
-			// 3. 두점을 잇는 선
-			float m = second.y - first.y / second.x - first.x;
-			float n = first.y - m * first.x;
-
-			// 4. 직선의 방정식 : y = mx + n
-			// 직선과 가까운 점 정렬.		
-			std::sort(circlePoints.begin(), circlePoints.end(),
-				[&](const cv::Point2f& a, const cv::Point2f& b) {
-					return sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
-				});
-
-			// 6개 or 8개 빼기			
-			vector<cv::Point2f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
-			for (int j = 0; j < pointNum; j++)
-			{
-				rowPoints.push_back(circlePoints[0]); // 거리가 가장 가까운 것을 뽑음. 가장 가까운건 0번째
-				circlePoints.erase(circlePoints.begin()); // 뽑았으면 삭제.
-			}
-
-			// 5. x 방향으로 정렬.
-			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-				return a.x < b.x;
-				});
-
-			// 6. point2Ds에 넣음.
-			for (int j = 0; j < pointNum; j++)
-				points2Ds.push_back(rowPoints[j]);
-		}
-
-		// 포지션 잘 정렬되었는지 확인.
-		CheckPositionSort(inputImg, points2Ds, r);
-
-		return (int)points2Ds.size();
-	}
-
-	// Function to calculate the normal vector of a plane given three points
-	// Function to calculate the normal vector of a plane given three points
-	void calc_normal_vector(const cv::Point3f& point1, const cv::Point3f& point2, const cv::Point3f& point3,
-		cv::Point3f& vectorX, cv::Point3f& vectorY, cv::Point3f& normalVector) {
-
-		cv::Point3f vector_x(point2.x - point1.x, point2.y - point1.y, point2.z - point1.z); // x축
-		cv::Point3f vector_y(point3.x - point1.x, point3.y - point1.y, point3.z - point1.z); // y축
-
-		cv::Point3f normal_vector;
-		normal_vector = vector_x.cross(vector_y); // x축과 y축 외적을 통해 두 벡터가 이루는 평면의 법선벡터를 구함.
-
-		// Normalize
-		vectorX = vector_x / norm(vector_x);
-		vectorY = vector_y / norm(vector_y);
-		normalVector = normal_vector / norm(normal_vector);
-	}
-
-	// Function to fit a plane to a set of 3D points and find its normal vector
-	cv::Point3f fit_plane_to_points(const vector<cv::Point3f>& points) {
-
-		cv::Point3f centroid(0.0, 0.0, 0.0);
-		for (const auto& point : points) {
-			centroid.x += point.x;
-			centroid.y += point.y;
-			centroid.z += point.z;
-		}
-		centroid.x /= points.size();
-		centroid.y /= points.size();
-		centroid.z /= points.size();
-
-		vector<cv::Point3f> centered_points;
-		for (const auto& point : points) {
-			cv::Point3f centered_point(point.x - centroid.x, point.y - centroid.y, point.z - centroid.z);
-			centered_points.push_back(centered_point);
-		}
-
-		cv::Point3f normal_vector;
-		normal_vector.x = normal_vector.y = normal_vector.z = 0.0;
-
-		for (size_t i = 0; i < centered_points.size(); ++i) {
-			normal_vector.x += centered_points[i].y * centered_points[(i + 1) % centered_points.size()].z - centered_points[i].z * centered_points[(i + 1) % centered_points.size()].y;
-			normal_vector.y += centered_points[i].z * centered_points[(i + 1) % centered_points.size()].x - centered_points[i].x * centered_points[(i + 1) % centered_points.size()].z;
-			normal_vector.z += centered_points[i].x * centered_points[(i + 1) % centered_points.size()].y - centered_points[i].y * centered_points[(i + 1) % centered_points.size()].x;
-		}
-
-		double norm = std::sqrt(normal_vector.x * normal_vector.x + normal_vector.y * normal_vector.y + normal_vector.z * normal_vector.z);
-		normal_vector.x /= norm;
-		normal_vector.y /= norm;
-		normal_vector.z /= norm;
-
-		return normal_vector;
-	}
-
-	// implemented by 정태민
-	// Function to get 3D positions of markers
-
-	int Get3DPostionsFromLegoPhantom(const double marker_r,
-		const cv::Point3f& marker1, const cv::Point3f& marker2, const cv::Point3f& marker3, const cv::Point3f& marker4,
-		vector<cv::Point3f>& points3Ds) {
-
-		const double unit = 0.0159375;
-
-		double plane_r = 0.003; // 홈의 반지름 
-		double big_h = marker_r - std::sqrt(marker_r * marker_r - plane_r * plane_r); //빠진 길이
-		double small_marker_r = 0.004; // 8 / 2 / 1000;
-		double small_h = small_marker_r - std::sqrt(small_marker_r * small_marker_r - plane_r * plane_r); //빠진 길이
-		double h = big_h - small_h;
-
-		cv::Point3f x, y, tempNormal;
-		calc_normal_vector(marker1, marker4, marker2, x, y, tempNormal);
-		cv::Point3f z = tempNormal;
-
-		// fit_plane_to_points() 함수에서 네 개의 포인트와 SVD를 이용해 법선벡터를 보간함...
-		// fit_plane_to_points({ marker1, marker2, marker3, marker4 });
-
-		for (int i = 0; i < 8; ++i) {
-			for (int j = 0; j < 8; ++j) {
-				if (i == 0 && j == 0)
-					continue;
-				else if (i == 7 && j == 0)
-					continue;
-				else if (i == 0 && j == 7)
-					continue;
-				else if (i == 7 && j == 7)
-					continue;
-
-				cv::Point3f unit_position(float(i), float(j), 0.0f);
-				cv::Point3f estimate_marker = cv::Point3f(marker1 + unit_position.x * unit * x + unit_position.y * unit * y + h * z);
-				points3Ds.push_back(estimate_marker);
-			}
-		}
-
-		//vector<vector<cv::Point3f>> points3Ds;
-		//points3Ds.push_back(inter_points);
-		return (int)points3Ds.size();
-	}
-
-	int Get3DPostionsFromLegoPhantom2(const float marker_r,
-		const cv::Point3f& marker1, const cv::Point3f& marker2, const cv::Point3f& marker3, const cv::Point3f& marker4,
-		vector<cv::Point3f>& points3Ds) {
-
-		// note we are using meter metric
-		using namespace glm;
-		std::vector<fvec3> pts = { *(fvec3*)&marker1, *(fvec3*)&marker2, *(fvec3*)&marker3, *(fvec3*)&marker4 };
-		fvec3 estimated_normal = navihelpers::ComputeNormalVector(pts); // return the unit length vector of the plane fitting to the input points
-		// normal correction
-		fvec3 v14 = pts[3] - pts[0];
-		fvec3 v12 = pts[1] - pts[0];
-		fvec3 nor_dir = cross(v14, v12);
-		if (dot(estimated_normal, nor_dir) < 0) estimated_normal *= -1.f;
-
-		// compute the aligned marker position fit to the sphere height
-		const float h_r = 0.003f;// (float)(15.9375 * 0.001);
-		const float s_r = 0.004f;
-		float m_r_sq = marker_r * marker_r;
-		float h_r_sq = h_r * h_r;
-		float s_r_sq = s_r * s_r;
-		float a = sqrt(m_r_sq - h_r_sq);
-		float b = sqrt(s_r_sq - h_r_sq);
-		float correctLength = a - b;
-		fvec3 pts_corrected[4];
-		for (int i = 0; i < 4; i++) {
-			pts_corrected[i] = pts[i] - estimated_normal * correctLength;
-		}
-
-		const int rows = 8;
-		const int cols = 8;
-
-		for (int i = 0; i < rows; ++i) {
-			float ratio_row = (float)i / (float)(rows - 1);
-			fvec3 interPosRow0 = (1.f - ratio_row) * pts_corrected[0] + ratio_row * pts_corrected[3];
-			fvec3 interPosRow1 = (1.f - ratio_row) * pts_corrected[1] + ratio_row * pts_corrected[2];
-
-			for (int j = 0; j < cols; ++j) {
-				if (i == 0 && j == 0)
-					continue;
-				else if (i == rows - 1 && j == 0)
-					continue;
-				else if (i == 0 && j == cols - 1)
-					continue;
-				else if (i == rows - 1 && j == cols - 1)
-					continue;
-
-				float ratio_col = (float)j / (float)(rows - 1);
-				fvec3 interPos = (1.f - ratio_col) * interPosRow0 + ratio_col * interPosRow1;
-				points3Ds.push_back(*(cv::Point3f*)&interPos);
-			}
-		}
-
-		//vector<vector<cv::Point3f>> points3Ds;
-		//points3Ds.push_back(inter_points);
-		return (int)points3Ds.size();
-	}
-}
+	return ((float*)&p1)[idx];
+};
 
 // DOJO : 스캔 시 정보를 저장할 파일
 // 현 버전에서는 carm_intrinsics.txt (presetting) 에 저장된 intrinsic parameter 와
 // rb2carm1.txt (presetting + 매 스캔 시 저장됨) 에 저장된 c-arm source pose (extrinsic parameter) 를 로드하여 이를 파일로 저장
 // TODO : 추후 해당 부분을 file to file 이 아닌, memory to memory 로 관리해야 함
 // TODO : 매 스캔마다 camera intrinsics 와 extrinsics 를 계산하도록 수정해야 함
-auto storeParams = [](const std::string& paramsFileName, const glm::fmat4x4& matRB2WS, const std::string& imgFileName) {
+auto storeParams = [](const cv::Mat downloadedGrayImg, const std::string& paramsFileName, const glm::fmat4x4& matCArmRB2WS, const std::string& imgFileName) {
+
+	if (downloadedGrayImg.empty())
+	{
+		std::cout << "\nno downloaded image" << std::endl;
+		return;
+	}
+
+	// now g_curScanImg is valid
+	// test3.png is for extrinsic calibration image
+	cv::Mat downloadColorImg;
+	cv::cvtColor(downloadedGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
+	cv::imwrite(imgFileName, downloadColorImg);
 
 	cv::FileStorage __fs(__gc.g_folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
 
@@ -401,184 +113,12 @@ auto storeParams = [](const std::string& paramsFileName, const glm::fmat4x4& mat
 	fs.release();
 
 	cv::Mat ocvRb(4, 4, CV_32FC1);
-	memcpy(ocvRb.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
+	memcpy(ocvRb.ptr(), glm::value_ptr(matCArmRB2WS), sizeof(float) * 16);
 	__fs << "rb2wsMat" << ocvRb;
 	__fs << "imgFile" << imgFileName;
 	__fs.release();
 };
 
-// note : this function needs to be called in the render thread
-auto phantomCalib = [](const cv::Mat& downloadedImg, const track_info* trk)
-{
-	using namespace std;
-	cv::Mat source2detImg;
-	if (FLIP_SCANIMAGE)
-		cv::flip(downloadedImg, source2detImg, 1);
-	else
-		source2detImg = downloadedImg;
-
-	if (__gc.g_selectedMkNames.size() != 4) {
-		cout << "\n4 points are needed!!" << endl;
-		return false;
-	}
-
-	// now g_curScanImg is valid
-	// test3.png is for extrinsic calibration image
-	cv::Mat downloadImg;
-	cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
-	string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png";
-	cv::imwrite(downloadImgFileName, downloadImg);
-	// now tracking info of c-arm scan is valid.
-	std::cout << "\n" << "SCAN IMAGE LOAD COMPLETED!!!" << std::endl;
-
-	// 1st, get c-arm rb info.
-	glm::fmat4x4 matRB2WS, matWS2RB;
-
-	glm::fquat q;
-	glm::fvec3 t;
-	track_info& trackInfo = *(track_info*)trk;
-	if (!trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
-		cout << "\nfailure to get c-arm rigid body" << endl;
-		return false;
-	}
-
-	glm::fmat4x4 mat_r = glm::toMat4(q);
-	glm::fmat4x4 mat_t = glm::translate(t);
-	matRB2WS = mat_t * mat_r;
-	matWS2RB = glm::inverse(matRB2WS);
-
-	// get 2d mks info from x-ray img (calculImg)
-	std::vector<cv::Point2f> points2d;
-	mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
-	if (PHANTOM_MODE == "LEGO") {
-		if (points2d.size() != 60) {
-			cout << "\n# of circles must be 60 if PHANTOM_MODE is LEGO" << endl;
-			return false;
-		}
-	}
-	else if (PHANTOM_MODE == "FILM") {
-		if (points2d.size() != 77) {
-			cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
-			return false;
-		}
-	}
-	else assert(0);
-
-	std::vector<cv::Point3f> posWsMarkers(__gc.g_selectedMkNames.size());
-	for (auto it = __gc.g_selectedMkNames.begin(); it != __gc.g_selectedMkNames.end(); it++) {
-		std::map<track_info::MKINFO, std::any> mkInfo;
-		trackInfo.GetMarkerByName(it->first, mkInfo);
-		glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[track_info::MKINFO::POSITION]);
-		posWsMarkers[it->second] = *(cv::Point3f*)&pos;
-	}
-
-	if (PHANTOM_MODE == "LEGO") {
-		// check the selecting direction
-		glm::fvec3 v01 = *(glm::fvec3*)&posWsMarkers[1] - *(glm::fvec3*)&posWsMarkers[0];
-		glm::fvec3 v03 = *(glm::fvec3*)&posWsMarkers[3] - *(glm::fvec3*)&posWsMarkers[0];
-		glm::fvec3 selDir = glm::cross(v01, v03);
-		glm::fvec3 posCenterCArmRB = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
-		glm::fvec3 cal2DetDir = posCenterCArmRB - *(glm::fvec3*)&posWsMarkers[0];
-		if (glm::dot(selDir, cal2DetDir) < 0) 
-		{
-			std::cout << "\ncorrecting the selecting direction!" << std::endl;
-			// 이상함... 아래것으로 해야 하는데... 이렇게 하면 카메라 위치가 반대로 감...
-			// 일단은 데모를 위해 주석 처리...
-			// 0123 to 1032
-			std::vector<cv::Point3f> posWsMarkersTmp = posWsMarkers;
-			posWsMarkers[0] = posWsMarkersTmp[1];
-			posWsMarkers[1] = posWsMarkersTmp[0];
-			posWsMarkers[2] = posWsMarkersTmp[3];
-			posWsMarkers[3] = posWsMarkersTmp[2];
-		}
-	}
-
-	// compute the estimated marker positions on the phantom (WS)
-
-	std::vector<cv::Point3f> points3d;
-	mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
-	//__gc.g_testMKs.clear();
-	__gc.g_testMKs.assign(points3d.size(), glm::fvec3(0));
-	memcpy(&__gc.g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
-
-	// important! the 3d points must be defined in C-Arm RB space
-	// because we want to get the transform btw C-arm cam (x-ray source) space and C-Arm RB space
-	for (int i = 0; i < points3d.size(); i++) {
-		*(glm::fvec3*)&points3d[i] = vzmutils::transformPos(*(glm::fvec3*)&points3d[i], matWS2RB);
-	}
-
-	cv::Mat cameraMatrix, distCoeffs;
-	{
-		cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-		fs["K"] >> cameraMatrix;
-		fs["DistCoeffs"] >> distCoeffs;
-		fs.release();
-	}
-
-	static std::vector<cv::Point2f> global_points2d;
-	static std::vector<cv::Point3f> global_points3d;
-	for (int i = 0; i < points2d.size(); i++) {
-		global_points2d.push_back(points2d[i]);
-		global_points3d.push_back(points3d[i]);
-	}
-	cv::Mat rvec, tvec;
-	cv::solvePnP(global_points3d, global_points2d, cameraMatrix, distCoeffs, rvec, tvec);
-	//std::cout << A << "\n";
-	//std::cout << rvec << "\n";
-	//std::cout << tvec << "\n";
-	// get 3D position
-	// determine ap or lateral
-	// check residual 
-	// get 3d mks info from c-arm rb
-	// solve pnp
-	// update...
-
-	// used in SaveAndChangeViewState
-	{
-		cv::FileStorage fs(__gc.g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::WRITE);
-		fs.write("rvec", rvec);
-		fs.write("tvec", tvec);
-		fs.release();
-	}
-
-	{
-		auto ComputeReprojErr = [](const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
-			float avrDiff = 0;
-			maxErr = 0;
-			int numPts = (int)pts2d.size();
-			for (int i = 0; i < (int)pts2d.size(); i++) {
-				float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
-				maxErr = std::max(maxErr, diff);
-				avrDiff += diff / (float)numPts;
-			}
-			return avrDiff;
-		};
-
-		// Reproject the 3D points onto the image plane using the camera calibration
-		std::vector<cv::Point2f> imagePointsReprojected;
-		cv::projectPoints(points3d, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
-
-		// Compute the reprojection error
-		float maxErr = 0;
-		float reprojectionError = ComputeReprojErr(points2d, imagePointsReprojected, maxErr);
-		//double reprojectionError = cv::norm(pts2ds, imagePointsReprojected, cv::NORM_L2) / pts2ds.size();
-		cout << "\nreprojectionError : " << reprojectionError << ", max error : " << maxErr << endl;
-	}
-
-	for (int i = 1; i <= 2; i++)
-	{
-		auto it = __gc.g_mapAidGroupCArmCam.find(i);
-		if (it != __gc.g_mapAidGroupCArmCam.end())
-			vzm::RemoveSceneItem(it->second, true);
-	}
-
-	// store the info.
-	// note rb2carm1.txt is used in StoreParams!
-	storeParams("test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".txt", matRB2WS, downloadImgFileName);
-	std::cout << "\n" << "STORAGE COMPLETED!!!" << std::endl;
-
-	return true;
-};
 
 // DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
 // AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
@@ -603,12 +143,13 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 		glm::fmat4x4 mat_t = glm::translate(t);
 		glm::fmat4x4 matRB2WS = mat_t * mat_r;
 
-		if (__gc.g_downloadCompleted == 100) {
-			cv::Mat downloadImg;
-			cv::cvtColor(g_curScanImg, downloadImg, cv::COLOR_GRAY2RGB);
+		if (__gc.g_downloadCompleted > 0) {
+			cv::Mat downloadColoredImg;
+			cv::cvtColor(g_curScanGrayImg, downloadColoredImg, cv::COLOR_GRAY2RGB);
 			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + ".png";
-			cv::imwrite(downloadImgFileName, downloadImg);
-			storeParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
+			cv::imwrite(downloadImgFileName, downloadColoredImg);
+
+			storeParams(g_curScanGrayImg, "test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
 		}
 
@@ -620,7 +161,7 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 		it = __gc.g_mapAidGroupCArmCam.find(i);
 		if (it != __gc.g_mapAidGroupCArmCam.end())
 			vzm::RemoveSceneItem(it->second, true);
-		int aidGroup = RegisterCArmImage(sidScene, __gc.g_folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
+		int aidGroup = calibtask::RegisterCArmImage(sidScene, __gc.g_folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
 		if (aidGroup != -1) {
 			__gc.g_mapAidGroupCArmCam[i] = aidGroup;
 
@@ -722,12 +263,17 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	__gc.g_track_que.wait_and_pop(trackInfo);
 
 	if (__gc.g_renderEvent == RENDER_THREAD_CALIBRATION) {
-		memcpy(g_curScanImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
+		memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
+
+		cv::Mat downloadColorImg;
+		cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
+		cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+
 		if (__gc.g_selectedMkNames.size() == 4) {
-			if (phantomCalib(g_curScanImg, &trackInfo)) {
+			if (calibtask::CalibrationWithPhantom(g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
 				int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
 				int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
-				saveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam1, 0);
+				saveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0);
 				__gc.g_ui_banishing_count = 100;
 			}
 
@@ -791,7 +337,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	__gc.Init();
 	__gc.g_folder_data = getdatapath();
-	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-08-05/";
+	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-08-09/";
 	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-08-08.motive";
 
 	rendertask::SetGlobalContainer(&__gc);
@@ -799,11 +345,68 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	trackingtask::SetGlobalContainer(&__gc);
 
 	//{
-		cv::Mat __curScanImg = cv::imread(__gc.g_folder_trackingInfo + "test2.png");
-		cv::flip(__curScanImg, __curScanImg, 1);
-		std::vector<cv::Point2f> points2d;
-		mystudents::Get2DPostionsFromLegoPhantom(__curScanImg, points2d);
-		int gg = 0;
+		cv::Mat __curScanImg = cv::imread(__gc.g_folder_trackingInfo + "test3.png");
+		if (!__curScanImg.empty()) {
+
+			int chs = __curScanImg.channels();
+			if (__curScanImg.channels() == 3)
+				cv::cvtColor(__curScanImg, g_curScanGrayImg, cv::COLOR_BGR2GRAY);
+			else if (__curScanImg.channels() == 1)
+				g_curScanGrayImg = __curScanImg;
+
+			cv::Mat imgGray;
+			cv::flip(__curScanImg, imgGray, 1);
+
+			cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+
+			//Add mask
+			//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
+			// Blob Detector Params
+			cv::SimpleBlobDetector::Params params;
+			params.filterByArea = true;
+			params.filterByCircularity = true;
+			params.filterByConvexity = false;
+			params.filterByInertia = true;
+			params.filterByColor = true;
+			params.blobColor = 0;
+
+			//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+			//params.maxArea = 1000;
+			//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
+
+			params.minArea = 5000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+			params.maxArea = 15000;
+			params.minCircularity = 0.5; // 1 >> it detects perfect circle.Minimum size of center angle
+
+			params.minInertiaRatio = 0.9; // 1 >> it detects perfect circle. short / long axis
+			params.minRepeatability = 2;
+			params.minDistBetweenBlobs = 0.1;
+
+			cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
+			std::vector<cv::KeyPoint> keypoints;
+			detector->detect(imgGray, keypoints); // circle detect.
+
+			// 원을 감지했는지 확인.
+
+			cv::Mat img = __curScanImg.clone();
+			cv::flip(img, img, 1);
+
+			int r = 0;
+			for (const auto& keypoint : keypoints) {
+				int x = cvRound(keypoint.pt.x);
+				int y = cvRound(keypoint.pt.y);
+				int s = cvRound(keypoint.size);
+				r = cvRound(s / 2);
+				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
+				std::string text = " (" + std::to_string(x) + ", " + std::to_string(y) + ")";
+				cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
+			}
+			cv::imwrite(__gc.g_folder_trackingInfo + "test_circle_detect.png", img); // cv imshow()로 보이기.
+
+			std::vector<cv::Point2f> points2d;
+			//mystudents::Get2DPostionsFromLegoPhantom(__curScanImg, points2d);
+			int gg = 0;
+		}
 	//}
 
 	GdiplusStartupInput gdiplusStartupInput;
@@ -1107,6 +710,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					vzm::RemoveSceneItem(aidTestGroup);
 				break;
 			}
+			case char('Y') : {
+				track_info trk;
+				trk = __gc.g_track_que.front();
+				glm::fmat4x4 matRB2WS;
+				if (trk.GetRigidBodyByName("probe", &matRB2WS, NULL, NULL, NULL)) {
+					glm::fvec3 p = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
+
+					//if (trk.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL)) 
+					{
+
+						//glm::fmat4x4 matWS2RB = glm::inverse(matRB2WS);
+						//p = vzmutils::transformPos(p, matWS2RB);
+						cv::Mat ocvVec3(1, 3, CV_32FC1);
+						memcpy(ocvVec3.ptr(), &p, sizeof(float) * 3);
+						cv::FileStorage fs(__gc.g_folder_trackingInfo + "test_tip.txt", cv::FileStorage::Mode::WRITE);
+						fs << "probe_tip" << ocvVec3;
+						fs.release();
+
+						int idx = (int)___LoadMyVariable("test0", 0);
+
+						cv::FileStorage __fs(__gc.g_folder_trackingInfo + "test_tip_sphere.txt", cv::FileStorage::Mode::READ);
+						__fs["inter_sphere_" + std::to_string(idx)] >> ocvVec3;
+						glm::fvec3 p1;
+						memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
+						__fs.release();
+
+						float r = glm::length(p1 - p);
+						std::cout << "\ntest : " << r << std::endl;
+					}
+
+				}
+				break;
+			}
 			case char('T') : {
 				if (!__gc.g_calribmodeToggle) {
 					cout << "\n" << "not calibration mode!!" << endl;
@@ -1134,6 +770,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			//	// 툴 끝점 등록하기..
 			//	break;
 			//}
+			case char('G') : {
+				__gc.g_useGlobalPairs != !__gc.g_calribmodeToggle;
+				break;
+			}
 			case char('X') :
 			{
 				if (!__gc.g_calribmodeToggle) {
@@ -1141,27 +781,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					return 0;
 				}
 				//#define MYDEFINE
-				g_curScanImg = cv::imread(__gc.g_folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png");
-				if (g_curScanImg.empty()) {
+				g_curScanGrayImg = cv::imread(__gc.g_folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png");
+				if (g_curScanGrayImg.empty()) {
 					cout << "\n" << "no test3 image" << endl;
 					return false;
 				}
 				__gc.g_downloadCompleted = 100;
-				cv::cvtColor(g_curScanImg, g_curScanImg, cv::COLOR_RGB2GRAY);
+				cv::cvtColor(g_curScanGrayImg, g_curScanGrayImg, cv::COLOR_RGB2GRAY);
 				cout << "\n" << "calibration with the previous test2 image" << endl;
 
 				track_info trk;
-				__gc.g_track_que.wait_and_pop(trk);
-				phantomCalib(g_curScanImg, &trk);
+				//__gc.g_track_que.wait_and_pop(trk);
+				trk = __gc.g_track_que.front();
+				calibtask::CalibrationWithPhantom(g_curScanGrayImg, &trk, __gc.g_useGlobalPairs);
 
 				//download_completed = false; 
-				saveAndChangeViewState(trk, char('2'), sidScene, cidCam1, 0);
+				saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0);
 				__gc.g_ui_banishing_count = 100;
 				break;
 			}
 			default: {
 				track_info trk;
-				__gc.g_track_que.wait_and_pop(trk);
+				//__gc.g_track_que.wait_and_pop(trk);
+				trk = __gc.g_track_que.front();
 				saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0);
 				break;
 			}
@@ -1284,7 +926,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				glm::fmat4x4 matWorld = *(glm::fmat4x4*)apMK.GetWorldTransform();
 				glm::fvec3 posOrigin(0, 0, 0);
 				glm::fvec3 posMK = vzmutils::transformPos(posOrigin, matWorld);
-				std::cout << "\n" <<mkName << "is picked : " << ", Pos : " << posMK.x << ", " << posMK.y << ", " << posMK.z << std::endl;
+				//std::cout << "\n" <<mkName << "is picked : " << ", Pos : " << posMK.x << ", " << posMK.y << ", " << posMK.z << std::endl;
 
 			}
 			

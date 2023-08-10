@@ -1,18 +1,15 @@
 #pragma once
 
-#include <regex>
-#include <vector>
-#include <iostream>
+#pragma once
+#include "GlobalParams.h"
 
-// math using GLM
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/gtx/transform.hpp"
-#include "glm/gtc/constants.hpp"
-#include "glm/glm.hpp"
-#include "glm/gtc/type_ptr.hpp"
-#include "glm/gtx/vector_angle.hpp"
+#include <opencv2/opencv.hpp>
 
-bool CalibrateIntrinsics(const std::vector<std::string>& imgFileNames, float& fx, float& fy, float& cx, float& cy, float& s, std::vector<float>& distCoeffs);
-bool CalibrateExtrinsics(const std::vector<std::string>& imgFileNames, glm::fmat4x4& matLS2WS);
+namespace calibtask {
+	void SetGlobalContainer(__GC* gcp);
+	int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName);
+	bool CalibrationWithPhantom(const cv::Mat& downloadedGrayImg, const track_info* trk, const bool useGlobal);
+}
 
-int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName);
+//bool CalibrateIntrinsics(const std::vector<std::string>& imgFileNames, float& fx, float& fy, float& cx, float& cy, float& s, std::vector<float>& distCoeffs);
+//bool CalibrateExtrinsics(const std::vector<std::string>& imgFileNames, glm::fmat4x4& matLS2WS);

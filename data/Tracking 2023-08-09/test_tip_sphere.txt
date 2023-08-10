@@ -1,0 +1,302 @@
+%YAML:1.0
+---
+inter_sphere_0: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.31860320e-02, 3.10059547e-01, 1.25938118e-01 ]
+inter_sphere_1: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.60822347e-02, 3.17390949e-01, 1.22271851e-01 ]
+inter_sphere_2: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.89784393e-02, 3.24722320e-01, 1.18605562e-01 ]
+inter_sphere_3: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.18746439e-02, 3.32053721e-01, 1.14939287e-01 ]
+inter_sphere_4: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.47708485e-02, 3.39385122e-01, 1.11273013e-01 ]
+inter_sphere_5: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.76670512e-02, 3.46716493e-01, 1.07606739e-01 ]
+inter_sphere_6: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.11568347e-02, 3.00274283e-01, 1.19448461e-01 ]
+inter_sphere_7: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.43383294e-02, 3.07313561e-01, 1.14473969e-01 ]
+inter_sphere_8: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.75198242e-02, 3.14352870e-01, 1.09499484e-01 ]
+inter_sphere_9: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.07013190e-02, 3.21392119e-01, 1.04524985e-01 ]
+inter_sphere_10: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.38828138e-02, 3.28431427e-01, 9.95505005e-02 ]
+inter_sphere_11: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.70643104e-02, 3.35470736e-01, 9.45760012e-02 ]
+inter_sphere_12: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.02458033e-02, 3.42510015e-01, 8.96015167e-02 ]
+inter_sphere_13: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.34272981e-02, 3.49549294e-01, 8.46270248e-02 ]
+inter_sphere_14: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.20238410e-02, 2.97820389e-01, 1.09292530e-01 ]
+inter_sphere_15: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.54906278e-02, 3.04567575e-01, 1.03009820e-01 ]
+inter_sphere_16: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.89574137e-02, 3.11314762e-01, 9.67271253e-02 ]
+inter_sphere_17: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.24242005e-02, 3.18061918e-01, 9.04444158e-02 ]
+inter_sphere_18: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.58909874e-02, 3.24809134e-01, 8.41617137e-02 ]
+inter_sphere_19: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.93577723e-02, 3.31556290e-01, 7.78790116e-02 ]
+inter_sphere_20: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.28245610e-02, 3.38303477e-01, 7.15963021e-02 ]
+inter_sphere_21: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.62913460e-02, 3.45050663e-01, 6.53136000e-02 ]
+inter_sphere_22: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.28908474e-02, 2.95366526e-01, 9.91365835e-02 ]
+inter_sphere_23: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.66429244e-02, 3.01821619e-01, 9.15456638e-02 ]
+inter_sphere_24: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.03950033e-02, 3.08276683e-01, 8.39547515e-02 ]
+inter_sphere_25: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.41470784e-02, 3.14731717e-01, 7.63638318e-02 ]
+inter_sphere_26: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.78991554e-02, 3.21186811e-01, 6.87729120e-02 ]
+inter_sphere_27: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.16512324e-02, 3.27641904e-01, 6.11819923e-02 ]
+inter_sphere_28: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.54033075e-02, 3.34096968e-01, 5.35910800e-02 ]
+inter_sphere_29: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.91553864e-02, 3.40552032e-01, 4.60001603e-02 ]
+inter_sphere_30: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.37578547e-02, 2.92912632e-01, 8.89806524e-02 ]
+inter_sphere_31: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.77952237e-02, 2.99075603e-01, 8.00815225e-02 ]
+inter_sphere_32: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.18325909e-02, 3.05238575e-01, 7.11823925e-02 ]
+inter_sphere_33: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.58699581e-02, 3.11401546e-01, 6.22832552e-02 ]
+inter_sphere_34: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.99073271e-02, 3.17564517e-01, 5.33841252e-02 ]
+inter_sphere_35: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.39446962e-02, 3.23727489e-01, 4.44849916e-02 ]
+inter_sphere_36: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.79820615e-02, 3.29890460e-01, 3.55858579e-02 ]
+inter_sphere_37: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.20194305e-02, 3.36053431e-01, 2.66867280e-02 ]
+inter_sphere_38: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.46248611e-02, 2.90458769e-01, 7.88247138e-02 ]
+inter_sphere_39: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.89475212e-02, 2.96329647e-01, 6.86173663e-02 ]
+inter_sphere_40: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.32701804e-02, 3.02200496e-01, 5.84100224e-02 ]
+inter_sphere_41: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.75928378e-02, 3.08071345e-01, 4.82026748e-02 ]
+inter_sphere_42: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.19155008e-02, 3.13942194e-01, 3.79953310e-02 ]
+inter_sphere_43: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.62381563e-02, 3.19813073e-01, 2.77879871e-02 ]
+inter_sphere_44: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.05608155e-02, 3.25683922e-01, 1.75806414e-02 ]
+inter_sphere_45: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.48834747e-02, 3.31554800e-01, 7.37329759e-03 ]
+inter_sphere_46: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.54918684e-02, 2.88004875e-01, 6.86687827e-02 ]
+inter_sphere_47: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.00998187e-02, 2.93583632e-01, 5.71532249e-02 ]
+inter_sphere_48: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.47077700e-02, 2.99162388e-01, 4.56376635e-02 ]
+inter_sphere_49: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.93157175e-02, 3.04741144e-01, 3.41221020e-02 ]
+inter_sphere_50: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.39236706e-02, 3.10319901e-01, 2.26065442e-02 ]
+inter_sphere_51: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.85316201e-02, 3.15898687e-01, 1.10909855e-02 ]
+inter_sphere_52: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.31395695e-02, 3.21477413e-01, -4.24573198e-04 ]
+inter_sphere_53: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.77475189e-02, 3.27056199e-01, -1.19401319e-02 ]
+inter_sphere_54: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.12521162e-02, 2.90837675e-01, 4.56890762e-02 ]
+inter_sphere_55: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.61453576e-02, 2.96124309e-01, 3.28653008e-02 ]
+inter_sphere_56: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.10385972e-02, 3.01410973e-01, 2.00415272e-02 ]
+inter_sphere_57: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.59318405e-02, 3.06697607e-01, 7.21775368e-03 ]
+inter_sphere_58: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.08250839e-02, 3.11984271e-01, -5.60601801e-03 ]
+inter_sphere_59: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.57183234e-02, 3.17270935e-01, -1.84297897e-02 ]

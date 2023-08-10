@@ -30,6 +30,7 @@
     <ClInclude Include="TrackingTask.h" />
     <ClInclude Include="NetworkTask.h" />
     <ClInclude Include="RenderingTask.h" />
+    <ClInclude Include="temp.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="small.ico">
