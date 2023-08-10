@@ -343,9 +343,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	rendertask::SetGlobalContainer(&__gc);
 	nettask::SetGlobalContainer(&__gc);
 	trackingtask::SetGlobalContainer(&__gc);
+	calibtask::SetGlobalContainer(&__gc);
 
 	//{
-		cv::Mat __curScanImg = cv::imread(__gc.g_folder_trackingInfo + "test3.png");
+		cv::Mat __curScanImg = cv::imread(__gc.g_folder_trackingInfo + "test_downloaded.png");
 		if (!__curScanImg.empty()) {
 
 			int chs = __curScanImg.channels();
@@ -357,8 +358,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			cv::Mat imgGray;
 			cv::flip(__curScanImg, imgGray, 1);
 
-			cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+			cv::bitwise_not(imgGray, imgGray);
 
+			cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+			
 			//Add mask
 			//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
 			// Blob Detector Params
@@ -374,13 +377,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//params.maxArea = 1000;
 			//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
 
-			params.minArea = 5000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-			params.maxArea = 15000;
-			params.minCircularity = 0.5; // 1 >> it detects perfect circle.Minimum size of center angle
+			params.minArea = 2000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+			params.maxArea = 8000;
+			params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
 
-			params.minInertiaRatio = 0.9; // 1 >> it detects perfect circle. short / long axis
+			params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
 			params.minRepeatability = 2;
-			params.minDistBetweenBlobs = 0.1;
+			params.minDistBetweenBlobs = 100;
 
 			cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
 			std::vector<cv::KeyPoint> keypoints;
@@ -875,17 +878,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 		// renderer does not need to be called
 		glm::ivec2 pos_ss = glm::ivec2(x, y);
 
-		if (__gc.g_calribmodeToggle && message != WM_RBUTTONDOWN) {
-			int aidPicked = 0;
-			glm::fvec3 posPick;
-			if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
-				std::string actorName;
-				vzm::GetSceneItemName(aidPicked, actorName);
-				if (__gc.g_selectedMkNames.find(actorName) == __gc.g_selectedMkNames.end()) {
-					int idx = __gc.g_selectedMkNames.size();
-					__gc.g_selectedMkNames[actorName] = idx;
-					std::cout << "\npicking count : " << __gc.g_selectedMkNames.size() << std::endl;
+		if (__gc.g_calribmodeToggle) {
+			if (message == WM_LBUTTONDOWN) {
+				int aidPicked = 0;
+				glm::fvec3 posPick;
+				if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
+					std::string actorName;
+					vzm::GetSceneItemName(aidPicked, actorName);
+					if (__gc.g_selectedMkNames.find(actorName) == __gc.g_selectedMkNames.end()) {
+						int idx = __gc.g_selectedMkNames.size();
+						__gc.g_selectedMkNames[actorName] = idx;
+						std::cout << "\npicking count : " << __gc.g_selectedMkNames.size() << std::endl;
+					}
 				}
+			}
+			else {
+				__gc.g_selectedMkNames.clear();
 			}
 		}
 		else {

@@ -719,7 +719,7 @@ namespace rendertask {
 			textItem.iColor = 0xFFFFFF;
 			textItem.posScreenX = 0;
 			textItem.posScreenY = cpCam1.h - 80;
-			cpCam1.text_items.SetParam("FRAME", textItem);
+			cpCam1.text_items.SetParam("PAIRMODE", textItem);
 
 			textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
 			textItem.fontSize = 20.f + __gc->g_downloadCompleted / 10.f;

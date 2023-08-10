@@ -24,7 +24,7 @@
 #define SCANIMG_W 1296
 #define SCANIMG_H 1296
 #define FLIP_SCANIMAGE true
-#define PHANTOM_MODE "LEGO" // "LEGO" "FILM" "FMARKERS"
+#define PHANTOM_MODE "FMARKERS" // "LEGO" "FILM" "FMARKERS"
 #define EXTRINSIC_PHANTOM_IMG_INDEX 3
 
 // https://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html

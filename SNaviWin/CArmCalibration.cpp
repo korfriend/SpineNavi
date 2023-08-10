@@ -3,6 +3,7 @@
 
 //#include "ApiUtility.hpp"
 #include "naviHelpers.hpp"
+#include "nanoflann.hpp"
 
 
 using namespace std;
@@ -12,6 +13,50 @@ __GC* __gc = NULL;
 
 #define __gm2__ *(cv::Point2f*)
 #define __gm3__ *(cv::Point3f*)
+
+
+//using namespace nanoflann;
+template <typename T, typename TT>
+struct PointCloud
+{
+	//public:
+	const uint num_vtx;
+	const TT* pts;
+	PointCloud(const TT* _pts, const uint _num_vtx) : pts(_pts), num_vtx(_num_vtx) { }
+
+	// Must return the number of data points
+	inline size_t kdtree_get_point_count() const { return num_vtx; }
+
+	// Returns the distance between the vector "p1[0:size-1]" and the data point with index "idx_p2" stored in the class:
+	inline T kdtree_distance(const T* p1, const size_t idx_p2, size_t) const
+	{
+		const T d0 = p1[0] - pts[idx_p2].x;
+		const T d1 = p1[1] - pts[idx_p2].y;
+		const T d2 = p1[2] - pts[idx_p2].z;
+		return d0 * d0 + d1 * d1 + d2 * d2;
+	}
+
+	// Returns the dim'th component of the idx'th point in the class:
+	// Since this is inlined and the "dim" argument is typically an immediate value, the
+	//  "if/else's" are actually solved at compile time.
+	inline T kdtree_get_pt(const size_t idx, int dim) const
+	{
+		if (dim == 0) return pts[idx].x;
+		else if (dim == 1) return pts[idx].y;
+		else return pts[idx].z;
+	}
+
+	// Optional bounding-box computation: return false to default to a standard bbox computation loop.
+	//   Return true if the BBOX was already computed by the class and returned in "bb" so it can be avoided to redo it again.
+	//   Look at bb.size() to find out the expected dimensionality (e.g. 2 or 3 for point clouds)
+	template <class BBOX>
+	bool kdtree_get_bbox(BBOX&) const { return false; }
+};
+typedef nanoflann::KDTreeSingleIndexAdaptor<
+	nanoflann::L2_Simple_Adaptor<float, PointCloud<float, glm::fvec3> >,
+	PointCloud<float, glm::fvec3>,
+	3 // dim 
+> kd_tree_t;
 
 namespace mystudents {
 	using namespace std;
@@ -488,13 +533,13 @@ namespace calibtask {
 		//params.maxArea = 1000;
 		//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
 
-		params.minArea = 5000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		params.maxArea = 15000;
-		params.minCircularity = 0.5; // 1 >> it detects perfect circle.Minimum size of center angle
+		params.minArea = 2000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+		params.maxArea = 8000;
+		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
 
-		params.minInertiaRatio = 0.9; // 1 >> it detects perfect circle. short / long axis
+		params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
 		params.minRepeatability = 2;
-		params.minDistBetweenBlobs = 0.1;
+		params.minDistBetweenBlobs = 100;
 
 		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
 		vector<cv::KeyPoint> keypoints;
@@ -529,14 +574,14 @@ namespace calibtask {
 			cv::Point2f second = circlePoints[1];
 
 			// 3. 두점을 잇는 선
-			float m = second.y - first.y / second.x - first.x;
-			float n = first.y - m * first.x;
+			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
+			float n = first.y - (m * first.x); // y절편.
 
-			// 4. 직선의 방정식 : y = mx + n
-			// 직선과 가까운 점 정렬.		
+			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
+			// 직선과 가까운 점 정렬.
 			std::sort(circlePoints.begin(), circlePoints.end(),
 				[&](const cv::Point2f& a, const cv::Point2f& b) {
-					return sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
+					return mystudents::sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
 				});
 
 			// 6개 or 8개 빼기			
@@ -562,6 +607,118 @@ namespace calibtask {
 
 		return (int)points2Ds.size();
 	}
+
+	int Get3DPostionsFromFMarkersPhantom(const glm::fvec3& marker0, const glm::fvec3& marker1, const glm::fvec3& marker2, const glm::fvec3& marker3, const track_info* trk,
+		std::vector<cv::Point3f>& points3Ds) {
+
+		// note we are using meter metric
+		using namespace std;
+		using namespace glm;
+
+		glm::fmat4x4 matRB2WS;
+		track_info& trackInfo = *(track_info*)trk;
+
+		trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL);
+		fvec3 carmCenter = vzmutils::transformPos(fvec3(0, 0, 0), matRB2WS);
+		fvec3 dirToCarmRB = normalize(carmCenter - marker0);
+
+		int numMarkers = trackInfo.NumMarkers();
+		vector<fvec3> mkPts;
+		for (int i = 0; i < numMarkers; i++) {
+			std::map<track_info::MKINFO, std::any> mk;
+			trackInfo.GetMarkerByIdx(i, mk);
+			mkPts.push_back(std::any_cast<fvec3>(mk[track_info::MKINFO::POSITION]));
+		}
+
+		PointCloud<float, fvec3> __pc(&mkPts[0], numMarkers);
+		kd_tree_t __kdt(3, __pc, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+		__kdt.buildIndex();
+
+		const int rows = 4;
+		const int cols = 4;
+		size_t out_ids[16];
+		float out_dists[16];
+		fvec3 posMkCenter = (marker0 + marker1 + marker2 + marker3) / 4.f;
+		__kdt.knnSearch((float*)&marker0, 16, out_ids, out_dists);
+		
+		vector<fvec3> mkPhantomPts;
+		for (int i = 0; i < 16; i++) {
+			mkPhantomPts.push_back(mkPts[out_ids[i]]);
+		}
+
+		PointCloud<float, fvec3> pc(&mkPhantomPts[0], numMarkers);
+		kd_tree_t kdt(3, pc, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+		kdt.buildIndex();
+
+
+		//(float*)&p_src, k, out_ids, out_dists, 10
+
+		vector<fvec3> mkSortedPhantomPts;
+		set<int> registeredIndices;
+		fvec3 prevRowStartMk;
+		for (int i = 0; i < rows; ++i) {
+			fvec3 prevRegMk;
+			if (i == 0) {
+				prevRowStartMk = prevRegMk = mkPhantomPts[0];
+				registeredIndices.insert(0);
+				mkSortedPhantomPts.push_back(prevRowStartMk);
+			}
+			else {
+				kdt.knnSearch((float*)&prevRowStartMk, 5, out_ids, out_dists);
+				vector<int> ppidx;
+				for (int m = 1; m < 5; m++) {
+					int idx = out_ids[i];
+					if (registeredIndices.find(idx) == registeredIndices.end()) ppidx.push_back(idx);
+				}
+				int nextId = ppidx[0];
+				prevRowStartMk = prevRegMk = mkPhantomPts[nextId];
+				registeredIndices.insert(nextId);
+				mkSortedPhantomPts.push_back(prevRegMk);
+			}
+
+
+			for (int j = 1; j < cols; ++j) {
+				kdt.knnSearch((float*)&prevRegMk, 5, out_ids, out_dists);
+				vector<int> ppidx;
+				for (int m = 1; m < 5; m++) {
+					int idx = out_ids[i];
+					if (registeredIndices.find(idx) == registeredIndices.end()) ppidx.push_back(idx);
+				}
+
+				if (i < rows - 1) {
+					assert(ppidx.size() >= 2);
+
+					fvec3 v01 = mkPhantomPts[ppidx[0]] - prevRegMk;
+					fvec3 v02 = mkPhantomPts[ppidx[1]] - prevRegMk;
+					fvec3 vn = cross(v01, v02);
+
+					int nextId = dot(vn, dirToCarmRB) > 0 ? ppidx[0] : ppidx[1];
+					prevRegMk = mkPhantomPts[nextId];
+					registeredIndices.insert(nextId);
+					mkSortedPhantomPts.push_back(prevRegMk);
+				}
+				else {
+					assert(ppidx.size() >= 1);
+					int nextId = ppidx[0];
+					prevRegMk = mkPhantomPts[nextId];
+					registeredIndices.insert(nextId);
+					mkSortedPhantomPts.push_back(prevRegMk);
+				}
+			}
+		}
+
+		cv::Mat ocvVec3(1, 3, CV_32FC1);
+		cv::FileStorage fs(__gc->g_folder_trackingInfo + "test_tip_sphere_16.txt", cv::FileStorage::Mode::WRITE);
+		for (int i = 0; i < 16; i++) {
+			memcpy(ocvVec3.ptr(), &points3Ds[i], sizeof(float) * 3);
+			fs << "inter_sphere_" + std::to_string(i) << ocvVec3;
+		}
+		fs.release();
+		//vector<vector<cv::Point3f>> points3Ds;
+		//points3Ds.push_back(inter_points);
+		return (int)points3Ds.size();
+	}
+
 	// note : this function needs to be called in the render thread
 	// using "carm_intrinsics.txt", store opencv's rvec and tvec to "rb2carm1.txt"
 	bool CalibrationWithPhantom(const cv::Mat& downloadedGrayImg, const track_info* trk, const bool useGlobal)
@@ -607,8 +764,8 @@ namespace calibtask {
 
 		// get 2d mks info from x-ray img (calculImg)
 		std::vector<cv::Point2f> points2d;
-		mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
 		if (PHANTOM_MODE == "LEGO") {
+			mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
 			if (points2d.size() != 60) {
 				cout << "\n# of circles must be 60 if PHANTOM_MODE is LEGO" << endl;
 				return false;
@@ -621,6 +778,7 @@ namespace calibtask {
 			}
 		}
 		else if (PHANTOM_MODE == "FMARKERS") {
+			Get2DPostionsFromFMarkersPhantom(source2detImg, points2d);
 			if (points2d.size() != 16) {
 				cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
 				return false;
@@ -660,7 +818,13 @@ namespace calibtask {
 		// compute the estimated marker positions on the phantom (WS)
 
 		std::vector<cv::Point3f> points3d;
-		mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
+		if (PHANTOM_MODE == "LEGO") {
+			mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
+		}
+		else if (PHANTOM_MODE == "FMARKERS") {
+			Get3DPostionsFromFMarkersPhantom(__cv3__&posWsMarkers[0], __cv3__&posWsMarkers[1], __cv3__&posWsMarkers[2], __cv3__&posWsMarkers[3], trk, points3d);
+		}
+
 		//__gc->g_testMKs.clear();
 		__gc->g_testMKs.assign(points3d.size(), glm::fvec3(0));
 		memcpy(&__gc->g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
