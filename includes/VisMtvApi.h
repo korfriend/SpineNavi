@@ -150,16 +150,20 @@ namespace vzm
 			SAFE_GET_COPY(z_axis, __z_axis, float, 3);
 		}
 	};
+
 	struct TextItem
 	{
-	private: 
-		int version = 230807;
+	private:
+		int version = 230813;
 	public:
-		std::string textStr ="";
+		std::string textStr = "";
 		std::string font = "";
 		std::string alignment = ""; // CENTER, LEFT, RIGHT to the position
-		float fontSize = 10.f;
+		float fontSize = 10.f; // Logical size of the font in DIP units. A DIP ("device-independent pixel") equals 1/96 inch.
 		int iColor = 0xFFFFFF; //RGB ==> 0xFF0000 (Red), 0x00FF00 (Green)
+		float alpha = 1.f;
+		bool isItalic = false;
+		int fontWeight = 4; // 1 : thinest, 4 : regular, 7 : bold, 9 : maximum heavy
 		int posScreenX = 0, posScreenY = 0; // 
 	};
 

@@ -370,7 +370,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			params.filterByCircularity = true;
 			params.filterByConvexity = false;
 			params.filterByInertia = true;
-			params.filterByColor = true;
+			params.filterByColor = false;
 			params.blobColor = 0;
 
 			//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
@@ -426,6 +426,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	optitrk::LoadProfileAndCalibInfo(__gc.g_profileFileName, "");
 	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
 	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
+
+	optitrk::SetCameraSettings(0, 4, 16, 230);
+	optitrk::SetCameraSettings(1, 4, 16, 230);
+	optitrk::SetCameraSettings(2, 4, 16, 230);
 
     // 전역 문자열을 초기화합니다.
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
