@@ -332,6 +332,14 @@ public:
 	}
 };
 
+#define ERROR_CODE_NONE 0
+#define ERROR_CODE_NOT_ENOUGH_SELECTION 1
+#define ERROR_CODE_CARM_TRACKING_FAILURE 2
+#define ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED 3
+//#define ERROR_CODE_NONE 0
+//#define ERROR_CODE_NONE 0
+//#define ERROR_CODE_NONE 0
+//#define ERROR_CODE_NONE 0
 typedef struct GlobalContainer {
 
 	//================ NOT THREAD SAFE GROUP 0
@@ -349,6 +357,8 @@ typedef struct GlobalContainer {
 	glm::fvec3 g_toolTipPointLS;
 	std::vector<glm::fvec3> g_testMKs;
 	std::vector<glm::fvec3> g_global_calib_MKs;
+
+	glm::fmat4x4 g_CArmRB2SourceCS;
 
 	std::vector<char> g_downloadImgBuffer; // grayscale
 
@@ -407,7 +417,7 @@ typedef struct GlobalContainer {
 
 
 #define RENDER_THREAD_FREE 0
-#define RENDER_THREAD_CALIBRATION 1
+#define RENDER_THREAD_DOWNLOAD_IMG_PROCESS 1
 	std::atomic_int g_renderEvent;// { RENDER_THREAD_FREE };
 
 #define NETWORK_THREAD_FREE 0
@@ -424,9 +434,16 @@ typedef struct GlobalContainer {
 	std::atomic_int g_downloadCompleted;// { 0 };
 	std::atomic_int g_ui_banishing_count;// { 0 };
 
+
 	concurrent_queue<track_info> g_track_que;
 
 
+	std::atomic_int g_error_duration;
+	std::atomic_int g_error_code;
+	void SetErrorCode(int errorCode) {
+		g_error_code = errorCode;
+		g_error_duration = 100;
+	}
 	void Init() {
 
 		g_folder_data = "";
@@ -449,6 +466,9 @@ typedef struct GlobalContainer {
 		g_calribmodeToggle = false;
 		g_downloadCompleted = 0;
 		g_ui_banishing_count = 0;
+
+		g_error_duration = 0;
+		g_error_code = ERROR_CODE_NONE;
 
 	}
 } __GC;

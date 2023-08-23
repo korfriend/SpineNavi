@@ -75,6 +75,7 @@ auto ___LoadMyVariable = [](const std::string& pname, const int idx) {
 	return ((float*)&p1)[idx];
 };
 
+/*
 // DOJO : 스캔 시 정보를 저장할 파일
 // 현 버전에서는 carm_intrinsics.txt (presetting) 에 저장된 intrinsic parameter 와
 // rb2carm1.txt (presetting + 매 스캔 시 저장됨) 에 저장된 c-arm source pose (extrinsic parameter) 를 로드하여 이를 파일로 저장
@@ -118,6 +119,7 @@ auto storeParams = [](const cv::Mat downloadedGrayImg, const std::string& params
 	__fs << "imgFile" << imgFileName;
 	__fs.release();
 };
+/**/
 
 
 // DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
@@ -149,7 +151,7 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + ".png";
 			cv::imwrite(downloadImgFileName, downloadColoredImg);
 
-			storeParams(g_curScanGrayImg, "test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
+			//storeParams(g_curScanGrayImg, "test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
 		}
 
@@ -262,22 +264,23 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	//for smaller overhead
 	__gc.g_track_que.wait_and_pop(trackInfo);
 
-	if (__gc.g_renderEvent == RENDER_THREAD_CALIBRATION) {
+	if (__gc.g_renderEvent == RENDER_THREAD_DOWNLOAD_IMG_PROCESS) {
 		memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
 
 		cv::Mat downloadColorImg;
 		cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
 		cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
 
-		if (__gc.g_selectedMkNames.size() == 4) {
-			if (calibtask::CalibrationWithPhantom(g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
+		if (__gc.g_calribmodeToggle) {
+			if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
 				int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
 				int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
 				saveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0);
-				__gc.g_ui_banishing_count = 100;
+				__gc.g_calribmodeToggle = false;
 			}
-
-			__gc.g_calribmodeToggle = false;
+		}
+		else {
+			// test //
 		}
 		__gc.g_renderEvent = RENDER_THREAD_FREE;
 	}
@@ -800,7 +803,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				track_info trk;
 				//__gc.g_track_que.wait_and_pop(trk);
 				trk = __gc.g_track_que.front();
-				calibtask::CalibrationWithPhantom(g_curScanGrayImg, &trk, __gc.g_useGlobalPairs);
+				calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trk, __gc.g_useGlobalPairs);
 
 				//download_completed = false; 
 				saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0);

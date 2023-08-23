@@ -722,13 +722,42 @@ namespace rendertask {
 			cpCam1.text_items.SetParam("PAIRMODE", textItem);
 
 			textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
-			textItem.fontSize = 20.f + __gc->g_downloadCompleted / 10.f;
+			textItem.fontSize = 30.f;
+			textItem.alpha = __gc->g_downloadCompleted * 0.01f;
 			textItem.iColor = 0xFF00FF;
 			textItem.posScreenX = 300;
 			textItem.posScreenY = cpCam1.h - 40;
 			cpCam1.text_items.SetParam("DOWNLOADED", textItem);
 
 			if (__gc->g_downloadCompleted > 0) __gc->g_downloadCompleted--;
+
+			// error code display
+			if (__gc->g_error_duration == 0) {
+				__gc->g_error_code = ERROR_CODE_NONE;
+			}
+			textItem.fontSize = 30.f;
+			textItem.iColor = 0xFF0000;
+			textItem.alpha = __gc->g_error_duration * 0.01f;
+			textItem.posScreenX = 300;
+			textItem.posScreenY = cpCam1.h - 80;
+			switch (__gc->g_error_code)
+			{
+			case ERROR_CODE_NOT_ENOUGH_SELECTION:
+				textItem.textStr = "Not Enough Selection!";
+				break;
+			case ERROR_CODE_CARM_TRACKING_FAILURE:
+				textItem.textStr = "C-Arm RB Tracking Failure!";
+				break;
+			case ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED:
+				textItem.textStr = "Failure to Detect Calibration Patterns!";
+				break;
+			case ERROR_CODE_NONE:
+			default:
+				textItem.textStr = "";
+				break;
+			}
+			__gc->g_error_duration = std::max(__gc->g_error_duration - 1, (int)0);
+			cpCam1.text_items.SetParam("ERRORCODE", textItem);
 
 			vzm::SetCameraParams(cidCam1, cpCam1);
 		}

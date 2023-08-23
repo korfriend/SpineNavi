@@ -789,7 +789,7 @@ namespace calibtask {
 
 	// note : this function needs to be called in the render thread
 	// using "carm_intrinsics.txt", store opencv's rvec and tvec to "rb2carm1.txt"
-	bool CalibrationWithPhantom(const cv::Mat& downloadedGrayImg, const track_info* trk, const bool useGlobal)
+	bool CalibrationWithPhantom(glm::fmat4x4& matCArmRB2SourceCS, const cv::Mat& downloadedGrayImg, const track_info* trk, const bool useGlobal)
 	{
 		assert(downloadedGrayImg.channels() == 1);
 
@@ -801,15 +801,10 @@ namespace calibtask {
 		else
 			source2detImg = downloadedGrayImg;
 
-		if (PHANTOM_MODE == "LEGO") {
+		if (PHANTOM_MODE == "LEGO" || PHANTOM_MODE == "FMARKERS") {
 			if (__gc->g_selectedMkNames.size() != 4) {
+				__gc->SetErrorCode(ERROR_CODE_NOT_ENOUGH_SELECTION);
 				cout << "\n4 points are needed!!" << endl;
-				return false;
-			}
-		}
-		else if (PHANTOM_MODE == "FMARKERS") {
-			if (__gc->g_selectedMkNames.size() == 0) {
-				cout << "\n1 point is needed!!" << endl;
 				return false;
 			}
 		}
@@ -821,6 +816,7 @@ namespace calibtask {
 		glm::fvec3 t;
 		track_info& trackInfo = *(track_info*)trk;
 		if (!trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+			__gc->SetErrorCode(ERROR_CODE_CARM_TRACKING_FAILURE);
 			cout << "\nfailure to get c-arm rigid body" << endl;
 			return false;
 		}
@@ -835,12 +831,14 @@ namespace calibtask {
 		if (PHANTOM_MODE == "LEGO") {
 			mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
 			if (points2d.size() != 60) {
+				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
 				cout << "\n# of circles must be 60 if PHANTOM_MODE is LEGO" << endl;
 				return false;
 			}
 		}
 		else if (PHANTOM_MODE == "FILM") {
 			if (points2d.size() != 77) {
+				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
 				cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
 				return false;
 			}
@@ -848,6 +846,7 @@ namespace calibtask {
 		else if (PHANTOM_MODE == "FMARKERS") {
 			Get2DPostionsFromFMarkersPhantom(source2detImg, points2d);
 			if (points2d.size() != 9) {
+				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
 				cout << "\n# of circles must be 9 if PHANTOM_MODE is LEGO" << endl;
 				return false;
 			}
@@ -869,9 +868,9 @@ namespace calibtask {
 			glm::fvec3 selDir = glm::cross(v01, v03);
 			glm::fvec3 posCenterCArmRB = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
 			glm::fvec3 cal2DetDir = posCenterCArmRB - *(glm::fvec3*)&posWsMarkers[0];
-			if (glm::dot(selDir, cal2DetDir) < 0)
+			//if (glm::dot(selDir, cal2DetDir) < 0)
 			{
-				std::cout << "\ncorrecting the selecting direction!" << std::endl;
+				//std::cout << "\ncorrecting the selecting direction!" << std::endl;
 				// 이상함... 아래것으로 해야 하는데... 이렇게 하면 카메라 위치가 반대로 감...
 				// 일단은 데모를 위해 주석 처리...
 				// 0123 to 1032
@@ -937,6 +936,28 @@ namespace calibtask {
 		else {
 			cv::solvePnP(points3d, points2d, cameraMatrix, distCoeffs, rvec, tvec);
 			cout << "\n# pairs : " << points2d.size() << endl;
+		}
+
+		{
+			//matCArmRB2SourceCS
+			cv::Mat matR;
+			cv::Rodrigues(rvec, matR);
+			// note, here camera frame (notation 'CA', opencv convention) is defined with
+			// z axis as viewing direction
+			// -y axis as up vector
+			matCArmRB2SourceCS = glm::fmat4x4(1);
+			matCArmRB2SourceCS[0][0] = (float)matR.at<double>(0, 0);
+			matCArmRB2SourceCS[0][1] = (float)matR.at<double>(1, 0);
+			matCArmRB2SourceCS[0][2] = (float)matR.at<double>(2, 0);
+			matCArmRB2SourceCS[1][0] = (float)matR.at<double>(0, 1);
+			matCArmRB2SourceCS[1][1] = (float)matR.at<double>(1, 1);
+			matCArmRB2SourceCS[1][2] = (float)matR.at<double>(2, 1);
+			matCArmRB2SourceCS[2][0] = (float)matR.at<double>(0, 2);
+			matCArmRB2SourceCS[2][1] = (float)matR.at<double>(1, 2);
+			matCArmRB2SourceCS[2][2] = (float)matR.at<double>(2, 2);
+			matCArmRB2SourceCS[3][0] = (float)((double*)tvec.data)[0];
+			matCArmRB2SourceCS[3][1] = (float)((double*)tvec.data)[1];
+			matCArmRB2SourceCS[3][2] = (float)((double*)tvec.data)[2];
 		}
 
 		//std::cout << A << "\n";
