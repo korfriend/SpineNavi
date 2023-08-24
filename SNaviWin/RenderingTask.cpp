@@ -22,7 +22,7 @@ namespace rendertask {
 
 	__GC* __gc = NULL;
 
-	void SetGlobalContainer(__GC* gcp) {
+	void InitializeTask(__GC* gcp) {
 		__gc = gcp;
 	}
 
@@ -340,6 +340,7 @@ namespace rendertask {
 			static int oidAxis = 0;
 			static int oidMarker = 0;
 			static int oidProbe = 0;
+			static float probeCorrection = 0;
 			//static int oidLine = 0;
 			// axis 甫 弊府绰 resource object 积己
 			if (vzm::GetResObjType(oidAxis) == vzm::ResObjType::UNDEFINED) {
@@ -351,11 +352,13 @@ namespace rendertask {
 				vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
 			}
 			// probe 甫 弊府绰 resource object 积己
-			if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED) {
+			if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED ||
+				probeCorrection != __gc->g_probeTipCorrection) {
+				probeCorrection = __gc->g_probeTipCorrection;
 				//vzm::LoadModelFile(folder_data + "probe.obj", oidProbe);
 
 				glm::fvec3 posS(0, 0, 0.25f);
-				glm::fvec3 posE(0, 0, 0);
+				glm::fvec3 posE(0, 0, -probeCorrection);
 				//vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
 				glm::fvec3 pp[2] = { posE , posS };
 				float rr[2] = { 0.001, 0.001 };
@@ -647,10 +650,15 @@ namespace rendertask {
 				vzm::GetActorParams(aidMarker, apMarker);
 				apMarker.is_visible = true;
 				apMarker.is_pickable = true;
+				apMarker.label.textStr = "";
 
-				*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 1, 1);
-				if (__gc->g_selectedMkNames.find(mkName) != __gc->g_selectedMkNames.end()) {
+				*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 1, __gc->g_calribmodeToggle? 0.5f : 1);
+				auto it = __gc->g_selectedMkNames.find(mkName);
+				if (it != __gc->g_selectedMkNames.end()) {
 					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 0.5);
+
+					apMarker.label.textStr = "p:" + std::to_string(it->second);
+					apMarker.label.fontSize = 15.f;
 				}
 
 				apMarker.SetLocalTransform(__FP matLS2WS);
@@ -661,7 +669,6 @@ namespace rendertask {
 		// test display
 		{
 			// for testing
-			int test_count = 1;
 			for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
 				std::string testMkName = "testMk-" + std::to_string(i);
 				int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
@@ -673,16 +680,11 @@ namespace rendertask {
 					vzm::ActorParameters apMarker;
 					vzm::GetActorParams(aidMarkerTest, apMarker);
 					apMarker.is_visible = true;
-
-					if (test_count == 7) test_count++;
-					else if (test_count == 57) test_count++;
-
-					if (__gc->g_testMKs.size() > 50)
-						*(glm::fvec4*)apMarker.color = glm::fvec4((test_count % 8) / 8.f, ((test_count / 8.f) + 1.f) / 8.f, 0, 1.f); // rgba
-					else
-						*(glm::fvec4*)apMarker.color = glm::fvec4(1, 0, 1, 1);
-
-					test_count++;
+					apMarker.label.textStr = __gc->g_calribmodeToggle? "c:" + std::to_string(i) : "";
+					apMarker.label.iColor = 0xFF00FF;
+					apMarker.label.fontSize = 15.f;
+					apMarker.label.posScreenX = 10;
+					*(glm::fvec4*)apMarker.color = glm::fvec4(1, 0, 1, 0.5);
 
 					apMarker.SetLocalTransform(__FP matLS2WS);
 					vzm::SetActorParams(aidMarkerTest, apMarker);
@@ -729,7 +731,7 @@ namespace rendertask {
 					vzm::ActorParameters apMarker;
 					vzm::GetActorParams(aidMarkerCalib, apMarker);
 					apMarker.is_visible = __gc->g_showCalibMarkers;
-					apMarker.label.textStr = "(" + std::to_string(it->second.x) + ", " + std::to_string(it->second.y) + ")";
+					//apMarker.label.textStr = "(" + std::to_string(it->second.x) + ", " + std::to_string(it->second.y) + ")";
 					apMarker.SetLocalTransform(__FP matLS2WS);
 					vzm::SetActorParams(aidMarkerCalib, apMarker);
 				}
@@ -786,6 +788,13 @@ namespace rendertask {
 			textItem.posScreenX = 0;
 			textItem.posScreenY = cpCam1.h - 80;
 			cpCam1.text_items.SetParam("PAIRMODE", textItem);
+
+			textItem.textStr = "Probe Tip Correction : " + std::to_string(__gc->g_probeTipCorrection * 0.001f) + " mm";
+			textItem.fontSize = 20.f;
+			textItem.iColor = 0xFFFFFF;
+			textItem.posScreenX = 0;
+			textItem.posScreenY = cpCam1.h - 120;
+			cpCam1.text_items.SetParam("PROBETIP_CORRECTION", textItem);
 
 			textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
 			textItem.fontSize = 30.f;

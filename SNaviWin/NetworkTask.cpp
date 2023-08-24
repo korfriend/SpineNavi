@@ -12,7 +12,7 @@ namespace nettask {
 
 	__GC* __gc = NULL;
 
-	void SetGlobalContainer(__GC* gcp) {
+	void InitializeTask(__GC* gcp) {
 		__gc = gcp;
 	}
 

@@ -75,25 +75,13 @@ auto ___LoadMyVariable = [](const std::string& pname, const int idx) {
 	return ((float*)&p1)[idx];
 };
 
-/*
+
 // DOJO : 스캔 시 정보를 저장할 파일
 // 현 버전에서는 carm_intrinsics.txt (presetting) 에 저장된 intrinsic parameter 와
 // rb2carm1.txt (presetting + 매 스캔 시 저장됨) 에 저장된 c-arm source pose (extrinsic parameter) 를 로드하여 이를 파일로 저장
 // TODO : 추후 해당 부분을 file to file 이 아닌, memory to memory 로 관리해야 함
 // TODO : 매 스캔마다 camera intrinsics 와 extrinsics 를 계산하도록 수정해야 함
-auto storeParams = [](const cv::Mat downloadedGrayImg, const std::string& paramsFileName, const glm::fmat4x4& matCArmRB2WS, const std::string& imgFileName) {
-
-	if (downloadedGrayImg.empty())
-	{
-		std::cout << "\nno downloaded image" << std::endl;
-		return;
-	}
-
-	// now g_curScanImg is valid
-	// test3.png is for extrinsic calibration image
-	cv::Mat downloadColorImg;
-	cv::cvtColor(downloadedGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
-	cv::imwrite(imgFileName, downloadColorImg);
+auto storeParams = [](const std::string& paramsFileName, const glm::fmat4x4& matCArmRB2WS, const std::string& imgFileName) {
 
 	cv::FileStorage __fs(__gc.g_folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
 
@@ -154,7 +142,7 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + ".png";
 			cv::imwrite(downloadImgFileName, colored_img);
 
-			//storeParams(g_curScanGrayImg, "test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
+			storeParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
 		}
 
@@ -255,12 +243,14 @@ void UpdateBMP(int cidCam, HWND hWnd) {
 	}
 };
 
+CRITICAL_SECTION lock;
 // DOJO: windows SDK 에서 호출되는 SetTimer 의 callback 함수
 // 여기에서 UpdateTrackInfo2Scene() 과 Render() 이 호출된다.
 // timer 가 main thread 에서 활성화되므로 rendering thread (timer)는 main thread 에 종속
 // (thread safe 관계)
 void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 {
+	//::EnterCriticalSection(&lock);
 	// DOJO: concurrent queue 에서 가장 최신에 저장된 tracking frame 정보 pop out
 	track_info trackInfo;
 
@@ -268,6 +258,7 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	__gc.g_track_que.wait_and_pop(trackInfo);
 
 	if (__gc.g_renderEvent == RENDER_THREAD_DOWNLOAD_IMG_PROCESS) {
+		//__gc.g_renderEvent = RENDER_THREAD_BUSY;
 		memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
 
 
@@ -275,29 +266,37 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 		int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
 		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
 
+		cv::Mat downloadColorImg;
+		cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
+		cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+
+		using namespace std;
 		if (__gc.g_calribmodeToggle) {
 			if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
 
 				cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
 				saveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0, processColorImg);
-				__gc.g_calribmodeToggle = false;
+				//__gc.g_calribmodeToggle = false;
 			}
 		}
 		else {
-			cv::Mat downloadColorImg;
-			cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
-			cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
 
 			// test //
 			// __gc.g_CArmRB2SourceCS
 			glm::fmat4x4 matCArmRB2WS;
 			trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
 			glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
-			glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
-			glm::fvec3 posCArmSource = vzmutils::transformPos(glm::fvec3(0, 0, 0), matSourceCS2WS);
+			//glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
+			glm::fvec3 dirCArm = vzmutils::transformVec(glm::fvec3(0, 0, -1), matSourceCS2WS);
+			dirCArm = glm::normalize(dirCArm);
 
-			glm::fvec3 dirCArm = glm::normalize(posCArmDet - posCArmSource);
-			if (fabs(glm::dot(glm::fvec3(0, 1, 0), dirCArm)) > 0.5f)
+			glm::fmat4x4 matCam2WS;
+			trackInfo.GetTrackingCamPose(0, matCam2WS);
+			glm::fvec3 camRight = vzmutils::transformVec(glm::fvec3(1, 0, 0), matCam2WS);
+			camRight = glm::normalize(camRight);
+
+			float horizonAngle = fabs(glm::dot(camRight, dirCArm));
+			if (horizonAngle < 0.3f)
 				saveAndChangeViewState(trackInfo, char('1'), sidScene, cidCam1, 0, downloadColorImg);
 			else
 				saveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam2, 1, downloadColorImg);
@@ -328,6 +327,7 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 		InvalidateRect(g_hWnd, NULL, FALSE);
 		InvalidateRect(g_hWndDialog1, NULL, FALSE);
 	}
+	//::LeaveCriticalSection(&lock);
 }
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
@@ -360,18 +360,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	__gc.Init();
 	__gc.g_folder_data = getdatapath();
-	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-08-09/";
-	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-08-08.motive";
+	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-08-24/";
+	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-08-24.motive";
 
-	rendertask::SetGlobalContainer(&__gc);
-	nettask::SetGlobalContainer(&__gc);
-	trackingtask::SetGlobalContainer(&__gc);
-	calibtask::SetGlobalContainer(&__gc);
+	rendertask::InitializeTask(&__gc);
+	nettask::InitializeTask(&__gc);
+	trackingtask::InitializeTask(&__gc);
+	calibtask::InitializeTask(&__gc);
 
 	//{
 		cv::Mat __curScanImg = cv::imread(__gc.g_folder_trackingInfo + "test_downloaded.png");
-		if (!__curScanImg.empty()) {
-
+		if (0)//!__curScanImg.empty()) 
+		{
 			int chs = __curScanImg.channels();
 			if (__curScanImg.channels() == 3)
 				cv::cvtColor(__curScanImg, g_curScanGrayImg, cv::COLOR_BGR2GRAY);
@@ -379,11 +379,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				g_curScanGrayImg = __curScanImg;
 
 			cv::Mat imgGray;
-			cv::flip(__curScanImg, imgGray, 1);
+			cv::flip(g_curScanGrayImg, imgGray, 1);
 
 			cv::bitwise_not(imgGray, imgGray);
 
-			cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+			cv::GaussianBlur(imgGray, imgGray, cv::Size(5, 5), 0);
+			cv::imwrite(__gc.g_folder_trackingInfo + "test_butwise.png", imgGray); // cv imshow()로 보이기.
 			
 			//Add mask
 			//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
@@ -394,19 +395,20 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			params.filterByConvexity = false;
 			params.filterByInertia = true;
 			params.filterByColor = false;
-			params.blobColor = 0;
+			//params.blobColor = 255;
+			params.minThreshold = 100;
 
 			//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
 			//params.maxArea = 1000;
 			//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
 
 			params.minArea = 2000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-			params.maxArea = 8000;
+			params.maxArea = 15000;
 			params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
-
-			params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
+			//params.minConvexity = 0.8;
+			params.minInertiaRatio = 0.01; // 1 >> it detects perfect circle. short / long axis
 			params.minRepeatability = 2;
-			params.minDistBetweenBlobs = 100;
+			params.minDistBetweenBlobs = 50;
 
 			cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
 			std::vector<cv::KeyPoint> keypoints;
@@ -423,7 +425,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				int y = cvRound(keypoint.pt.y);
 				int s = cvRound(keypoint.size);
 				r = cvRound(s / 2);
-				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
+				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), 2);
 				std::string text = " (" + std::to_string(x) + ", " + std::to_string(y) + ")";
 				cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
 			}
@@ -431,7 +433,52 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 			std::vector<cv::Point2f> points2d;
 			//mystudents::Get2DPostionsFromLegoPhantom(__curScanImg, points2d);
-			int gg = 0;
+			return 0;
+		}
+		if (0)//!__curScanImg.empty()) 
+		{
+
+			int chs = __curScanImg.channels();
+			if (__curScanImg.channels() == 3)
+				cv::cvtColor(__curScanImg, g_curScanGrayImg, cv::COLOR_BGR2GRAY);
+			else if (__curScanImg.channels() == 1)
+				g_curScanGrayImg = __curScanImg;
+
+			cv::Mat imgGray;
+			cv::flip(g_curScanGrayImg, imgGray, 1);
+
+			//cv::bitwise_not(imgGray, imgGray);
+
+			cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+			cv::imwrite(__gc.g_folder_trackingInfo + "test_butwise.png", imgGray); // cv imshow()로 보이기.
+			 
+			std::vector<cv::Point3f> circles;
+			cv::HoughCircles(imgGray, circles, cv::HOUGH_GRADIENT, 1,
+				200, // change this value to detect circles with different distances to each other
+				110, 10, 20, 100 // change the last two parameters
+				// (min_radius & max_radius) to detect larger circles
+			);
+
+			// 원을 감지했는지 확인.
+
+			cv::Mat img = __curScanImg.clone();
+			cv::flip(img, img, 1);
+
+			int r = 0;
+			for (const auto& keypoint : circles) {
+				int x = cvRound(keypoint.x);
+				int y = cvRound(keypoint.y);
+				int s = cvRound(keypoint.z);
+				r = cvRound(s);
+				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), 2);
+				std::string text = " (" + std::to_string(x) + ", " + std::to_string(y) + ")";
+				cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
+			}
+			cv::imwrite(__gc.g_folder_trackingInfo + "test_circle_detect.png", img); // cv imshow()로 보이기.
+
+			std::vector<cv::Point2f> points2d;
+			//mystudents::Get2DPostionsFromLegoPhantom(__curScanImg, points2d);
+			return 0;
 		}
 	//}
 
@@ -811,6 +858,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				__gc.g_useGlobalPairs != !__gc.g_calribmodeToggle;
 				break;
 			}
+			case char('[') : {
+				__gc.g_probeTipCorrection -= 0.0002;
+				break;
+			}
+			case char(']') : {
+				__gc.g_probeTipCorrection += 0.0002;
+				break;
+			}
 			case char('X') :
 			{
 				if (!__gc.g_calribmodeToggle) {
@@ -932,6 +987,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			else {
 				__gc.g_selectedMkNames.clear();
+				general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
 			}
 		}
 		else {
@@ -941,7 +997,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	}
 	case WM_MOUSEMOVE:
 	{
-		if (__gc.g_calribmodeToggle && (wParam & MK_LBUTTON)) break;
+		if (__gc.g_calribmodeToggle && !(wParam & MK_RBUTTON)) break;
 
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);

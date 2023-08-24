@@ -407,6 +407,7 @@ typedef struct GlobalContainer {
 	bool g_useGlobalPairs;
 	std::map<glm::fvec3, glm::fvec2, homographyPairCompare> g_homographyPairs;
 	bool g_showCalibMarkers;
+	float g_probeTipCorrection; // forward tip 
 
 	//================ THREAD SAFE GROUP ==================
 #define OPTTRK_THREAD_FREE 0
@@ -418,6 +419,7 @@ typedef struct GlobalContainer {
 
 #define RENDER_THREAD_FREE 0
 #define RENDER_THREAD_DOWNLOAD_IMG_PROCESS 1
+#define RENDER_THREAD_BUSY 2
 	std::atomic_int g_renderEvent;// { RENDER_THREAD_FREE };
 
 #define NETWORK_THREAD_FREE 0
@@ -453,6 +455,8 @@ typedef struct GlobalContainer {
 		g_sceneName = "Scene1"; // Scene1, Scene2
 		g_camName = "Cam1"; // World Camera, CArm Camera
 		g_camName2 = "Cam2"; // World Camera, CArm Camera
+
+		g_probeTipCorrection = 0;
 
 		g_useGlobalPairs = true;
 		g_showCalibMarkers = false;

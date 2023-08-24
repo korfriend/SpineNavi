@@ -367,7 +367,7 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 			normalVector = svd.matrixV().col(2);
 			normalVector.normalize();
 
-			std::cout << "\nNormal vector: " << normalVector << std::endl;
+			//std::cout << "\nNormal vector: " << normalVector << std::endl;
 		}
 
 		return glm::fvec3(normalVector.x(), normalVector.y(), normalVector.z());

@@ -2,6 +2,6 @@
 #include "GlobalParams.h"
 
 namespace nettask {
-	void SetGlobalContainer(__GC* gcp);
+	void InitializeTask(__GC* gcp);
 	int NetworkProcess();
 }

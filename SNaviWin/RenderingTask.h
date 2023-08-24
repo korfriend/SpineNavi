@@ -2,7 +2,7 @@
 #include "GlobalParams.h"
 
 namespace rendertask {
-	void SetGlobalContainer(__GC* gcp);
+	void InitializeTask(__GC* gcp);
 	
 	void SceneInit(const HWND view1Hwnd, const RECT rcWorldView1, const HWND view2Hwnd, const RECT rcWorldView2);
 

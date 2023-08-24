@@ -62,43 +62,43 @@ namespace mystudents {
 	using namespace std;
 
 	// BlobDetector를 통해 원이 감지되었는지 확인하는 코드입니다.
-	int CheckCircleDetect(const cv::Mat& inputImg, const std::vector<cv::KeyPoint>& keyPoints)
+	bool CheckCircleDetect(const cv::Mat& inputImg, const std::vector<cv::KeyPoint>& keyPoints)
 	{
 		cv::Mat img = inputImg.clone();
 
-		int r = 0;
 		for (const auto& keypoint : keyPoints) {
 			int x = cvRound(keypoint.pt.x);
 			int y = cvRound(keypoint.pt.y);
 			int s = cvRound(keypoint.size);
-			r = cvRound(s / 2);
-			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
+			int r = cvRound(s / 2);
+			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), 2);
 			string text = " (" + to_string(x) + ", " + to_string(y) + ")";
 			cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
 		}
 		cv::imwrite(__gc->g_folder_trackingInfo + "test_circle_detect.png", img); // cv imshow()로 보이기.
 
-		return r; // 반지름 반환
+		return true; // 반지름 반환
 	}
 
 	// 2d 포지션의 index가 잘 정렬되었는지 확인하는 코드입니다.
-	void CheckPositionSort(const cv::Mat& inputImg, const std::vector<cv::Point2f>& point2Ds, int r)
+	void CheckPositionSort(const cv::Mat& inputImg, const std::vector<cv::Point2f>& point2Ds, const std::vector<float>& radiis)
 	{
 		cv::Mat img;
 		cv::cvtColor(inputImg, img, cv::COLOR_GRAY2RGB);
 
-		int idx = 0;
-		for (const auto& center : point2Ds) {
+		for (int i = 0; i < (int)point2Ds.size(); i++) {
+			cv::Point2f center = point2Ds[i];
+		//for (const auto& center : point2Ds) {
 			int x = cvRound(center.x);
 			int y = cvRound(center.y);
+			int r = cvRound(radiis[i]);
 
 			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 256), 2);
 			string text = " (" + to_string(x) + ", " + to_string(y) + ")";
 			cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
 
 			// index 출력
-			cv::putText(img, to_string(idx), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 1);
-			idx += 1;
+			cv::putText(img, to_string(i), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 1);
 		}
 		cv::flip(img, img, 1);
 		cv::imwrite(__gc->g_folder_trackingInfo + "test_circle_sort.png", img); // cv imshow()로 보이기.
@@ -157,10 +157,11 @@ namespace mystudents {
 		int r = CheckCircleDetect(inputImg, keypoints);
 
 		// 벡터에 일단 원의 점을 넣는다.
-		vector<cv::Point2f> circlePoints;
+		vector<cv::Point3f> circlePoints;
+		vector<float> circleRadiis;
 
 		for (const auto& kp : keypoints) {
-			circlePoints.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+			circlePoints.push_back(cv::Point3f(kp.pt.x, kp.pt.y, kp.size));
 		}
 
 		int col = 6; int row = 8;
@@ -173,27 +174,27 @@ namespace mystudents {
 				pointNum = top_bottom;
 
 			// 1. y축 정렬
-			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point3f& a, const cv::Point3f& b) {
 				return a.y < b.y;
 				});
 
 			// 2. 가장 위의 점 두개 뽑기
-			cv::Point2f first = circlePoints[0];
-			cv::Point2f second = circlePoints[1];
+			cv::Point3f first = circlePoints[0];
+			cv::Point3f second = circlePoints[1];
 
 			// 3. 두점을 잇는 선
-			float m = second.y - first.y / second.x - first.x;
-			float n = first.y - m * first.x;
+			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
+			float n = first.y - (m * first.x); // y절편.
 
-			// 4. 직선의 방정식 : y = mx + n
-			// 직선과 가까운 점 정렬.		
+			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
+			// 직선과 가까운 점 정렬.
 			std::sort(circlePoints.begin(), circlePoints.end(),
-				[&](const cv::Point2f& a, const cv::Point2f& b) {
-					return sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
+				[&](const cv::Point3f& a, const cv::Point3f& b) {
+					return mystudents::sortByDistance(cv::Point2f(a.x, a.y), cv::Point2f(b.x, b.y), m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
 				});
 
 			// 6개 or 8개 빼기			
-			vector<cv::Point2f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
+			vector<cv::Point3f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
 			for (int j = 0; j < pointNum; j++)
 			{
 				rowPoints.push_back(circlePoints[0]); // 거리가 가장 가까운 것을 뽑음. 가장 가까운건 0번째
@@ -201,17 +202,20 @@ namespace mystudents {
 			}
 
 			// 5. x 방향으로 정렬.
-			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point3f& a, const cv::Point3f& b) {
 				return a.x < b.x;
 				});
 
 			// 6. point2Ds에 넣음.
-			for (int j = 0; j < pointNum; j++)
-				points2Ds.push_back(rowPoints[j]);
+			for (int j = 0; j < pointNum; j++) {
+				Point3f p = rowPoints[j];
+				points2Ds.push_back(Point2f(p.x, p.y));
+				circleRadiis.push_back(p.z * 0.5f);
+			}
 		}
 
 		// 포지션 잘 정렬되었는지 확인.
-		CheckPositionSort(inputImg, points2Ds, r);
+		mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
 
 		return (int)points2Ds.size();
 	}
@@ -230,7 +234,7 @@ namespace mystudents {
 		}
 
 		cv::bitwise_not(imgGray, imgGray);
-		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+		cv::GaussianBlur(imgGray, imgGray, cv::Size(5, 5), 0);
 		//Add mask
 		//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
 		// Blob Detector Params
@@ -247,7 +251,7 @@ namespace mystudents {
 		//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
 
 		params.minArea = 2000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		params.maxArea = 8000;
+		params.maxArea = 16000;
 		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
 
 		params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
@@ -257,15 +261,20 @@ namespace mystudents {
 		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
 		vector<cv::KeyPoint> keypoints;
 		detector->detect(imgGray, keypoints); // circle detect.
-
 		// 원을 감지했는지 확인.
 		int r = mystudents::CheckCircleDetect(inputImg, keypoints);
+		if (keypoints.size() < rows * cols)
+		{
+			cout << "there is a missing circle!!" << endl;
+			return false;
+		}
 
 		// 벡터에 일단 원의 점을 넣는다.
-		vector<cv::Point2f> circlePoints;
+		vector<cv::Point3f> circlePoints;
+		vector<float> circleRadiis;
 
 		for (const auto& kp : keypoints) {
-			circlePoints.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+			circlePoints.push_back(cv::Point3f(kp.pt.x, kp.pt.y, kp.size));
 		}
 
 		int col = cols; int row = rows;
@@ -278,13 +287,13 @@ namespace mystudents {
 				pointNum = top_bottom;
 
 			// 1. y축 정렬
-			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point3f& a, const cv::Point3f& b) {
 				return a.y < b.y;
 				});
 
 			// 2. 가장 위의 점 두개 뽑기
-			cv::Point2f first = circlePoints[0];
-			cv::Point2f second = circlePoints[1];
+			cv::Point3f first = circlePoints[0];
+			cv::Point3f second = circlePoints[1];
 
 			// 3. 두점을 잇는 선
 			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
@@ -293,12 +302,12 @@ namespace mystudents {
 			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
 			// 직선과 가까운 점 정렬.
 			std::sort(circlePoints.begin(), circlePoints.end(),
-				[&](const cv::Point2f& a, const cv::Point2f& b) {
-					return mystudents::sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
+				[&](const cv::Point3f& a, const cv::Point3f& b) {
+					return mystudents::sortByDistance(cv::Point2f(a.x, a.y), cv::Point2f(b.x, b.y), m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
 				});
 
 			// 6개 or 8개 빼기			
-			vector<cv::Point2f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
+			vector<cv::Point3f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
 			for (int j = 0; j < pointNum; j++)
 			{
 				rowPoints.push_back(circlePoints[0]); // 거리가 가장 가까운 것을 뽑음. 가장 가까운건 0번째
@@ -306,20 +315,107 @@ namespace mystudents {
 			}
 
 			// 5. x 방향으로 정렬.
-			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point3f& a, const cv::Point3f& b) {
 				return a.x < b.x;
 				});
 
 			// 6. point2Ds에 넣음.
-			for (int j = 0; j < pointNum; j++)
-				points2Ds.push_back(rowPoints[j]);
+			for (int j = 0; j < pointNum; j++) {
+				cv::Point3f p = rowPoints[j];
+				points2Ds.push_back(cv::Point2f(p.x, p.y));
+				circleRadiis.push_back(p.z * 0.5f);
+			}
 		}
 
 		// 포지션 잘 정렬되었는지 확인.
-		mystudents::CheckPositionSort(inputImg, points2Ds, r);
+		mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
 
 		return (int)points2Ds.size();
 	}
+
+	int Get2DPostionsFromFMarkersPhantom2(const cv::Mat& inputImg, const int rows, const int cols, std::vector<cv::Point2f>& points2Ds)
+	{
+		cv::Mat imgGray;
+		int chs = inputImg.channels();
+		if (inputImg.channels() == 3)
+			cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
+		else if (inputImg.channels() == 1)
+			imgGray = inputImg.clone();
+		else {
+			cout << "not supported image!" << endl;
+			assert(0);
+		}
+
+		cv::bitwise_not(imgGray, imgGray);
+		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+
+		std::vector<cv::Point3f> circlePoints;
+		cv::HoughCircles(imgGray, circlePoints, cv::HOUGH_GRADIENT, 1,
+			200, // change this value to detect circles with different distances to each other
+			110, 10, 20, 150 // change the last two parameters
+			// (min_radius & max_radius) to detect larger circles
+		);
+
+		// 벡터에 일단 원의 점을 넣는다.
+		vector<float> circleRadiis;
+
+		int col = cols; int row = rows;
+		int top_bottom = cols; // 위 아래 6개
+		int middle = cols;     // 가운데 8개
+
+		for (int i = 0; i < row; i++) {
+			int pointNum = middle;
+			if (i == 0 || i == row - 1) // 맨 처음줄과 아랫줄이면 6개만 감지한다.
+				pointNum = top_bottom;
+
+			// 1. y축 정렬
+			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point3f& a, const cv::Point3f& b) {
+				return a.y < b.y;
+				});
+
+			// 2. 가장 위의 점 두개 뽑기
+			cv::Point3f first = circlePoints[0];
+			cv::Point3f second = circlePoints[1];
+
+			// 3. 두점을 잇는 선
+			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
+			float n = first.y - (m * first.x); // y절편.
+
+			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
+			// 직선과 가까운 점 정렬.
+			std::sort(circlePoints.begin(), circlePoints.end(),
+				[&](const cv::Point3f& a, const cv::Point3f& b) {
+					return mystudents::sortByDistance(cv::Point2f(a.x, a.y), cv::Point2f(b.x, b.y), m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
+				});
+
+			// 6개 or 8개 빼기			
+			vector<cv::Point3f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
+			for (int j = 0; j < pointNum; j++)
+			{
+				rowPoints.push_back(circlePoints[0]); // 거리가 가장 가까운 것을 뽑음. 가장 가까운건 0번째
+				circlePoints.erase(circlePoints.begin()); // 뽑았으면 삭제.
+			}
+
+			// 5. x 방향으로 정렬.
+			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point3f& a, const cv::Point3f& b) {
+				return a.x < b.x;
+				});
+
+			// 6. point2Ds에 넣음.
+			for (int j = 0; j < pointNum; j++) {
+				cv::Point3f p = rowPoints[j];
+				points2Ds.push_back(cv::Point2f(p.x, p.y));
+				circleRadiis.push_back(p.z);
+			}
+		}
+
+		// 포지션 잘 정렬되었는지 확인.
+		mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
+
+		return (int)points2Ds.size();
+	}
+
+
 	// Function to calculate the normal vector of a plane given three points
 	// Function to calculate the normal vector of a plane given three points
 	void calc_normal_vector(const cv::Point3f& point1, const cv::Point3f& point2, const cv::Point3f& point3,
@@ -552,8 +648,36 @@ namespace mystudents {
 
 namespace calibtask {
 
-	void SetGlobalContainer(__GC* gcp) {
+	void InitializeTask(__GC* gcp) {
 		__gc = gcp;
+
+		cv::FileStorage fs(__gc->g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
+		
+		if (fs.isOpened()) {
+			cv::Mat rvec, tvec;
+			fs["rvec"] >> rvec;
+			fs["tvec"] >> tvec;
+			fs.release();
+
+			cv::Mat matR;
+			cv::Rodrigues(rvec, matR);
+			// note, here camera frame (notation 'CA', opencv convention) is defined with
+			// z axis as viewing direction
+			// -y axis as up vector
+			__gc->g_CArmRB2SourceCS = glm::fmat4x4(1);
+			__gc->g_CArmRB2SourceCS[0][0] = (float)matR.at<double>(0, 0);
+			__gc->g_CArmRB2SourceCS[0][1] = (float)matR.at<double>(1, 0);
+			__gc->g_CArmRB2SourceCS[0][2] = (float)matR.at<double>(2, 0);
+			__gc->g_CArmRB2SourceCS[1][0] = (float)matR.at<double>(0, 1);
+			__gc->g_CArmRB2SourceCS[1][1] = (float)matR.at<double>(1, 1);
+			__gc->g_CArmRB2SourceCS[1][2] = (float)matR.at<double>(2, 1);
+			__gc->g_CArmRB2SourceCS[2][0] = (float)matR.at<double>(0, 2);
+			__gc->g_CArmRB2SourceCS[2][1] = (float)matR.at<double>(1, 2);
+			__gc->g_CArmRB2SourceCS[2][2] = (float)matR.at<double>(2, 2);
+			__gc->g_CArmRB2SourceCS[3][0] = (float)((double*)tvec.data)[0];
+			__gc->g_CArmRB2SourceCS[3][1] = (float)((double*)tvec.data)[1];
+			__gc->g_CArmRB2SourceCS[3][2] = (float)((double*)tvec.data)[2];
+		}
 	}
 	int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName)
 	{
@@ -691,10 +815,12 @@ namespace calibtask {
 
 		cv::FileStorage fs(__gc->g_folder_trackingInfo + "calibBoard.txt", cv::FileStorage::Mode::READ);
 		std::string calib_mode;
+		std::string det_mode;
 		int cols, rows;
 		fs["ROWS"] >> rows;
 		fs["COLS"] >> cols;
 		fs["MODE"] >> calib_mode;
+		fs["DETECTOR"] >> det_mode;
 		fs.release();
 
 		if (calib_mode == "LEGO" || calib_mode == "FMARKERS") {
@@ -735,15 +861,23 @@ namespace calibtask {
 		else if (calib_mode == "FILM") {
 			if (points2d.size() != 77) {
 				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
-				cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
+				cout << "\n# of circles must be 77 if PHANTOM_MODE is FILM" << endl;
 				return false;
 			}
 		}
 		else if (calib_mode == "FMARKERS") {
-			mystudents::Get2DPostionsFromFMarkersPhantom(source2detImg, rows, cols, points2d);
+			if (det_mode == "SimpleBlobDetector")
+				mystudents::Get2DPostionsFromFMarkersPhantom(source2detImg, rows, cols, points2d);
+			else if (det_mode == "HoughCircles")
+				mystudents::Get2DPostionsFromFMarkersPhantom2(source2detImg, rows, cols, points2d);
+			else {
+				cout << "\nInvalid Detector!" << endl;
+				return false;
+			}
+			
 			if (points2d.size() != rows * cols) {
 				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
-				cout << "\n# of circles must be 9 if PHANTOM_MODE is LEGO" << endl;
+				cout << "\n# of circles must be " << rows * cols << " if PHANTOM_MODE is FMARKERS" << endl;
 				return false;
 			}
 		}
@@ -793,10 +927,10 @@ namespace calibtask {
 		__gc->g_testMKs.assign(points3d.size(), glm::fvec3(0));
 		memcpy(&__gc->g_testMKs[0], &points3d[0], sizeof(glm::fvec3) * points3d.size());
 
-		__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[0]);
-		__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[1]);
-		__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[2]);
-		__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[3]);
+		//__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[0]);
+		//__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[1]);
+		//__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[2]);
+		//__gc->g_testMKs.push_back(*(glm::fvec3*)&posWsMarkers[3]);
 
 		// important! the 3d points must be defined in C-Arm RB space
 		// because we want to get the transform btw C-arm cam (x-ray source) space and C-Arm RB space
