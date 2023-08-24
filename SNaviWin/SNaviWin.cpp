@@ -126,7 +126,7 @@ auto storeParams = [](const cv::Mat downloadedGrayImg, const std::string& params
 // AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
 // note : this function needs to be called in the render thread
 auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam, 
-	const int sidScene, const int cidCam, const int viewIdx) 
+	const int sidScene, const int cidCam, const int viewIdx, const cv::Mat& colored_img) 
 {
 	using namespace std;
 	char LOADKEYS[10] = { '0' , '1', '2', '3', '4', '5', '6', '7', '8', '9' };
@@ -145,11 +145,14 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 		glm::fmat4x4 mat_t = glm::translate(t);
 		glm::fmat4x4 matRB2WS = mat_t * mat_r;
 
-		if (__gc.g_downloadCompleted > 0) {
-			cv::Mat downloadColoredImg;
-			cv::cvtColor(g_curScanGrayImg, downloadColoredImg, cv::COLOR_GRAY2RGB);
+		__gc.g_showCalibMarkers = keyParam == '3';
+
+		if (!colored_img.empty())
+		{
+			//cv::Mat coloredImg;
+			//cv::cvtColor(img, coloredImg, cv::COLOR_GRAY2RGB);
 			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + ".png";
-			cv::imwrite(downloadImgFileName, downloadColoredImg);
+			cv::imwrite(downloadImgFileName, colored_img);
 
 			//storeParams(g_curScanGrayImg, "test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
@@ -267,20 +270,37 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	if (__gc.g_renderEvent == RENDER_THREAD_DOWNLOAD_IMG_PROCESS) {
 		memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
 
-		cv::Mat downloadColorImg;
-		cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
-		cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+
+		int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
+		int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
+		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
 
 		if (__gc.g_calribmodeToggle) {
 			if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
-				int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
-				int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
-				saveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0);
+
+				cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
+				saveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0, processColorImg);
 				__gc.g_calribmodeToggle = false;
 			}
 		}
 		else {
+			cv::Mat downloadColorImg;
+			cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
+			cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+
 			// test //
+			// __gc.g_CArmRB2SourceCS
+			glm::fmat4x4 matCArmRB2WS;
+			trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
+			glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
+			glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
+			glm::fvec3 posCArmSource = vzmutils::transformPos(glm::fvec3(0, 0, 0), matSourceCS2WS);
+
+			glm::fvec3 dirCArm = glm::normalize(posCArmDet - posCArmSource);
+			if (fabs(glm::dot(glm::fvec3(0, 1, 0), dirCArm)) > 0.5f)
+				saveAndChangeViewState(trackInfo, char('1'), sidScene, cidCam1, 0, downloadColorImg);
+			else
+				saveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam2, 1, downloadColorImg);
 		}
 		__gc.g_renderEvent = RENDER_THREAD_FREE;
 	}
@@ -573,11 +593,16 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 // DOJO IMPORTANT NOTE :
 // key 1 ~ 9 : save and add the scan geometry to the scene (global key event)
+//     1 : AP (left view), 2 : Lateral (right view),  3 : calibration (left view)
+//     TO DO... calibration history...
 // key S : save current camera state (main window only)
 // key L : load the latest-stored camera state (main window only)
 // key C : calibration mode for selecting markers whose position is used to compute c-arm extrinsic calibration
-// key U : update c-arm marker set
+// key U : update c-arm marker set (rigid body)
+// key T : update tool marker set (rigid body)
 // key X : compute c-arm extrinsics based on the c-arm marker set and the selected marker positions
+// key D : just for UI (clear test marker spheres)
+// key Y : tool tip test for estimated mk position
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -666,7 +691,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				using namespace glm;
 				fmat4x4 matCam2WS;
-				optitrk::GetCameraLocation(0, __FP matCam2WS);
+				track_info trk;
+				trk = __gc.g_track_que.front();
+				trk.GetTrackingCamPose(0, matCam2WS);
 
 				*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
 				*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
@@ -720,7 +747,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					vzm::RemoveSceneItem(aidTestGroup);
 				break;
 			}
-			case char('Y') : {
+			case char('Y') : { // just for test
 				track_info trk;
 				trk = __gc.g_track_que.front();
 				glm::fmat4x4 matRB2WS;
@@ -791,30 +818,34 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					return 0;
 				}
 				//#define MYDEFINE
-				g_curScanGrayImg = cv::imread(__gc.g_folder_trackingInfo + "test" + to_string(EXTRINSIC_PHANTOM_IMG_INDEX) + ".png");
-				if (g_curScanGrayImg.empty()) {
-					cout << "\n" << "no test3 image" << endl;
+
+				cv::Mat downloadedImg = cv::imread(__gc.g_folder_trackingInfo + "test_downloaded.png");
+
+				if (downloadedImg.empty()) {
+					cout << "\n" << "no downloaded image" << endl;
 					return false;
 				}
 				__gc.g_downloadCompleted = 100;
-				cv::cvtColor(g_curScanGrayImg, g_curScanGrayImg, cv::COLOR_RGB2GRAY);
-				cout << "\n" << "calibration with the previous test2 image" << endl;
+				cv::cvtColor(downloadedImg, g_curScanGrayImg, cv::COLOR_RGB2GRAY);
+				cout << "\n" << "calibration with the previous downloaded image" << endl;
 
 				track_info trk;
 				//__gc.g_track_que.wait_and_pop(trk);
 				trk = __gc.g_track_que.front();
-				calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trk, __gc.g_useGlobalPairs);
-
-				//download_completed = false; 
-				saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0);
-				__gc.g_ui_banishing_count = 100;
+				if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trk, __gc.g_useGlobalPairs)) {
+					cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
+					//download_completed = false; 
+					saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0, processColorImg);
+					__gc.g_ui_banishing_count = 100;
+				}
 				break;
 			}
 			default: {
 				track_info trk;
 				//__gc.g_track_que.wait_and_pop(trk);
 				trk = __gc.g_track_que.front();
-				saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0);
+				cv::Mat emptyImg;
+				saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0, emptyImg);
 				break;
 			}
 		}
@@ -1001,7 +1032,8 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	{
 		track_info trk;
 		__gc.g_track_que.wait_and_pop(trk);
-		saveAndChangeViewState(trk, wParam, sidScene, cidCam2, 1);
+		cv::Mat emptyImg;
+		saveAndChangeViewState(trk, wParam, sidScene, cidCam2, 1, emptyImg);
 		break;
 	}
 	case WM_SIZE:

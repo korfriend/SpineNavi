@@ -24,7 +24,6 @@
 #define SCANIMG_W 1296
 #define SCANIMG_H 1296
 #define FLIP_SCANIMAGE true
-#define PHANTOM_MODE "FMARKERS" // "LEGO" "FILM" "FMARKERS"
 #define EXTRINSIC_PHANTOM_IMG_INDEX 3
 
 // https://www.justsoftwaresolutions.co.uk/threading/implementing-a-thread-safe-queue-using-condition-variables.html
@@ -407,6 +406,7 @@ typedef struct GlobalContainer {
 
 	bool g_useGlobalPairs;
 	std::map<glm::fvec3, glm::fvec2, homographyPairCompare> g_homographyPairs;
+	bool g_showCalibMarkers;
 
 	//================ THREAD SAFE GROUP ==================
 #define OPTTRK_THREAD_FREE 0
@@ -455,6 +455,7 @@ typedef struct GlobalContainer {
 		g_camName2 = "Cam2"; // World Camera, CArm Camera
 
 		g_useGlobalPairs = true;
+		g_showCalibMarkers = false;
 
 		g_optiEvent = OPTTRK_THREAD_FREE;
 		g_renderEvent = RENDER_THREAD_FREE;

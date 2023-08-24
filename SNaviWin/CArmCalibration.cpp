@@ -84,7 +84,8 @@ namespace mystudents {
 	// 2d 포지션의 index가 잘 정렬되었는지 확인하는 코드입니다.
 	void CheckPositionSort(const cv::Mat& inputImg, const std::vector<cv::Point2f>& point2Ds, int r)
 	{
-		cv::Mat img = inputImg.clone();
+		cv::Mat img;
+		cv::cvtColor(inputImg, img, cv::COLOR_GRAY2RGB);
 
 		int idx = 0;
 		for (const auto& center : point2Ds) {
@@ -99,6 +100,7 @@ namespace mystudents {
 			cv::putText(img, to_string(idx), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 1);
 			idx += 1;
 		}
+		cv::flip(img, img, 1);
 		cv::imwrite(__gc->g_folder_trackingInfo + "test_circle_sort.png", img); // cv imshow()로 보이기.
 	}
 
@@ -214,6 +216,110 @@ namespace mystudents {
 		return (int)points2Ds.size();
 	}
 
+	int Get2DPostionsFromFMarkersPhantom(const cv::Mat& inputImg, const int rows, const int cols, std::vector<cv::Point2f>& points2Ds)
+	{
+		cv::Mat imgGray;
+		int chs = inputImg.channels();
+		if (inputImg.channels() == 3)
+			cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
+		else if (inputImg.channels() == 1)
+			imgGray = inputImg.clone();
+		else {
+			cout << "not supported image!" << endl;
+			assert(0);
+		}
+
+		cv::bitwise_not(imgGray, imgGray);
+		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
+		//Add mask
+		//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
+		// Blob Detector Params
+		cv::SimpleBlobDetector::Params params;
+		params.filterByArea = true;
+		params.filterByCircularity = true;
+		params.filterByConvexity = false;
+		params.filterByInertia = true;
+		params.filterByColor = false;
+		params.blobColor = 0;
+
+		//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+		//params.maxArea = 1000;
+		//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
+
+		params.minArea = 2000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+		params.maxArea = 8000;
+		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
+
+		params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
+		params.minRepeatability = 2;
+		params.minDistBetweenBlobs = 100;
+
+		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
+		vector<cv::KeyPoint> keypoints;
+		detector->detect(imgGray, keypoints); // circle detect.
+
+		// 원을 감지했는지 확인.
+		int r = mystudents::CheckCircleDetect(inputImg, keypoints);
+
+		// 벡터에 일단 원의 점을 넣는다.
+		vector<cv::Point2f> circlePoints;
+
+		for (const auto& kp : keypoints) {
+			circlePoints.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
+		}
+
+		int col = cols; int row = rows;
+		int top_bottom = cols; // 위 아래 6개
+		int middle = cols;     // 가운데 8개
+
+		for (int i = 0; i < row; i++) {
+			int pointNum = middle;
+			if (i == 0 || i == row - 1) // 맨 처음줄과 아랫줄이면 6개만 감지한다.
+				pointNum = top_bottom;
+
+			// 1. y축 정렬
+			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+				return a.y < b.y;
+				});
+
+			// 2. 가장 위의 점 두개 뽑기
+			cv::Point2f first = circlePoints[0];
+			cv::Point2f second = circlePoints[1];
+
+			// 3. 두점을 잇는 선
+			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
+			float n = first.y - (m * first.x); // y절편.
+
+			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
+			// 직선과 가까운 점 정렬.
+			std::sort(circlePoints.begin(), circlePoints.end(),
+				[&](const cv::Point2f& a, const cv::Point2f& b) {
+					return mystudents::sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
+				});
+
+			// 6개 or 8개 빼기			
+			vector<cv::Point2f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
+			for (int j = 0; j < pointNum; j++)
+			{
+				rowPoints.push_back(circlePoints[0]); // 거리가 가장 가까운 것을 뽑음. 가장 가까운건 0번째
+				circlePoints.erase(circlePoints.begin()); // 뽑았으면 삭제.
+			}
+
+			// 5. x 방향으로 정렬.
+			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
+				return a.x < b.x;
+				});
+
+			// 6. point2Ds에 넣음.
+			for (int j = 0; j < pointNum; j++)
+				points2Ds.push_back(rowPoints[j]);
+		}
+
+		// 포지션 잘 정렬되었는지 확인.
+		mystudents::CheckPositionSort(inputImg, points2Ds, r);
+
+		return (int)points2Ds.size();
+	}
 	// Function to calculate the normal vector of a plane given three points
 	// Function to calculate the normal vector of a plane given three points
 	void calc_normal_vector(const cv::Point3f& point1, const cv::Point3f& point2, const cv::Point3f& point3,
@@ -377,6 +483,71 @@ namespace mystudents {
 		//points3Ds.push_back(inter_points);
 		return (int)points3Ds.size();
 	}
+
+	int Get3DPostionsFromFMarkersPhantom(const glm::fvec3& marker0, const glm::fvec3& marker1, const glm::fvec3& marker2, const glm::fvec3& marker3, 
+		const track_info* trk, const int rows, const int cols,
+		std::vector<cv::Point3f>& points3Ds) {
+
+		// note we are using meter metric
+		using namespace std;
+		using namespace glm;
+
+		glm::fmat4x4 matRB2WS;
+		track_info& trackInfo = *(track_info*)trk;
+
+		trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL);
+		fvec3 carmCenter = vzmutils::transformPos(fvec3(0, 0, 0), matRB2WS);
+		fvec3 dirToCarmRB = normalize(carmCenter - marker0);
+
+		int numMarkers = trackInfo.NumMarkers();
+		vector<fvec3> mkPts;
+		for (int i = 0; i < numMarkers; i++) {
+			std::map<track_info::MKINFO, std::any> mk;
+			trackInfo.GetMarkerByIdx(i, mk);
+			mkPts.push_back(std::any_cast<fvec3>(mk[track_info::MKINFO::POSITION]));
+		}
+
+		PointCloud<float, fvec3> pc(&mkPts[0], numMarkers);
+		kd_tree_t kdt(3, pc, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+		kdt.buildIndex();
+
+		size_t out_ids[3];
+		float out_dists[3];
+		//fvec3 posMkCenter = (marker0 + marker1 + marker2 + marker3) / 4.f;
+		//kdt.knnSearch((float*)&marker0, 16, out_ids, out_dists);
+
+		vector<fvec3> mkPhantomPts;
+
+		for (int i = 0; i < rows; ++i) {
+			float ratio_row = (float)i / (float)(rows - 1);
+			fvec3 interPosRow0 = (1.f - ratio_row) * marker0 + ratio_row * marker3;
+			fvec3 interPosRow1 = (1.f - ratio_row) * marker1 + ratio_row * marker2;
+
+			for (int j = 0; j < cols; ++j) {
+
+				float ratio_col = (float)j / (float)(rows - 1);
+				fvec3 interPos = (1.f - ratio_col) * interPosRow0 + ratio_col * interPosRow1;
+				mkPhantomPts.push_back(interPos);
+			}
+		}
+
+		for (int i = 0; i < (int)mkPhantomPts.size(); i++) {
+			kdt.knnSearch((float*)&mkPhantomPts[i], 1, out_ids, out_dists);
+			points3Ds.push_back(__gm3__ & mkPts[out_ids[0]]);
+		}
+
+
+		cv::Mat ocvVec3(1, 3, CV_32FC1);
+		cv::FileStorage fs(__gc->g_folder_trackingInfo + "test_tip_sphere_mk.txt", cv::FileStorage::Mode::WRITE);
+		for (int i = 0; i < (int)points3Ds.size(); i++) {
+			memcpy(ocvVec3.ptr(), &points3Ds[i], sizeof(float) * 3);
+			fs << "inter_sphere_" + std::to_string(i) << ocvVec3;
+		}
+		fs.release();
+		//vector<vector<cv::Point3f>> points3Ds;
+		//points3Ds.push_back(inter_points);
+		return (int)points3Ds.size();
+	}
 }
 
 namespace calibtask {
@@ -504,289 +675,6 @@ namespace calibtask {
 		return aidGroupCArmCam;
 	}
 
-	int Get2DPostionsFromFMarkersPhantom(const cv::Mat& inputImg, std::vector<cv::Point2f>& points2Ds)
-	{
-		cv::Mat imgGray;
-		int chs = inputImg.channels();
-		if (inputImg.channels() == 3)
-			cv::cvtColor(inputImg, imgGray, cv::COLOR_BGR2GRAY);
-		else if (inputImg.channels() == 1)
-			imgGray = inputImg.clone();
-		else {
-			cout << "not supported image!" << endl;
-			assert(0);
-		}
-
-		cv::bitwise_not(imgGray, imgGray);
-		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
-		//Add mask
-		//cv::Mat imgSrc = imgGray.clone(); // gray image(=imgSrc)로 circle detect 할 것.
-		// Blob Detector Params
-		cv::SimpleBlobDetector::Params params;
-		params.filterByArea = true;
-		params.filterByCircularity = true;
-		params.filterByConvexity = false;
-		params.filterByInertia = true;
-		params.filterByColor = false;
-		params.blobColor = 0;
-
-		//params.minArea = 500; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		//params.maxArea = 1000;
-		//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
-
-		params.minArea = 2000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		params.maxArea = 8000;
-		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
-
-		params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
-		params.minRepeatability = 2;
-		params.minDistBetweenBlobs = 100;
-
-		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
-		vector<cv::KeyPoint> keypoints;
-		detector->detect(imgGray, keypoints); // circle detect.
-
-		// 원을 감지했는지 확인.
-		int r = mystudents::CheckCircleDetect(inputImg, keypoints);
-
-		// 벡터에 일단 원의 점을 넣는다.
-		vector<cv::Point2f> circlePoints;
-
-		for (const auto& kp : keypoints) {
-			circlePoints.push_back(cv::Point2f(kp.pt.x, kp.pt.y));
-		}
-
-		int col = 3; int row = 3;
-		int top_bottom = 3; // 위 아래 6개
-		int middle = 3;     // 가운데 8개
-
-		for (int i = 0; i < row; i++) {
-			int pointNum = middle;
-			if (i == 0 || i == row - 1) // 맨 처음줄과 아랫줄이면 6개만 감지한다.
-				pointNum = top_bottom;
-
-			// 1. y축 정렬
-			sort(circlePoints.begin(), circlePoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-				return a.y < b.y;
-				});
-
-			// 2. 가장 위의 점 두개 뽑기
-			cv::Point2f first = circlePoints[0];
-			cv::Point2f second = circlePoints[1];
-
-			// 3. 두점을 잇는 선
-			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
-			float n = first.y - (m * first.x); // y절편.
-
-			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
-			// 직선과 가까운 점 정렬.
-			std::sort(circlePoints.begin(), circlePoints.end(),
-				[&](const cv::Point2f& a, const cv::Point2f& b) {
-					return mystudents::sortByDistance(a, b, m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
-				});
-
-			// 6개 or 8개 빼기			
-			vector<cv::Point2f> rowPoints; // 뺀 점이 rowPoints에 들어갑니다.
-			for (int j = 0; j < pointNum; j++)
-			{
-				rowPoints.push_back(circlePoints[0]); // 거리가 가장 가까운 것을 뽑음. 가장 가까운건 0번째
-				circlePoints.erase(circlePoints.begin()); // 뽑았으면 삭제.
-			}
-
-			// 5. x 방향으로 정렬.
-			sort(rowPoints.begin(), rowPoints.end(), [](const cv::Point2f& a, const cv::Point2f& b) {
-				return a.x < b.x;
-				});
-
-			// 6. point2Ds에 넣음.
-			for (int j = 0; j < pointNum; j++)
-				points2Ds.push_back(rowPoints[j]);
-		}
-
-		// 포지션 잘 정렬되었는지 확인.
-		mystudents::CheckPositionSort(inputImg, points2Ds, r);
-
-		return (int)points2Ds.size();
-	}
-
-	int Get3DPostionsFromFMarkersPhantom_old(const glm::fvec3& marker0, const glm::fvec3& marker1, const glm::fvec3& marker2, const glm::fvec3& marker3, const track_info* trk,
-		std::vector<cv::Point3f>& points3Ds) {
-
-		// note we are using meter metric
-		using namespace std;
-		using namespace glm;
-
-		glm::fmat4x4 matRB2WS;
-		track_info& trackInfo = *(track_info*)trk;
-
-		trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL);
-		fvec3 carmCenter = vzmutils::transformPos(fvec3(0, 0, 0), matRB2WS);
-		fvec3 dirToCarmRB = normalize(carmCenter - marker0);
-
-		int numMarkers = trackInfo.NumMarkers();
-		vector<fvec3> mkPts;
-		for (int i = 0; i < numMarkers; i++) {
-			std::map<track_info::MKINFO, std::any> mk;
-			trackInfo.GetMarkerByIdx(i, mk);
-			mkPts.push_back(std::any_cast<fvec3>(mk[track_info::MKINFO::POSITION]));
-		}
-
-		PointCloud<float, fvec3> __pc(&mkPts[0], numMarkers);
-		kd_tree_t __kdt(3, __pc, nanoflann::KDTreeSingleIndexAdaptorParams(10));
-		__kdt.buildIndex();
-
-		const int rows = 3;
-		const int cols = 3;
-		size_t out_ids[16];
-		float out_dists[16];
-		fvec3 posMkCenter = (marker0 + marker1 + marker2 + marker3) / 4.f;
-		__kdt.knnSearch((float*)&marker0, 16, out_ids, out_dists);
-		
-		vector<fvec3> mkPhantomPts;
-		for (int i = 0; i < 16; i++) {
-			mkPhantomPts.push_back(mkPts[out_ids[i]]);
-		}
-
-		PointCloud<float, fvec3> pc(&mkPhantomPts[0], numMarkers);
-		kd_tree_t kdt(3, pc, nanoflann::KDTreeSingleIndexAdaptorParams(10));
-		kdt.buildIndex();
-
-
-		//(float*)&p_src, k, out_ids, out_dists, 10
-
-		vector<fvec3> mkSortedPhantomPts;
-		set<int> registeredIndices;
-		fvec3 prevRowStartMk;
-		for (int i = 0; i < rows; ++i) {
-			fvec3 prevRegMk;
-			if (i == 0) {
-				prevRowStartMk = prevRegMk = mkPhantomPts[0];
-				registeredIndices.insert(0);
-				mkSortedPhantomPts.push_back(prevRowStartMk);
-			}
-			else {
-				kdt.knnSearch((float*)&prevRowStartMk, 5, out_ids, out_dists);
-				vector<int> ppidx;
-				for (int m = 1; m < 5; m++) {
-					int idx = out_ids[i];
-					if (registeredIndices.find(idx) == registeredIndices.end()) ppidx.push_back(idx);
-				}
-				int nextId = ppidx[0];
-				prevRowStartMk = prevRegMk = mkPhantomPts[nextId];
-				registeredIndices.insert(nextId);
-				mkSortedPhantomPts.push_back(prevRegMk);
-			}
-
-
-			for (int j = 1; j < cols; ++j) {
-				kdt.knnSearch((float*)&prevRegMk, 5, out_ids, out_dists);
-				vector<int> ppidx;
-				for (int m = 1; m < 5; m++) {
-					int idx = out_ids[i];
-					if (registeredIndices.find(idx) == registeredIndices.end()) ppidx.push_back(idx);
-				}
-
-				if (i < rows - 1) {
-					assert(ppidx.size() >= 2);
-
-					fvec3 v01 = mkPhantomPts[ppidx[0]] - prevRegMk;
-					fvec3 v02 = mkPhantomPts[ppidx[1]] - prevRegMk;
-					fvec3 vn = cross(v01, v02);
-
-					int nextId = dot(vn, dirToCarmRB) > 0 ? ppidx[0] : ppidx[1];
-					prevRegMk = mkPhantomPts[nextId];
-					registeredIndices.insert(nextId);
-					mkSortedPhantomPts.push_back(prevRegMk);
-				}
-				else {
-					assert(ppidx.size() >= 1);
-					int nextId = ppidx[0];
-					prevRegMk = mkPhantomPts[nextId];
-					registeredIndices.insert(nextId);
-					mkSortedPhantomPts.push_back(prevRegMk);
-				}
-			}
-		}
-
-		cv::Mat ocvVec3(1, 3, CV_32FC1);
-		cv::FileStorage fs(__gc->g_folder_trackingInfo + "test_tip_sphere_16.txt", cv::FileStorage::Mode::WRITE);
-		for (int i = 0; i < 16; i++) {
-			memcpy(ocvVec3.ptr(), &points3Ds[i], sizeof(float) * 3);
-			fs << "inter_sphere_" + std::to_string(i) << ocvVec3;
-		}
-		fs.release();
-		//vector<vector<cv::Point3f>> points3Ds;
-		//points3Ds.push_back(inter_points);
-		return (int)points3Ds.size();
-	}
-
-
-	int Get3DPostionsFromFMarkersPhantom(const glm::fvec3& marker0, const glm::fvec3& marker1, const glm::fvec3& marker2, const glm::fvec3& marker3, const track_info* trk,
-		std::vector<cv::Point3f>& points3Ds) {
-
-		// note we are using meter metric
-		using namespace std;
-		using namespace glm;
-
-		glm::fmat4x4 matRB2WS;
-		track_info& trackInfo = *(track_info*)trk;
-
-		trackInfo.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL);
-		fvec3 carmCenter = vzmutils::transformPos(fvec3(0, 0, 0), matRB2WS);
-		fvec3 dirToCarmRB = normalize(carmCenter - marker0);
-
-		int numMarkers = trackInfo.NumMarkers();
-		vector<fvec3> mkPts;
-		for (int i = 0; i < numMarkers; i++) {
-			std::map<track_info::MKINFO, std::any> mk;
-			trackInfo.GetMarkerByIdx(i, mk);
-			mkPts.push_back(std::any_cast<fvec3>(mk[track_info::MKINFO::POSITION]));
-		}
-
-		PointCloud<float, fvec3> pc(&mkPts[0], numMarkers);
-		kd_tree_t kdt(3, pc, nanoflann::KDTreeSingleIndexAdaptorParams(10));
-		kdt.buildIndex();
-
-		const int rows = 3;
-		const int cols = 3;
-		size_t out_ids[3];
-		float out_dists[3];
-		//fvec3 posMkCenter = (marker0 + marker1 + marker2 + marker3) / 4.f;
-		//kdt.knnSearch((float*)&marker0, 16, out_ids, out_dists);
-
-		vector<fvec3> mkPhantomPts;
-
-		for (int i = 0; i < rows; ++i) {
-			float ratio_row = (float)i / (float)(rows - 1);
-			fvec3 interPosRow0 = (1.f - ratio_row) * marker0 + ratio_row * marker3;
-			fvec3 interPosRow1 = (1.f - ratio_row) * marker1 + ratio_row * marker2;
-
-			for (int j = 0; j < cols; ++j) {
-
-				float ratio_col = (float)j / (float)(rows - 1);
-				fvec3 interPos = (1.f - ratio_col) * interPosRow0 + ratio_col * interPosRow1;
-				mkPhantomPts.push_back(interPos);
-			}
-		}
-
-		for (int i = 0; i < (int)mkPhantomPts.size(); i++) {
-			kdt.knnSearch((float*)&mkPhantomPts[i], 1, out_ids, out_dists);
-			points3Ds.push_back(__gm3__ & mkPts[out_ids[0]]);
-		}
-
-
-		cv::Mat ocvVec3(1, 3, CV_32FC1);
-		cv::FileStorage fs(__gc->g_folder_trackingInfo + "test_tip_sphere_mk.txt", cv::FileStorage::Mode::WRITE);
-		for (int i = 0; i < (int)points3Ds.size(); i++) {
-			memcpy(ocvVec3.ptr(), &points3Ds[i], sizeof(float) * 3);
-			fs << "inter_sphere_" + std::to_string(i) << ocvVec3;
-		}
-		fs.release();
-		//vector<vector<cv::Point3f>> points3Ds;
-		//points3Ds.push_back(inter_points);
-		return (int)points3Ds.size();
-	}
-
 	// note : this function needs to be called in the render thread
 	// using "carm_intrinsics.txt", store opencv's rvec and tvec to "rb2carm1.txt"
 	bool CalibrationWithPhantom(glm::fmat4x4& matCArmRB2SourceCS, const cv::Mat& downloadedGrayImg, const track_info* trk, const bool useGlobal)
@@ -801,7 +689,15 @@ namespace calibtask {
 		else
 			source2detImg = downloadedGrayImg;
 
-		if (PHANTOM_MODE == "LEGO" || PHANTOM_MODE == "FMARKERS") {
+		cv::FileStorage fs(__gc->g_folder_trackingInfo + "calibBoard.txt", cv::FileStorage::Mode::READ);
+		std::string calib_mode;
+		int cols, rows;
+		fs["ROWS"] >> rows;
+		fs["COLS"] >> cols;
+		fs["MODE"] >> calib_mode;
+		fs.release();
+
+		if (calib_mode == "LEGO" || calib_mode == "FMARKERS") {
 			if (__gc->g_selectedMkNames.size() != 4) {
 				__gc->SetErrorCode(ERROR_CODE_NOT_ENOUGH_SELECTION);
 				cout << "\n4 points are needed!!" << endl;
@@ -828,7 +724,7 @@ namespace calibtask {
 
 		// get 2d mks info from x-ray img (calculImg)
 		std::vector<cv::Point2f> points2d;
-		if (PHANTOM_MODE == "LEGO") {
+		if (calib_mode == "LEGO") {
 			mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
 			if (points2d.size() != 60) {
 				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
@@ -836,16 +732,16 @@ namespace calibtask {
 				return false;
 			}
 		}
-		else if (PHANTOM_MODE == "FILM") {
+		else if (calib_mode == "FILM") {
 			if (points2d.size() != 77) {
 				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
 				cout << "\n# of circles must be 77 if PHANTOM_MODE is LEGO" << endl;
 				return false;
 			}
 		}
-		else if (PHANTOM_MODE == "FMARKERS") {
-			Get2DPostionsFromFMarkersPhantom(source2detImg, points2d);
-			if (points2d.size() != 9) {
+		else if (calib_mode == "FMARKERS") {
+			mystudents::Get2DPostionsFromFMarkersPhantom(source2detImg, rows, cols, points2d);
+			if (points2d.size() != rows * cols) {
 				__gc->SetErrorCode(ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED);
 				cout << "\n# of circles must be 9 if PHANTOM_MODE is LEGO" << endl;
 				return false;
@@ -861,7 +757,7 @@ namespace calibtask {
 			posWsMarkers[it->second] = *(cv::Point3f*)&pos;
 		}
 
-		if (PHANTOM_MODE == "LEGO" || PHANTOM_MODE == "FMARKERS") {
+		if (calib_mode == "LEGO" || calib_mode == "FMARKERS") {
 			// check the selecting direction
 			glm::fvec3 v01 = *(glm::fvec3*)&posWsMarkers[1] - *(glm::fvec3*)&posWsMarkers[0];
 			glm::fvec3 v03 = *(glm::fvec3*)&posWsMarkers[3] - *(glm::fvec3*)&posWsMarkers[0];
@@ -885,11 +781,12 @@ namespace calibtask {
 		// compute the estimated marker positions on the phantom (WS)
 
 		std::vector<cv::Point3f> points3d;
-		if (PHANTOM_MODE == "LEGO") {
+		if (calib_mode == "LEGO") {
 			mystudents::Get3DPostionsFromLegoPhantom2(0.007f, posWsMarkers[0], posWsMarkers[1], posWsMarkers[2], posWsMarkers[3], points3d);
 		}
-		else if (PHANTOM_MODE == "FMARKERS") {
-			Get3DPostionsFromFMarkersPhantom(__cv3__&posWsMarkers[0], __cv3__&posWsMarkers[1], __cv3__&posWsMarkers[2], __cv3__&posWsMarkers[3], trk, points3d);
+		else if (calib_mode == "FMARKERS") {
+			mystudents::Get3DPostionsFromFMarkersPhantom(__cv3__&posWsMarkers[0], __cv3__&posWsMarkers[1], __cv3__&posWsMarkers[2], __cv3__&posWsMarkers[3], 
+				trk, rows, cols, points3d);
 		}
 
 		//__gc->g_testMKs.clear();

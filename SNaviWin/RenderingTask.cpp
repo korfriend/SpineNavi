@@ -497,6 +497,26 @@ namespace rendertask {
 					vzm::AppendSceneItemToSceneTree(aidMarkerTest, aidTestGroup);
 				}
 			}
+
+			int aidCalibMkGroup = vzmutils::GetSceneItemIdByName("Calib MK Group");
+			if (aidCalibMkGroup == 0) {
+				vzm::ActorParameters apGroup;
+				vzm::NewActor(apGroup, "Calib MK Group", aidTestGroup);
+				vzm::AppendSceneItemToSceneTree(aidTestGroup, sidScene);
+			}
+			for (int i = 0; i < (int)__gc->g_homographyPairs.size(); i++) {
+				std::string calibMkName = "calibMk-" + std::to_string(i);
+				int aidMarkerCalib = vzmutils::GetSceneItemIdByName(calibMkName);
+				if (aidMarkerCalib == 0) {
+					vzm::ActorParameters apMarker;
+					apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+					apMarker.is_visible = false;
+					*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 0, 1.f, 1.f); // rgba
+					vzm::NewActor(apMarker, calibMkName, aidMarkerCalib);
+					vzm::AppendSceneItemToSceneTree(aidMarkerCalib, aidTestGroup);
+					
+				}
+			}
 		}
 
 		// DOJO : scene tree 에 배치된 (rigid body) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동 
@@ -666,6 +686,52 @@ namespace rendertask {
 
 					apMarker.SetLocalTransform(__FP matLS2WS);
 					vzm::SetActorParams(aidMarkerTest, apMarker);
+				}
+			}
+		}
+
+
+		//int aidCalibMkGroup = vzmutils::GetSceneItemIdByName("Calib MK Group");
+		//if (aidCalibMkGroup == 0) {
+		//	vzm::ActorParameters apGroup;
+		//	vzm::NewActor(apGroup, "Calib MK Group", aidTestGroup);
+		//	vzm::AppendSceneItemToSceneTree(aidTestGroup, sidScene);
+		//}
+		//for (int i = 0; i < (int)__gc->g_homographyPairs.size(); i++) {
+		//	std::string calibMkName = "calibMk-" + std::to_string(i);
+		//	int aidMarkerCalib = vzmutils::GetSceneItemIdByName(calibMkName);
+		//	if (aidMarkerCalib == 0) {
+		//		vzm::ActorParameters apMarker;
+		//		apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+		//		apMarker.is_visible = false;
+		//		*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 0, 1.f, 1.f); // rgba
+		//		vzm::NewActor(apMarker, calibMkName, aidMarkerCalib);
+		//		vzm::AppendSceneItemToSceneTree(aidMarkerCalib, aidTestGroup);
+		//
+		//	}
+		//}
+
+		{
+			glm::fmat4x4 matCArmRB2WS;
+			trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
+
+			int mkIndex = 0;
+			for (auto it = __gc->g_homographyPairs.begin(); it != __gc->g_homographyPairs.end(); it++)
+			{
+				glm::fvec3 posCalibMKRB = it->first;
+				std::string testMkName = "calibMk-" + std::to_string(mkIndex++);
+				int aidMarkerCalib = vzmutils::GetSceneItemIdByName(testMkName);
+				if (aidMarkerCalib != 0) {
+					glm::fmat4x4 matLS2WS = matCArmRB2WS * glm::translate(posCalibMKRB);
+					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.001f)); // set 1 cm to the marker diameter
+					matLS2WS = matLS2WS * matScale;
+
+					vzm::ActorParameters apMarker;
+					vzm::GetActorParams(aidMarkerCalib, apMarker);
+					apMarker.is_visible = __gc->g_showCalibMarkers;
+					apMarker.label.textStr = "(" + std::to_string(it->second.x) + ", " + std::to_string(it->second.y) + ")";
+					apMarker.SetLocalTransform(__FP matLS2WS);
+					vzm::SetActorParams(aidMarkerCalib, apMarker);
 				}
 			}
 		}
