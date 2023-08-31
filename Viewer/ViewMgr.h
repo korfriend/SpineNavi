@@ -26,6 +26,14 @@ public:
 		m_windowLateral->display();
 	};
 
+	void setCalibImg(Image2D img) {
+		m_windowCalib->setImage(img);
+		m_windowCalib->display();
+	};
+
+	void setCalibMode();
+	void setNaviMode();
+
 private:
 
 	// AP View.
@@ -33,6 +41,10 @@ private:
 	
 	// Lateral View
 	WindowCArm* m_windowLateral;
+
+	// Calibration View
+	WindowCArm* m_windowCalib;
+
 
 	// Layout classes.
 	ViewLayout* m_mainLayout;

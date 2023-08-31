@@ -141,6 +141,15 @@ bool optitrk::LoadProfileAndCalibInfo(const std::string& file_profile, const std
 	return true;
 }
 
+bool optitrk::StoreProfile(const std::string& file_profile)
+{
+	// Load a project file from the executable directory.
+	printf("Loading Profile: UserProfile.motive\n");
+	CheckResult(TT_SaveProfile(file_profile.c_str()));
+
+	return true;
+}
+
 bool LoadRigidBodies(const std::string& file_rbs)
 {
 	if (is_initialized) return false;
@@ -242,7 +251,7 @@ bool optitrk::SetRigidBodyPropertyByName(const std::string& name, const float sm
 	return SetRigidBodyPropertyByIdx(rb_idx, smooth_term, test_smooth_term);
 }
 
-bool optitrk::SetRigidBodyEnabledbyId(const int rb_idx, const bool enabled)
+bool optitrk::SetRigidBodyEnabledbyIdx(const int rb_idx, const bool enabled)
 {
 	if (!is_initialized) return false;
 	if (TT_RigidBodyName(rb_idx) == NULL) return false;
@@ -267,6 +276,72 @@ bool optitrk::SetRigidBodyEnabledbyName(const std::string& name, const bool enab
 	return true;
 }
 
+bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const float* mkPosArray)
+{
+	if (!is_initialized) return false;
+
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+	int rb_idx = 0;
+	for (; rb_idx < numRBs; rb_idx++)
+		if (name == rbNames[rb_idx]) break;
+
+	int userId = 1;
+	bool isNew = rb_idx == numRBs;
+	if (!isNew) {
+		int numPrevMKs = TT_RigidBodyMarkerCount(rb_idx);
+		userId = TT_RigidBodyUserData(rb_idx);
+		isNew = numPrevMKs != numMKs;
+		if (isNew) {
+			//std::string __rbName = TT_RigidBodyName(rb_idx);
+			TT_RemoveRigidBody(rb_idx);
+		}
+	}
+
+	vector<glm::fvec3> mkMkPos(numMKs);
+	memcpy(&mkMkPos[0], mkPosArray, sizeof(glm::fvec3) * numMKs);
+
+	glm::fvec3 mkPivotPos = glm::fvec3(0, 0, 0);
+	for (int i = 0; i < numMKs; i++) {
+		mkPivotPos += mkMkPos[i];
+	}
+	mkPivotPos /= (float)numMKs;
+	for (int i = 0; i < numMKs; i++) {
+		mkMkPos[i] -= mkPivotPos;
+	}
+
+	if (isNew) {
+		//static int id = 0;
+		TT_CreateRigidBody(name.c_str(), userId, numMKs, (float*)&mkMkPos[0]);
+	}
+	else {
+		for (int i = 0; i < numMKs; i++) {
+			glm::fvec3 mkPos = mkMkPos[i];
+			TT_RigidBodyUpdateMarker(rb_idx, i, &mkPos.x, &mkPos.y, &mkPos.z);
+		}
+	}
+
+	//std::wstring name_w;
+	//name_w.assign(name.begin(), name.end());
+	//
+	//RigidBodySolver::cRigidBodySettings setting;
+	//if (name.length() > RigidBodySolver::kRigidBodyNameMaxLen)
+	//	return false;
+	//
+	//ZeroMemory(setting.mName, RigidBodySolver::kRigidBodyNameMaxLen * sizeof(wchar_t));
+	//memcpy(setting.mName, name_w.c_str(), name_w.length() * sizeof(wchar_t));
+	//
+	//setting.ColorR = (float)(rand() % 100) / 100.f;
+	//setting.ColorG = (float)(rand() % 100) / 100.f;
+	//setting.ColorB = (float)(rand() % 100) / 100.f;
+	//setting.Enabled = true;
+	//if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
+	//	return false;
+	//
+	cout << "\n" << name << " error : " << TT_RigidBodyMeanError(rb_idx) << endl;
+	return true;
+}
+
 bool optitrk::Test(float* v) {
 	float   yaw, pitch, roll;
 	float   x, y, z;
@@ -278,7 +353,9 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 {
 	if (!is_initialized) return false;
 	if (rb_name) *rb_name = TT_RigidBodyName(rb_idx);
-	if (!TT_IsRigidBodyTracked(rb_idx)) return false;
+	if (!TT_IsRigidBodyTracked(rb_idx)) {
+		return false;
+	}
 
 	float   yaw, pitch, roll;
 	float   x, y, z;
@@ -402,7 +479,7 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 	if (rb_mse) {
 		*rb_mse = TT_RigidBodyMeanError(rb_idx);
 	}
-	
+
 	if (mk_quality_list) {
 		*mk_quality_list = qualities;
 	}
@@ -484,6 +561,7 @@ bool optitrk::DeinitOptiTrackLib()
 	// Shutdown API
 	CheckResult(TT_Shutdown());
 	printf("Bye Bye~ optitracker\n");
+
 	return true;
 }
 

@@ -1,15 +1,23 @@
 #include "Engine.h"
 
-#define USE_MOTIVE
+//#define USE_MOTIVE
 
 Engine::Engine(ViewLayout* layout, QString dataPath, QString optiProfilePath, QString optiCalfilePath)
 {
+	__gc.Init();
+	m_renderer = new RenderEngine();
+	m_renderer->InitializeTask(&__gc);
+	m_calibrator = new CalibrationEngine();
+	m_calibrator->InitializeTask(&__gc);
+
 	m_optiProfilePath = optiProfilePath;
 	m_optiCalfilepath = optiCalfilePath;
 	m_numImg = 0;
 
 	m_network_processing_thread = new networkThread();
 	m_trackingThread = new trackingThread();
+	m_trackingThread->InitializeTask(&__gc);
+
 	m_qtimer = new QTimer();
 
 
@@ -115,8 +123,8 @@ void Engine::EngineInit()
 	const int numCols = (int)rowTypes.size();//trackingData.GetColumnCount();
 	const int numRows = (int)trackingData.GetRowCount();
 
-	m_trackingFrames.assign(numRows - startRowIdx, navihelpers::track_info());
-	std::vector<navihelpers::track_info>& trackingFrames = m_trackingFrames;
+	m_trackingFrames.assign(numRows - startRowIdx, track_info());
+	std::vector<track_info>& trackingFrames = m_trackingFrames;
 
 	int frameIdx = 0;
 	auto string2cid = [](const std::string id) {
@@ -160,7 +168,7 @@ void Engine::EngineInit()
 		std::vector<std::string> rowStrValues = trackingData.GetRow<std::string>(rowIdx);
 		if (rowStrValues.size() == 0)
 			continue;
-		navihelpers::track_info& trackInfo = trackingFrames[frameIdx++];
+		track_info& trackInfo = trackingFrames[frameIdx++];
 
 		int colIdx = startColIdx;
 		while (colIdx < numCols) {
@@ -171,7 +179,7 @@ void Engine::EngineInit()
 			std::string rotPos = rotPosLabels[colIdx];
 			std::string xyzw = xyzwLabels[colIdx];
 
-			std::map<std::string, std::map<navihelpers::track_info::MKINFO, std::any>> rbmkSet;
+			std::map<std::string, std::map<track_info::MKINFO, std::any>> rbmkSet;
 
 			if (type == "Rigid Body") {
 				if (rowIdx == startRowIdx) numAllFramesRBs++;
@@ -223,13 +231,13 @@ void Engine::EngineInit()
 					glm::fvec3 p(mkValues[0], mkValues[1], mkValues[2]);
 					float mq = mkValues[3];
 					auto& v = rbmkSet[_name];
-					v[navihelpers::track_info::MKINFO::POSITION] = p;
-					v[navihelpers::track_info::MKINFO::MK_QUALITY] = mq;
-					v[navihelpers::track_info::MKINFO::MK_NAME] = _name;
-					v[navihelpers::track_info::MKINFO::CID] = _cid;
+					v[track_info::MKINFO::POSITION] = p;
+					v[track_info::MKINFO::MK_QUALITY] = mq;
+					v[track_info::MKINFO::MK_NAME] = _name;
+					v[track_info::MKINFO::MK_CID] = _cid;
 				}
 
-				trackInfo.AddRigidBody(name, mat_ls2ws, q, t, mkMSE, rbmkSet);
+				trackInfo.AddRigidBody(name, NULL,mat_ls2ws, q, t, mkMSE, rbmkSet);
 			}
 			if (type == "Marker") {
 				if (rowIdx == startRowIdx) numAllFramesMKs++;
@@ -326,11 +334,6 @@ void Engine::Render()
 
 	if (sidScene != 0 && cidCam1 != 0 && cidCam2 != 0) {
 		// show case
-		
-		
-
-		
-		
 
 		unsigned char* ptr_rgba;
 		float* ptr_zdepth;
@@ -395,6 +398,33 @@ void Engine::StoreParams(std::string& paramsFileName, glm::fmat4x4& matRB2WS, st
 	__fs.release();
 }
 
+void Engine::StoreParams(const std::string& paramsFileName, const glm::fmat4x4& matCArmRB2WS, const std::string& imgFileName)
+{
+	cv::FileStorage __fs(__gc.g_folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
+
+	cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	cv::Mat matK;
+	fs["K"] >> matK;
+	__fs << "K" << matK;
+	cv::Mat distCoeffs;
+	fs["DistCoeffs"] >> distCoeffs;
+	__fs << "DistCoeffs" << distCoeffs;
+
+	fs.open(__gc.g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
+	cv::Mat rvec, tvec;
+	fs["rvec"] >> rvec;
+	fs["tvec"] >> tvec;
+	__fs << "rvec" << rvec;
+	__fs << "tvec" << tvec;
+	fs.release();
+
+	cv::Mat ocvRb(4, 4, CV_32FC1);
+	memcpy(ocvRb.ptr(), glm::value_ptr(matCArmRB2WS), sizeof(float) * 16);
+	__fs << "rb2wsMat" << ocvRb;
+	__fs << "imgFile" << imgFileName;
+	__fs.release();
+}
+
 void Engine::SaveAndChangeViewState(const int keyParam, const int sidScene, const int cidCam, std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame)
 {
 	using namespace std;
@@ -409,7 +439,7 @@ void Engine::SaveAndChangeViewState(const int keyParam, const int sidScene, cons
 			const int maxSamples = 30;
 			const float normalizedNum = 1.f / (float)maxSamples;
 			while (captureCount < maxSamples) {
-				navihelpers::track_info trackInfo;
+				track_info trackInfo;
 				m_trackingThread->pop(trackInfo);
 				//g_track_que->wait_and_pop(trackInfo);
 				glm::fquat q;
@@ -463,6 +493,75 @@ void Engine::SaveAndChangeViewState(const int keyParam, const int sidScene, cons
 	}
 }
 
+void Engine::SaveAndChangeViewState(const track_info& trackInfo, const int keyParam,
+	const int sidScene, const int cidCam, const int viewIdx, const cv::Mat& colored_img)
+{
+	using namespace std;
+	char LOADKEYS[10] = { '0' , '1', '2', '3', '4', '5', '6', '7', '8', '9' };
+	for (int i = 0; i < 10; i++) {
+		if (keyParam != LOADKEYS[i]) continue;
+
+		track_info* trk = (track_info*)&trackInfo;
+		glm::fquat q;
+		glm::fvec3 t;
+		if (!trk->GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+			cout << "\nfailure to get c-arm rigid body" << endl;
+			return;
+		}
+
+		glm::fmat4x4 mat_r = glm::toMat4(q);
+		glm::fmat4x4 mat_t = glm::translate(t);
+		glm::fmat4x4 matRB2WS = mat_t * mat_r;
+
+		__gc.g_showCalibMarkers = keyParam == '3';
+
+		if (!colored_img.empty())
+		{
+			//cv::Mat coloredImg;
+			//cv::cvtColor(img, coloredImg, cv::COLOR_GRAY2RGB);
+			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + ".png";
+			cv::imwrite(downloadImgFileName, colored_img);
+
+			StoreParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
+			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
+		}
+
+		auto it = __gc.g_mapAidGroupCArmCam.find(EXTRINSIC_PHANTOM_IMG_INDEX);
+		if (it != __gc.g_mapAidGroupCArmCam.end())
+			vzm::RemoveSceneItem(it->second, true);
+
+		// load case
+		it = __gc.g_mapAidGroupCArmCam.find(i);
+		if (it != __gc.g_mapAidGroupCArmCam.end())
+			vzm::RemoveSceneItem(it->second, true);
+		int aidGroup = m_calibrator->RegisterCArmImage(sidScene, __gc.g_folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
+		if (aidGroup != -1) {
+			__gc.g_mapAidGroupCArmCam[i] = aidGroup;
+
+			// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
+			// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
+			// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
+			cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+			cv::Mat cameraMatrix;
+			fs["K"] >> cameraMatrix;
+			fs.release();
+
+			int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + std::to_string(i));
+			if (aidCArmPlane == 0)
+				return;
+
+			vzm::ActorParameters apCArmPlane;
+			vzm::GetActorParams(aidCArmPlane, apCArmPlane);
+			glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
+
+			m_renderer->SetAnimationCamTo(cidCam, viewIdx,
+				cameraMatrix.at<double>(0, 0), cameraMatrix.at<double>(1, 1), cameraMatrix.at<double>(0, 1),
+				cameraMatrix.at<double>(0, 2), cameraMatrix.at<double>(1, 2), matCA2WS);
+		}
+		break;
+	}
+	return;
+}
 void Engine::MoveCameraToCArmView(int carmIdx, int cidCam, std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame)
 {
 
@@ -583,7 +682,7 @@ void Engine::slotImageArrived(cv::Mat img)
 	m_network_processing_thread->setDownloadFlag(false);
 }
 
-void Engine::UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
+void Engine::UpdateTrackInfo2Scene(track_info& trackInfo)
 {
 	int numRBs = trackInfo.NumRigidBodies();
 	int numMKs = trackInfo.NumMarkers();
@@ -591,7 +690,7 @@ void Engine::UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 	for (int i = 0; i < numRBs; i++) {
 		std::string rbName;
 		glm::fmat4x4 matLS2WS;
-		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL)) {
+		if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, NULL, NULL)) {
 			int aidAxis = vzmutils::GetSceneItemIdByName(rbName);
 			vzm::ActorParameters apAxis;
 			vzm::GetActorParams(aidAxis, apAxis);
@@ -603,10 +702,10 @@ void Engine::UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo)
 	}
 
 	for (int i = 0; i < numMKs; i++) {
-		std::map<navihelpers::track_info::MKINFO, std::any> mk;
+		std::map<track_info::MKINFO, std::any> mk;
 		if (trackInfo.GetMarkerByIdx(i, mk)) {
-			std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
-			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[navihelpers::track_info::MKINFO::POSITION]);
+			std::string mkName = std::any_cast<std::string>(mk[track_info::MKINFO::MK_NAME]);
+			glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[track_info::MKINFO::POSITION]);
 
 			glm::fmat4x4 matLS2WS = glm::translate(pos);
 			glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 1 cm to the marker diameter
@@ -636,126 +735,73 @@ void Engine::TimerProc()
 #ifdef USE_MOTIVE
 	int frame = frameCount++;
 #else
-	std::vector<navihelpers::track_info>& trackingFrames = m_trackingFrames;
+	std::vector<track_info>& trackingFrames = m_trackingFrames;
 	int totalFrames = (int)trackingFrames.size();
 	int frame = (frameCount++) % totalFrames;
 #endif
 
 #ifdef USE_MOTIVE
-	//navihelpers::concurrent_queue<navihelpers::track_info>* track_que = g_track_que;
-	navihelpers::track_info trackInfo;
-	//track_que->wait_and_pop(trackInfo);
-	m_trackingThread->pop(trackInfo);
+	track_info trackInfo;
 
-	// generate scene actors with updated trackInfo
-	{
+	//for smaller overhead
+	__gc.g_track_que.wait_and_pop(trackInfo);
+
+	//image download 됐을 때
+	if (__gc.g_renderEvent == RENDER_THREAD_DOWNLOAD_IMG_PROCESS) {
+		//__gc.g_renderEvent = RENDER_THREAD_BUSY;
+		cv::Mat g_curScanGrayImg(SCANIMG_W, SCANIMG_H, CV_8UC1);
+		memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
+
+
+		int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
+		int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
+		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
+
+		cv::Mat downloadColorImg;
+		cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
+		cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+
 		using namespace std;
-		using namespace navihelpers;
-		using namespace glm;
+		if (__gc.g_calribmodeToggle) {
+			if (m_calibrator->CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
 
-		int sidScene = vzmutils::GetSceneItemIdByName("Scene1");
-		int numMKs = trackInfo.NumMarkers();
-		int numRBs = trackInfo.NumRigidBodies();
-
-		// Tracking Cam Geometry and Actors
-		{
-			static int aidGroupCams = 0;
-			if (aidGroupCams == 0) {
-				vzm::ActorParameters apGroupCams;
-				vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
-				vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
-
-				static int oidCamModels[3] = { 0, 0, 0 };
-				for (int i = 0; i < 3; i++) {
-					fmat4x4 matCam2WS;
-					optitrk::GetCameraLocation(i, __FP matCam2WS);
-					int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
-					Cam_Gen(matCam2WS, "CAM" + to_string(i), oidCamTris, oidCamLines, oidCamLabel);
-
-					vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
-					apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
-					apCamTris.color[3] = 0.5f;
-					apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
-					*(fvec4*)apCamLines.phong_coeffs = fvec4(0, 1, 0, 0);
-					apCamLines.line_thickness = 2;
-					apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
-					*(fvec4*)apCamLabel.phong_coeffs = fvec4(0, 1, 0, 0);
-					int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
-					vzm::NewActor(apCamTris, "Cam" + to_string(i) + " Tris", aidCamTris);
-					vzm::NewActor(apCamLines, "Cam" + to_string(i) + " Lines", aidCamLines);
-					vzm::NewActor(apCamLabel, "Cam" + to_string(i) + " Label", aidCamLabel);
-					vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
-					vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
-					vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
-				}
-			}
-			//
-		}
-
-		static int oidAxis = 0;
-		static int oidMarker = 0;
-		if (oidAxis == 0) {
-			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
-		}
-		if (oidMarker == 0) {
-			glm::fvec4 pos(0, 0, 0, 1.f);
-			vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
-		}
-
-		static map<string, int> sceneActors;
-
-		for (int i = 0; i < numRBs; i++) {
-			std::string rbName;
-			if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, NULL, NULL)) {
-				auto actorId = sceneActors.find(rbName);
-				if (actorId == sceneActors.end()) {
-					vzm::ActorParameters apAxis;
-					apAxis.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
-					apAxis.is_visible = false;
-					apAxis.line_thickness = 3;
-					int aidRbAxis = 0;
-					vzm::NewActor(apAxis, rbName, aidRbAxis);
-					vzm::AppendSceneItemToSceneTree(aidRbAxis, sidScene);
-
-					std::vector<glm::fvec3> pinfo(3);
-					pinfo[0] = glm::fvec3(0, 0, 0);
-					pinfo[1] = glm::fvec3(-1, 0, 0);
-					pinfo[2] = glm::fvec3(0, -1, 0);
-					int oidLabelText = 0;
-					vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.07, true, false, oidLabelText);
-					vzm::ActorParameters apLabelText;
-					apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
-					*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-					int aidLabelText = 0;
-					vzm::NewActor(apLabelText, rbName + ":Label", aidLabelText);
-					vzm::AppendSceneItemToSceneTree(aidLabelText, aidRbAxis);
-
-					sceneActors[rbName] = 2;
-				}
+				cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
+				SaveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0, processColorImg);
+				//__gc.g_calribmodeToggle = false;
 			}
 		}
+		else {
 
-		for (int i = 0; i < numMKs; i++) {
-			std::map<navihelpers::track_info::MKINFO, std::any> mk;
-			if (trackInfo.GetMarkerByIdx(i, mk)) {
-				std::string mkName = std::any_cast<std::string>(mk[navihelpers::track_info::MKINFO::MK_NAME]);
-				auto actorId = sceneActors.find(mkName);
-				if (actorId == sceneActors.end()) {
-					vzm::ActorParameters apMarker;
-					apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-					apMarker.is_visible = false;
-					*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
-					int aidMarker = 0;
-					vzm::NewActor(apMarker, mkName, aidMarker);
-					vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
+			// test //
+			// __gc.g_CArmRB2SourceCS
+			glm::fmat4x4 matCArmRB2WS;
+			trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
+			glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
+			//glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
+			glm::fvec3 dirCArm = vzmutils::transformVec(glm::fvec3(0, 0, -1), matSourceCS2WS);
+			dirCArm = glm::normalize(dirCArm);
 
-					sceneActors[mkName] = 1;
-				}
-			}
+			glm::fmat4x4 matCam2WS;
+			trackInfo.GetTrackingCamPose(0, matCam2WS);
+			glm::fvec3 camRight = vzmutils::transformVec(glm::fvec3(1, 0, 0), matCam2WS);
+			camRight = glm::normalize(camRight);
+
+			float horizonAngle = fabs(glm::dot(camRight, dirCArm));
+			if (horizonAngle < 0.3f)
+				SaveAndChangeViewState(trackInfo, char('1'), sidScene, cidCam1, 0, downloadColorImg);
+			else
+				SaveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam2, 1, downloadColorImg);
 		}
+		__gc.g_renderEvent = RENDER_THREAD_FREE;
 	}
 
-	UpdateTrackInfo2Scene(trackInfo);
+	//track_info* ptrackInfo = NULL;
+	//if (!__gc.g_track_que.empty()) {
+	//	trackInfo = __gc.g_track_que.front();
+	//	ptrackInfo = &trackInfo;
+	//}
+
+	m_renderer->RenderTrackingScene(&trackInfo);
 #else
 	UpdateTrackInfo2Scene(trackingFrames[frame]);
 #endif

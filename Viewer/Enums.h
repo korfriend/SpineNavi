@@ -7,5 +7,6 @@ enum class LAYOUT_TYPE {
 
 enum class VIEW_TYPE {
 	AP,
-	LATERAL
+	LATERAL,
+	CALIB
 };

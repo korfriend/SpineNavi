@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2019, Dongjoon Kim & OSSTEM 
+Copyright (c) 2019, Dongjoon Kim & OSSTEM
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -30,6 +30,7 @@ DAMAGE.
 #include <set>
 #include <any>
 #include <list>
+#define NOMINMAX
 #include <windows.h>
 
 #define SAFE_GET_COPY(DST_PTR, SRC_PTR, TYPE, ELEMENTS) { if(DST_PTR) memcpy(DST_PTR, SRC_PTR, sizeof(TYPE)*ELEMENTS); }
@@ -113,7 +114,7 @@ namespace vzm
 	};
 	enum class SceneItemType {
 		UNDEFINED = 0,
-		SCENE, 
+		SCENE,
 		ACTOR,
 		CAMERA,
 		LIGHT,
@@ -149,6 +150,22 @@ namespace vzm
 			SAFE_GET_COPY(y_axis, __y_axis, float, 3);
 			SAFE_GET_COPY(z_axis, __z_axis, float, 3);
 		}
+	};
+
+	struct TextItem
+	{
+	private:
+		int version = 230813;
+	public:
+		std::string textStr = "";
+		std::string font = "";
+		std::string alignment = ""; // CENTER, LEFT, RIGHT to the position
+		float fontSize = 10.f; // Logical size of the font in DIP units. A DIP ("device-independent pixel") equals 1/96 inch.
+		int iColor = 0xFFFFFF; //RGB ==> 0xFF0000 (Red), 0x00FF00 (Green)
+		float alpha = 1.f;
+		bool isItalic = false;
+		int fontWeight = 4; // 1 : thinest, 4 : regular, 7 : bold, 9 : maximum heavy
+		int posScreenX = 0, posScreenY = 0; // 
 	};
 
 	struct CameraParameters
@@ -224,6 +241,10 @@ namespace vzm
 		HWND hWnd = NULL; // if NULL, offscreen rendering is performed
 
 		ParamMap<std::string> script_params;
+		ParamMap<std::string> text_items; // value must be TextItem
+		bool displayCamTextItem = false;
+		bool displayActorLabel = false;
+
 		std::set<int> hidden_actors;
 		void SetCurvedSlicer(const float curved_plane_w, const float curved_plane_h, const float* curve_pos_pts, const float* curve_up_pts, const float* curve_tan_pts, const int num_curve_pts) {
 			script_params.SetParam("CURVED_PLANE_WIDTH", curved_plane_w);
@@ -268,7 +289,7 @@ namespace vzm
 		}
 		void DeactiveHiddenActor(const int actor_id) {
 			auto it = hidden_actors.find(actor_id);
-			if(it != hidden_actors.end())
+			if (it != hidden_actors.end())
 				hidden_actors.erase(it);
 		}
 	};
@@ -309,14 +330,14 @@ namespace vzm
 			memcpy(__os2ls, os2ls, sizeof(float) * 16); use_localTrans = true;
 		};
 		const float* GetLocalTransform() const { return __os2ls; };
-		
+
 		// materials and expressions 
 		// note that those parameters are not passed on to children (of a tree node)
 		float phong_coeffs[4] = { 0.3f, 0.4f, 0.4, 1000.f }; // ambient, diffuse, specular, highlight
 		bool is_visible = true;
 		bool is_pickable = false;
-		float color[4] = {1.f, 1.f, 1.f, 1.f}; // rgba [0,1]
-		
+		float color[4] = { 1.f, 1.f, 1.f, 1.f }; // rgba [0,1]
+
 		int GetResourceID(const RES_USAGE res_usage) {
 			return associated_obj_ids.GetParam(res_usage, (int)0);
 		}
@@ -332,7 +353,9 @@ namespace vzm
 		float line_thickness = 0; // (pixels) available when the object is defined as line primitives and not available for wire frame lines, using 1 pixel 
 		bool is_wireframe = false; // available when the object is a polygonal mesh
 		bool use_vertex_wirecolor = false; // use vertex color instead of wire_color[0,1,2], if vertex buffer contains color information. note that color[3] is always used for the transparency
-		float wire_color[4] = {1.f, 1.f, 1.f, 1.f}; // rgba [0,1].. only for wireframe object
+		float wire_color[4] = { 1.f, 1.f, 1.f, 1.f }; // rgba [0,1].. only for wireframe object
+
+		TextItem label;
 
 		// volume 3D only
 		//float sample_rate = 1.f; // NA in this version
@@ -395,7 +418,7 @@ namespace vzm
 			int num_dirs = 8;
 			int num_steps = 8;
 			bool smooth_filter;
-		}; 
+		};
 		SSAO_Params effect_ssao;
 	};
 
@@ -454,7 +477,7 @@ namespace vzm
 
 	//////////////////////////////////
 	// 	   Scenes and Actors
-	__dojostatic bool NewScene(const std::string& scene_title, int& scene_id); 
+	__dojostatic bool NewScene(const std::string& scene_title, int& scene_id);
 	__dojostatic bool NewActor(const ActorParameters& actor_params, const std::string& actor_name, int& actor_id);
 	__dojostatic bool NewCamera(const CameraParameters& cam_params, const std::string& camera_name, int& cam_id);
 	__dojostatic bool NewLight(const LightParameters& light_params, const std::string& light_name, int& light_id);
@@ -516,8 +539,8 @@ namespace vzm
 namespace vzmproc
 {
 	// three curve-types : "uniform", "centripetal", , "chordal" 
-	__dojostatic bool GenerateCurvePoints(const float* pos_ctr_points, const int num_ctr_points, const float interpolate_interval_dist, 
-		std::vector<float>* curve_xyz_points, const std::string& curveType = "centripetal", std::vector<float>*curve_xyz_tangents = nullptr,
+	__dojostatic bool GenerateCurvePoints(const float* pos_ctr_points, const int num_ctr_points, const float interpolate_interval_dist,
+		std::vector<float>* curve_xyz_points, const std::string& curveType = "centripetal", std::vector<float>* curve_xyz_tangents = nullptr,
 		const float* pos_ctr_ups = nullptr, std::vector<float>* curve_xyz_ups = nullptr,
 		const float* pos_ctr_vecs = nullptr, std::vector<float>* curve_xyz_vecs = nullptr,
 		const float* size_ctr_points = nullptr, std::vector<float>* curve_sizes = nullptr);

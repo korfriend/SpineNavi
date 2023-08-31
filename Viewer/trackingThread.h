@@ -26,9 +26,11 @@ public:
 	trackingThread(QObject* parent = 0);
 	~trackingThread();
 
-	navihelpers::concurrent_queue<navihelpers::track_info> m_track_que;
 
-	void pop(navihelpers::track_info& trackInfo) { m_track_que.wait_and_pop(trackInfo); };
+	void InitializeTask(__GC* gcp);
+	concurrent_queue<track_info> m_track_que;
+
+	void pop(track_info& trackInfo) { m_track_que.wait_and_pop(trackInfo); };
 
 	void setalive(bool flag) { m_tracker_alive = flag; };
 
@@ -37,6 +39,8 @@ private:
 	void run();
 
 	bool m_tracker_alive;
+
+	__GC* __gc;
 
 	
 };

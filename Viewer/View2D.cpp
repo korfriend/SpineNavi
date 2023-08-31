@@ -51,6 +51,38 @@ void View2D::resizeEvent(QResizeEvent* pEvent)
 
 }
 
+void View2D::wheelEvent(QWheelEvent* pEvent)
+{
+}
+
+void View2D::mouseMoveEvent(QMouseEvent* pEvent)
+{
+}
+
+void View2D::mousePressEvent(QMouseEvent* pEvent)
+{
+}
+
+void View2D::mouseReleaseEvent(QMouseEvent* pEvent)
+{
+}
+
+void View2D::keyPressEvent(QKeyEvent* pEvent)
+{
+}
+
+void View2D::keyReleaseEvent(QKeyEvent* pEvent)
+{
+}
+
+void View2D::leaveEvent(QEvent* pEvent)
+{
+}
+
+void View2D::mouseDoubleClickEvent(QMouseEvent* pEvent)
+{
+}
+
 void View2D::display()
 {
 	if (!m_image.isNull()) {

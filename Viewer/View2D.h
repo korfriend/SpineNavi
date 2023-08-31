@@ -25,6 +25,15 @@ public:
 protected:
 	virtual void resizeEvent(QResizeEvent* pEvent) override;
 
+	virtual void wheelEvent(QWheelEvent* pEvent) override;
+	virtual void mouseMoveEvent(QMouseEvent* pEvent) override;
+	virtual void mousePressEvent(QMouseEvent* pEvent) override;
+	virtual void mouseReleaseEvent(QMouseEvent* pEvent) override;
+	virtual void keyPressEvent(QKeyEvent* pEvent) override;
+	virtual void keyReleaseEvent(QKeyEvent* pEvent) override;
+	virtual void leaveEvent(QEvent* pEvent) override;
+	virtual void mouseDoubleClickEvent(QMouseEvent* pEvent) override;
+
 private:
 	Image2D m_image;
 

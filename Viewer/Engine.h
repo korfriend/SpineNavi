@@ -5,12 +5,14 @@
 #include<QTimer>
 #include<QImage>
 
-#include "Defines.h"
+
 #include "networkThread.h"
 #include "Image2D.h"
 #include "ViewLayout.h"
 #include "ViewMgr.h"
 #include "trackingThread.h"
+#include "RenderEngine.h"
+#include "CalibrationEngine.h"
 
 #include <regex>
 #include <vector>
@@ -34,6 +36,7 @@
 #include "../SNaviWin/CArmCalibration.h"
 #include "ApiUtility.hpp"
 
+#include "Defines.h"
 
 class Q_DECL_EXPORT Engine : public QWidget
 {
@@ -49,12 +52,17 @@ public:
 	void SceneInit();
 	void setCameraPrams(int id, vzm::CameraParameters prams);
 
-	void UpdateTrackInfo2Scene(navihelpers::track_info& trackInfo);
+	void UpdateTrackInfo2Scene(track_info& trackInfo);
 	void Render();
 
 	void StoreParams(std::string& paramsFileName, glm::fmat4x4& matRB2WS, std::string& imgFileName);
+	void StoreParams(const std::string& paramsFileName, const glm::fmat4x4& matCArmRB2WS, const std::string& imgFileName);
+
 	void SaveAndChangeViewState(int keyParam, int sidScene, int cidCam,
 		std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame);
+
+	void SaveAndChangeViewState(const track_info& trackInfo, const int keyParam,
+		const int sidScene, const int cidCam, const int viewIdx, const cv::Mat& colored_img);
 	void MoveCameraToCArmView(int carmIdx, int cidCam, std::vector<vzm::CameraParameters>& cpInterCams, int& arAnimationKeyFrame);
 
 
@@ -102,7 +110,7 @@ private:
 	int m_numImg;
 
 	// without optitrack
-	std::vector<navihelpers::track_info> m_trackingFrames;
+	std::vector<track_info> m_trackingFrames;
 
 	//UI
 	ViewMgr* m_viewMgr;
@@ -119,6 +127,12 @@ private:
 	std::string m_dataPath;
 
 	//track info
-	navihelpers::concurrent_queue<navihelpers::track_info>* m_track_que;
+	concurrent_queue<track_info>* m_track_que;
+
+	//Rendering Engine
+	RenderEngine* m_renderer;
 	
+	//Calibration Engine
+	CalibrationEngine* m_calibrator;
+	__GC __gc;
 };
