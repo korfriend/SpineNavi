@@ -275,7 +275,7 @@ void Engine::EngineInit()
 	m_sidScene = 0;
 
 	connect(m_qtimer, SIGNAL(timeout()), this, SLOT(TimerProc()));
-	this->SceneInit();
+	m_renderer->SceneInit();
 }
 
 void Engine::SceneInit()
@@ -680,6 +680,17 @@ void Engine::slotImageArrived(cv::Mat img)
 	}
 	m_isAP = !m_isAP;
 	m_network_processing_thread->setDownloadFlag(false);
+}
+
+void Engine::slotSetCalibMode()
+{
+	m_viewMgr->setCalibMode();
+	std::cout << "setCalib triggered" << std::endl;
+}
+
+void Engine::slotSetNaviMode()
+{
+	m_viewMgr->setNaviMode();
 }
 
 void Engine::UpdateTrackInfo2Scene(track_info& trackInfo)

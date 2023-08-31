@@ -61,6 +61,8 @@ nViewer::nViewer(QWidget* parent) :
 	m_folder_data = QString::fromStdString(getdatapath());
 	m_engine = new Engine(m_mainFrame, m_folder_data, m_folder_data + "Motive Profile - 2023-05-20.motive", m_folder_data + "System Calibration.cal");
 
+	connect(ui.actionCalibration, SIGNAL(triggered()), m_engine, SLOT(slotSetCalibMode()));
+	connect(ui.actionNavigation, SIGNAL(triggered()), m_engine, SLOT(slotSetNaviMode()));
 }
 nViewer::~nViewer()
 {

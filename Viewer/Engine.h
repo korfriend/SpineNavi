@@ -70,6 +70,8 @@ private slots:
 	
 	void TimerProc();
 	void slotImageArrived(cv::Mat img);
+	void slotSetCalibMode();
+	void slotSetNaviMode();
 
 private:
 

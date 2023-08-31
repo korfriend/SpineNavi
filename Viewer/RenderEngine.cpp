@@ -15,7 +15,7 @@ void RenderEngine::InitializeTask(__GC* gcp) {
 	__gc = gcp;
 }
 
-void RenderEngine::SceneInit(const HWND view1Hwnd, const RECT rcWorldView1, const HWND view2Hwnd, const RECT rcWorldView2) {
+void RenderEngine::SceneInit() {
 	if (__gc == NULL) return;
 
 	// DOJO : Axis 를 위한 actor resource 를 생성
@@ -96,8 +96,8 @@ void RenderEngine::SceneInit(const HWND view1Hwnd, const RECT rcWorldView1, cons
 	}
 
 	// 렌더링될 buffer 사이즈
-	cpCam.w = rcWorldView1.right - rcWorldView1.left;
-	cpCam.h = rcWorldView1.bottom - rcWorldView1.top;
+	cpCam.w = SCANIMG_W;
+	cpCam.h = SCANIMG_H;
 
 	// 렌더링 파이프라인의 View Frustum 에서의 near plane, far plane distances
 	cpCam.np = 0.15f;
@@ -126,14 +126,14 @@ void RenderEngine::SceneInit(const HWND view1Hwnd, const RECT rcWorldView1, cons
 	}
 
 	//cpCam1.SetOrthogonalProjection(true);
-	cpCam.hWnd = view1Hwnd;
+	//cpCam.hWnd = view1Hwnd;
 	// DOJO : scene 에 등록될 카메라 생성, 여기선 두 개 생성 (AP, Lateral 용)
 	int cidCam1 = 0, cidCam2 = 0;
 	vzm::NewCamera(cpCam, __gc->g_camName, cidCam1);
 
-	cpCam.h = rcWorldView2.bottom - rcWorldView1.top;
-	cpCam.w = rcWorldView2.right - rcWorldView1.left;
-	cpCam.hWnd = view2Hwnd;
+	cpCam.h = SCANIMG_W;
+	cpCam.w = SCANIMG_H;
+	//cpCam.hWnd = view2Hwnd;
 	vzm::NewCamera(cpCam, __gc->g_camName2, cidCam2);
 
 	// DOJO : Light 를 정의하기 위한 파라미터

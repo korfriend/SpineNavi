@@ -23,7 +23,7 @@ public:
 
 	void InitializeTask(__GC* gcp);
 
-	void SceneInit(const HWND view1Hwnd, const RECT rcWorldView1, const HWND view2Hwnd, const RECT rcWorldView2);
+	void SceneInit();
 
 	void SetAnimationCamTo(const int cidCam, const int viewIdx,
 		const float fx, const float fy, const float s, const float cx, const float cy,
