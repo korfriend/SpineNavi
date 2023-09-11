@@ -18,6 +18,8 @@ WindowCArm::WindowCArm(VIEW_TYPE type, QWidget* parent)
 	this->layout()->setContentsMargins(QMargins(0, 0, 0, 0));
 
 	this->setVisible(true);
+
+	connect(m_view, SIGNAL(sigMousepress(QEvent*)), this, SLOT(slotEvent(QEvent*)));
 }
 
 WindowCArm::~WindowCArm()
@@ -25,3 +27,7 @@ WindowCArm::~WindowCArm()
 	SAFE_DELETE_OBJECT(m_view);
 }
 
+void WindowCArm::slotEvent(QEvent* pEvent)
+{
+	emit sigEvent(pEvent);
+}

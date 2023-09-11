@@ -34,6 +34,9 @@ protected:
 	virtual void leaveEvent(QEvent* pEvent) override;
 	virtual void mouseDoubleClickEvent(QMouseEvent* pEvent) override;
 
+signals:
+	void sigMousepress(QEvent*);
+
 private:
 	Image2D m_image;
 

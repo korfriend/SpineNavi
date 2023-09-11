@@ -4,12 +4,12 @@ POS: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 0., 0., 0. ]
+   data: [ -1.47338963e+00, 1.52033985e+00, -1.50627053e+00 ]
 VIEW: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 0., 0., 1. ]
+   data: [ 1., -1., 1. ]
 UP: !!opencv-matrix
    rows: 1
    cols: 3

@@ -72,6 +72,10 @@ private slots:
 	void slotImageArrived(cv::Mat img);
 	void slotSetCalibMode();
 	void slotSetNaviMode();
+	void slotNumberKey(int key);
+
+
+	void slotCalibMousePress(glm::ivec2 pos);
 
 private:
 

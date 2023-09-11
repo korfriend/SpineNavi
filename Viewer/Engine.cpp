@@ -5,6 +5,10 @@
 Engine::Engine(ViewLayout* layout, QString dataPath, QString optiProfilePath, QString optiCalfilePath)
 {
 	__gc.Init();
+	__gc.g_folder_data = dataPath.toStdString();
+	__gc.g_folder_trackingInfo = dataPath.toStdString() + "Tracking 2023-08-24/";
+	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-08-24.motive";
+
 	m_renderer = new RenderEngine();
 	m_renderer->InitializeTask(&__gc);
 	m_calibrator = new CalibrationEngine();
@@ -15,6 +19,7 @@ Engine::Engine(ViewLayout* layout, QString dataPath, QString optiProfilePath, QS
 	m_numImg = 0;
 
 	m_network_processing_thread = new networkThread();
+	m_network_processing_thread->InitializeTask(&__gc);
 	m_trackingThread = new trackingThread();
 	m_trackingThread->InitializeTask(&__gc);
 
@@ -26,7 +31,7 @@ Engine::Engine(ViewLayout* layout, QString dataPath, QString optiProfilePath, QS
 	m_camAPName = "Cam1";
 	m_camLateralName = "Cam2";
 
-	cv::FileStorage fs(dataPath.toStdString() + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+	cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
 	fs["K"] >> m_cameraMatrix;
 	fs.release();
 
@@ -45,7 +50,9 @@ Engine::Engine(ViewLayout* layout, QString dataPath, QString optiProfilePath, QS
 	this->EngineInit();
 
 	
-	m_viewMgr = new ViewMgr(layout, this);
+	m_viewMgr = new ViewMgr(layout, m_renderer, this);
+	connect(m_viewMgr, SIGNAL(sigCalibMousePress(glm::ivec2)), this, SLOT(slotCalibMousePress(glm::ivec2)));
+	connect(m_renderer, SIGNAL(signumberkey(int)), this, SLOT(slotNumberKey(int)));
 }
 
 Engine::~Engine()
@@ -74,7 +81,11 @@ void Engine::EngineInit()
 
 #ifdef USE_MOTIVE
 	m_optitrackMode = optitrk::InitOptiTrackLib();
-	optitrk::LoadProfileAndCalibInfo(m_optiProfilePath.toStdString(), m_optiCalfilepath.toStdString());
+	//optitrk::LoadProfileAndCalibInfo(m_optiProfilePath.toStdString(), m_optiCalfilepath.toStdString());
+	optitrk::LoadProfileAndCalibInfo(__gc.g_profileFileName, "");
+	optitrk::SetCameraSettings(0, 4, 16, 230);
+	optitrk::SetCameraSettings(1, 4, 16, 230);
+	optitrk::SetCameraSettings(2, 4, 16, 230);
 #else
 
 	auto getdatapath = []()
@@ -276,6 +287,13 @@ void Engine::EngineInit()
 
 	connect(m_qtimer, SIGNAL(timeout()), this, SLOT(TimerProc()));
 	m_renderer->SceneInit();
+	m_qtimer->start(10);
+	m_network_processing_thread->start();
+
+#ifdef USE_MOTIVE
+	m_trackingThread->start();
+#else
+#endif
 }
 
 void Engine::SceneInit()
@@ -316,13 +334,6 @@ void Engine::SceneInit()
 	vzm::AppendSceneItemToSceneTree(m_lidLight1, m_sidScene);
 	
 
-	m_qtimer->start(10);
-	m_network_processing_thread->start();
-
-#ifdef USE_MOTIVE
-	m_trackingThread->start();
-#else
-#endif
 
 }
 
@@ -339,10 +350,10 @@ void Engine::Render()
 		float* ptr_zdepth;
 		int bufW, bufH;
 		if (m_AP_set) {
-			vzm::CameraParameters cpCam = m_InterCamsAP[1];
+			/*vzm::CameraParameters cpCam = m_InterCamsAP[1];
 			vzm::SetCameraParams(cidCam1, cpCam);
 			vzm::GetCameraParams(cidCam1, m_cpCamAP);
-			vzm::RenderScene(sidScene, cidCam1);
+			vzm::RenderScene(sidScene, cidCam1);*/
 			if (vzm::GetRenderBufferPtrs(cidCam1, &ptr_rgba, &ptr_zdepth, &bufW, &bufH)) {
 				QImage qimg = QImage(ptr_rgba, bufW, bufW, QImage::Format_RGBA8888);
 				//qlabel->setPixmap(QPixmap::fromImage(qimg).scaled(w, h, Qt::KeepAspectRatio));
@@ -357,16 +368,27 @@ void Engine::Render()
 
 		if (m_Lateral_set)
 		{
-			vzm::CameraParameters cpCam = m_InterCamsLateral[1];
+			/*vzm::CameraParameters cpCam = m_InterCamsLateral[1];
 			vzm::SetCameraParams(cidCam2, cpCam);
 			vzm::GetCameraParams(cidCam2, m_cpCamLateral);
-			vzm::RenderScene(sidScene, cidCam2);
+			vzm::RenderScene(sidScene, cidCam2);*/
 			if (vzm::GetRenderBufferPtrs(cidCam2, &ptr_rgbaL, &ptr_zdepthL, &bufWL, &bufHL)) {
 				QImage qimg = QImage(ptr_rgbaL, bufWL, bufWL, QImage::Format_RGBA8888);
 				//qlabel->setPixmap(QPixmap::fromImage(qimg).scaled(w, h, Qt::KeepAspectRatio));
 				Image2D tempImg(-1, VIEW_TYPE::LATERAL, qimg);
 				m_viewMgr->setLateralImg(tempImg);
 			}
+		}
+
+		/*vzm::CameraParameters cpCam = m_InterCamsAP[1];
+		vzm::SetCameraParams(cidCam1, cpCam);
+		vzm::GetCameraParams(cidCam1, m_cpCamAP);
+		vzm::RenderScene(sidScene, cidCam1);*/
+		if (vzm::GetRenderBufferPtrs(cidCam1, &ptr_rgba, &ptr_zdepth, &bufW, &bufH)) {
+			QImage qimg = QImage(ptr_rgba, bufW, bufW, QImage::Format_RGBA8888);
+			//qlabel->setPixmap(QPixmap::fromImage(qimg).scaled(w, h, Qt::KeepAspectRatio));
+			Image2D tempImg(-1, VIEW_TYPE::AP, qimg);
+			m_viewMgr->setCalibImg(tempImg);
 		}
 	}
 }
@@ -691,6 +713,24 @@ void Engine::slotSetCalibMode()
 void Engine::slotSetNaviMode()
 {
 	m_viewMgr->setNaviMode();
+	
+}
+
+void Engine::slotNumberKey(int key)
+{
+	qDebug() << "numberinput";
+	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
+	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
+	track_info trk;
+	//__gc.g_track_que.wait_and_pop(trk);
+	trk = __gc.g_track_que.front();
+	cv::Mat emptyImg;
+	SaveAndChangeViewState(trk, key, sidScene, cidCam1, 0, emptyImg);
+}
+
+void Engine::slotCalibMousePress(glm::ivec2 pos)
+{
+	std::cout << pos.x;
 }
 
 void Engine::UpdateTrackInfo2Scene(track_info& trackInfo)
@@ -779,6 +819,8 @@ void Engine::TimerProc()
 				cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
 				SaveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0, processColorImg);
 				//__gc.g_calribmodeToggle = false;
+
+				qDebug() << "calib render";
 			}
 		}
 		else {
@@ -798,10 +840,14 @@ void Engine::TimerProc()
 			camRight = glm::normalize(camRight);
 
 			float horizonAngle = fabs(glm::dot(camRight, dirCArm));
-			if (horizonAngle < 0.3f)
+			if (horizonAngle < 0.3f) {
+				m_AP_set = true;
 				SaveAndChangeViewState(trackInfo, char('1'), sidScene, cidCam1, 0, downloadColorImg);
-			else
+			}
+			else{
+				m_Lateral_set = true;
 				SaveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam2, 1, downloadColorImg);
+			}
 		}
 		__gc.g_renderEvent = RENDER_THREAD_FREE;
 	}
@@ -814,8 +860,8 @@ void Engine::TimerProc()
 
 	m_renderer->RenderTrackingScene(&trackInfo);
 #else
-	UpdateTrackInfo2Scene(trackingFrames[frame]);
+	//UpdateTrackInfo2Scene(trackingFrames[frame]);
 #endif
-	Render();
+	//Render();
 
 }

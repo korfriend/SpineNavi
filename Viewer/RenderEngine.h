@@ -1,5 +1,6 @@
 #pragma once
 #include<QWidget>
+#include<qevent.h>
 
 #include "VisMtvApi.h"
 #include "ApiUtility.hpp"
@@ -31,6 +32,12 @@ public:
 
 	void RenderTrackingScene(const track_info* trackInfo);
 	void UpdateTrackInfo2Scene(track_info& trackInfo);
+
+signals:
+	void signumberkey(int);
+
+private slots:
+	void slotEventHandler(QEvent* pEvent);
 
 private:
 

@@ -851,3 +851,373 @@ void RenderEngine::RenderTrackingScene(const track_info* trackInfo)
 		vzm::RenderScene(sidScene, cidCam2);
 	}
 }
+
+void RenderEngine::slotEventHandler(QEvent* pEvent)
+{
+	int sidScene = vzmutils::GetSceneItemIdByName(__gc->g_sceneName);
+	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc->g_camName);
+	float scene_stage_scale = 5.f;
+
+	glm::fvec3 scene_stage_center = glm::fvec3();
+	vzm::CameraParameters cpCam1;
+	if (sidScene != 0 && cidCam1 != 0) {
+		vzm::GetCameraParams(cidCam1, cpCam1);
+
+		scene_stage_scale = glm::length(scene_stage_center - *(glm::fvec3*)cpCam1.pos) * 1.0f;
+	}
+	static vzmutils::GeneralMove general_move;
+
+	switch (pEvent->type())
+	{
+	case QEvent::MouseButtonPress:
+	{
+		QMouseEvent* mouse = static_cast<QMouseEvent*>(pEvent);
+
+		
+		if (__gc->g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) break;
+		int x = mouse->pos().x();
+		int y = mouse->pos().y();
+
+
+		if (x == 0 && y == 0) break;
+
+		// renderer does not need to be called
+		glm::ivec2 pos_ss = glm::ivec2(x, y);
+
+		if (__gc->g_calribmodeToggle) {
+			if (mouse->buttons() == Qt::LeftButton) {
+				int aidPicked = 0;
+				glm::fvec3 posPick;
+				if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
+					std::string actorName;
+					vzm::GetSceneItemName(aidPicked, actorName);
+					if (__gc->g_selectedMkNames.find(actorName) == __gc->g_selectedMkNames.end()) {
+						int idx = __gc->g_selectedMkNames.size();
+						__gc->g_selectedMkNames[actorName] = idx;
+						std::cout << "\npicking count : " << __gc->g_selectedMkNames.size() << std::endl;
+					}
+				}
+			}
+			else {
+				__gc->g_selectedMkNames.clear();
+				general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
+			}
+		}
+		else {
+			general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
+		}
+		break;
+	}
+
+	case QEvent::MouseMove:
+	{
+		QMouseEvent* mouse = static_cast<QMouseEvent*>(pEvent);
+
+		if (__gc->g_calribmodeToggle && !(mouse->buttons() == Qt::RightButton)) break;
+
+		int x = mouse->pos().x();
+		int y = mouse->pos().y();
+
+		if ((mouse->buttons() == Qt::RightButton) || (mouse->buttons() == Qt::LeftButton))
+		{
+			glm::ivec2 pos_ss = glm::ivec2(x, y);
+			if (mouse->buttons() == Qt::LeftButton)
+				general_move.PanMove((int*)&pos_ss, cpCam1);
+			else if (mouse->buttons() == Qt::RightButton)
+				general_move.RotateMove((int*)&pos_ss, cpCam1);
+
+			vzm::SetCameraParams(cidCam1, cpCam1);
+			//Render();
+			//vzm::RenderScene(sidScene, cidCam1);
+			//UpdateWindow(hWnd);
+			//InvalidateRect(hWnd, NULL, FALSE);
+		}
+		else {
+			int aidPickedMK = 0;
+			glm::fvec3 pos_picked;
+			if (vzm::PickActor(aidPickedMK, __FP pos_picked, x, y, cidCam1))
+			{
+				std::string mkName;
+				vzm::GetNameBySceneItemID(aidPickedMK, mkName);
+				vzm::ActorParameters apMK;
+				vzm::GetActorParams(aidPickedMK, apMK);
+				glm::fmat4x4 matWorld = *(glm::fmat4x4*)apMK.GetWorldTransform();
+				glm::fvec3 posOrigin(0, 0, 0);
+				glm::fvec3 posMK = vzmutils::transformPos(posOrigin, matWorld);
+				//std::cout << "\n" <<mkName << "is picked : " << ", Pos : " << posMK.x << ", " << posMK.y << ", " << posMK.z << std::endl;
+
+			}
+
+		}
+		break;
+	}
+	case QEvent::Wheel:
+	{
+		QWheelEvent* mouse = static_cast<QWheelEvent*>(pEvent);
+		int zDelta = mouse->angleDelta().y();
+
+		// by adjusting cam distance
+		if (zDelta > 0)
+			*(glm::fvec3*)cpCam1.pos += scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam1.view);
+		else
+			*(glm::fvec3*)cpCam1.pos -= scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam1.view);
+
+		vzm::SetCameraParams(cidCam1, cpCam1);
+		break;
+	}
+
+	case QEvent::KeyPress:
+	{
+		QKeyEvent* key = static_cast<QKeyEvent*>(pEvent);
+
+		switch (key->key())
+		{
+		case Qt::Key_S:
+		{
+			if (__gc->g_calribmodeToggle) break;
+
+			cv::FileStorage fs(__gc->g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
+			cv::Mat ocvVec3(1, 3, CV_32FC1);
+			memcpy(ocvVec3.ptr(), cpCam1.pos, sizeof(float) * 3);
+			fs.write("POS", ocvVec3);
+			memcpy(ocvVec3.ptr(), cpCam1.view, sizeof(float) * 3);
+			fs.write("VIEW", ocvVec3);
+			memcpy(ocvVec3.ptr(), cpCam1.up, sizeof(float) * 3);
+			fs.write("UP", ocvVec3);
+			fs.release();;
+			break;
+		}
+		case Qt::Key_L:
+		{
+			if (__gc->g_calribmodeToggle) break;
+
+			cv::FileStorage fs(__gc->g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
+			if (fs.isOpened()) {
+				cv::Mat ocvVec3;
+				fs["POS"] >> ocvVec3;
+				memcpy(cpCam1.pos, ocvVec3.ptr(), sizeof(float) * 3);
+				fs["VIEW"] >> ocvVec3;
+				memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
+				fs["UP"] >> ocvVec3;
+				memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
+				fs.release();
+			}
+			vzm::SetCameraParams(cidCam1, cpCam1);
+			break;
+		}
+		case Qt::Key_R:
+		{
+			break;
+		}
+		case Qt::Key_C:
+		{
+			__gc->g_calribmodeToggle = !__gc->g_calribmodeToggle;
+
+			vzm::TextItem textItem;
+			textItem.textStr = __gc->g_calribmodeToggle ? "SELECTING MARKER MODE" : "";
+			textItem.fontSize = 30.f;
+			textItem.iColor = 0xFFFF00;
+			textItem.posScreenX = 0;
+			textItem.posScreenY = 0;
+
+			if (!__gc->g_calribmodeToggle) {
+				__gc->g_testMKs.clear();
+				__gc->g_selectedMkNames.clear();
+				int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+				if (aidTestGroup != 0)
+					vzm::RemoveSceneItem(aidTestGroup);
+			}
+
+			std::cout << "\n" << "calibration mode " << (__gc->g_calribmodeToggle ? "ON" : "OFF") << std::endl;
+
+			using namespace glm;
+			fmat4x4 matCam2WS;
+			track_info trk;
+			trk = __gc->g_track_que.front();
+			trk.GetTrackingCamPose(0, matCam2WS);
+
+			*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
+			*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
+			*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
+			cpCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_FOV;
+			cpCam1.fov_y = glm::pi<float>() / 2.f;
+			cpCam1.aspect_ratio = cpCam1.ip_w / cpCam1.ip_h;
+			cpCam1.np = 0.15f;
+
+			cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
+
+			vzm::SetCameraParams(cidCam1, cpCam1);
+			break;
+		}
+		case Qt::Key_U:
+		{
+			if (!__gc->g_calribmodeToggle)
+				return;
+			// to do
+			// update "c-arm" RB
+			int numSelectedMKs = (int)__gc->g_selectedMkNames.size();
+			if (numSelectedMKs < 3) {
+				std::cout << "\n" << "at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << std::endl;
+				return;
+			}
+
+			std::cout << "\n" << "rigidbody for c-arm is registered with " << numSelectedMKs << " points" << std::endl;
+
+			__gc->g_optiEvent = OPTTRK_THREAD_C_ARM_REGISTER;
+
+			while (__gc->g_optiEvent == OPTTRK_THREAD_C_ARM_REGISTER) { Sleep(2); }
+
+			// int aidRbCarm = vzmutils::GetSceneItemIdByName("c-arm");
+			// vzm::RemoveSceneItem(aidRbCarm);
+			// 이 떄마다, "c-arm" 관련 scene item 모두 지우고, 해당 element 지우기..
+			// UpdateTrackInfo2Scene 에서 rigid boby name 의 cid 를 확인하여, 다를 경우 (새로 생성, rbmk 개수 변경, 경우) 기존 것 삭제하고 actor group 재생성
+			break;
+		}
+		case Qt::Key_D:
+		{
+			for (int i = 0; i < 9; i++) {
+				auto it = __gc->g_mapAidGroupCArmCam.find(i + 1);
+				if (it != __gc->g_mapAidGroupCArmCam.end())
+					vzm::RemoveSceneItem(it->second, true);
+			}
+			__gc->g_mapAidGroupCArmCam.clear();
+
+			__gc->g_testMKs.clear();
+			__gc->g_selectedMkNames.clear();
+			int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+			if (aidTestGroup != 0)
+				vzm::RemoveSceneItem(aidTestGroup);
+			break;
+		}
+		case Qt::Key_Y:
+		{
+			track_info trk;
+			trk = __gc->g_track_que.front();
+			glm::fmat4x4 matRB2WS;
+			if (trk.GetRigidBodyByName("probe", &matRB2WS, NULL, NULL, NULL)) {
+				glm::fvec3 p = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
+
+				//if (trk.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL)) 
+				{
+
+					//glm::fmat4x4 matWS2RB = glm::inverse(matRB2WS);
+					//p = vzmutils::transformPos(p, matWS2RB);
+					cv::Mat ocvVec3(1, 3, CV_32FC1);
+					memcpy(ocvVec3.ptr(), &p, sizeof(float) * 3);
+					cv::FileStorage fs(__gc->g_folder_trackingInfo + "test_tip.txt", cv::FileStorage::Mode::WRITE);
+					fs << "probe_tip" << ocvVec3;
+					fs.release();
+
+					auto ___LoadMyVariable = [=](const std::string& pname, const int idx) {
+						cv::Mat ocvVec3(1, 3, CV_32FC1);
+						cv::FileStorage fs(__gc->g_folder_trackingInfo + "my_test_variables.txt", cv::FileStorage::Mode::READ);
+						fs[pname] >> ocvVec3;
+						glm::fvec3 p1;
+						memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
+						fs.release();
+
+						return ((float*)&p1)[idx];
+					};
+
+					int idx = (int)___LoadMyVariable("test0", 0);
+
+					cv::FileStorage __fs(__gc->g_folder_trackingInfo + "test_tip_sphere.txt", cv::FileStorage::Mode::READ);
+					__fs["inter_sphere_" + std::to_string(idx)] >> ocvVec3;
+					glm::fvec3 p1;
+					memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
+					__fs.release();
+
+					float r = glm::length(p1 - p);
+					std::cout << "\ntest : " << r << std::endl;
+				}
+
+			}
+			break;
+		}
+		case Qt::Key_T:
+		{
+			if (!__gc->g_calribmodeToggle) {
+				std::cout << "\n" << "not calibration mode!!" << std::endl;
+				return;
+			}
+			if (__gc->g_selectedMkNames.size() < 4) {
+				std::cout << "\n" << "at least 4 points (last one is for tool tip) are needed!!" << std::endl;
+				return;
+			}
+
+			// 툴 등록하기..
+			__gc->g_optiEvent = OPTTRK_THREAD_TOOL_REGISTER;
+			while (__gc->g_optiEvent != OPTTRK_THREAD_FREE) { Sleep(2); }
+			__gc->g_testMKs.clear();
+			__gc->g_testMKs.push_back(glm::fvec3(0));
+			__gc->g_testMKs.push_back(glm::fvec3(0));
+			__gc->g_testMKs.push_back(glm::fvec3(0));
+			break;
+		}
+		case Qt::Key_G:
+		{
+			__gc->g_useGlobalPairs != !__gc->g_calribmodeToggle;
+			break;
+		}
+		case Qt::Key_BraceLeft:
+		{
+			__gc->g_probeTipCorrection -= 0.0002;
+			break;
+		}
+		case Qt::Key_BraceRight:
+		{
+			__gc->g_probeTipCorrection += 0.0002;
+			break;
+		}
+		case Qt::Key_X:
+		{
+			if (!__gc->g_calribmodeToggle) {
+				std::cout << "\n" << "not calibration mode!!" << std::endl;
+				return;
+			}
+			//#define MYDEFINE
+
+			cv::Mat downloadedImg = cv::imread(__gc->g_folder_trackingInfo + "test_downloaded.png");
+
+			if (downloadedImg.empty()) {
+				std::cout << "\n" << "no downloaded image" << std::endl;
+				return;
+			}
+			__gc->g_downloadCompleted = 100;
+			//cv::cvtColor(downloadedImg, g_curScanGrayImg, cv::COLOR_RGB2GRAY);
+			std::cout << "\n" << "calibration with the previous downloaded image" << std::endl;
+
+			track_info trk;
+			//__gc->g_track_que.wait_and_pop(trk);
+			trk = __gc->g_track_que.front();
+			//if (calibtask::CalibrationWithPhantom(__gc->g_CArmRB2SourceCS, g_curScanGrayImg, &trk, __gc->g_useGlobalPairs)) {
+			//	cv::Mat processColorImg = cv::imread(__gc->g_folder_trackingInfo + "test_circle_sort.png");
+			//	//download_completed = false; 
+			//	saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0, processColorImg);
+			//	__gc->g_ui_banishing_count = 100;
+			//}
+			break;
+		}
+		case Qt::Key_3:
+		{
+			emit signumberkey(char('3'));
+			break;
+		}
+		case Qt::Key_1:
+		{
+			emit signumberkey(char('1'));
+			break;
+		}
+		case Qt::Key_2:
+		{
+			emit signumberkey(char('2'));
+			break;
+		}
+		default: {
+			emit signumberkey(1);
+			break;
+		}
+		}
+	}
+	}
+}

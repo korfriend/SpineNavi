@@ -53,30 +53,84 @@ void View2D::resizeEvent(QResizeEvent* pEvent)
 
 void View2D::wheelEvent(QWheelEvent* pEvent)
 {
+	emit sigMousepress(pEvent);
 }
 
 void View2D::mouseMoveEvent(QMouseEvent* pEvent)
 {
+	QPoint clickCoords = mapToScene(pEvent->pos()).toPoint();
+
+	QEvent* pEventCopy = 0;
+	pEventCopy = new QMouseEvent(
+		pEvent->type(),
+		clickCoords,
+		clickCoords,
+		pEvent->button(),
+		pEvent->buttons(),
+		pEvent->modifiers());
+
+	emit sigMousepress(pEventCopy);
+
 }
 
 void View2D::mousePressEvent(QMouseEvent* pEvent)
 {
+	/// <summary>
+	/// 444 460
+	/// </summary>
+	/// <param name="pEvent"></param>
+	qDebug() << "mousepress";
+	qDebug() << pEvent->pos().x() << "," << pEvent->pos().y();
+	qDebug() << mapFromScene(pEvent->pos());
+	qDebug() << mapToScene(pEvent->pos());
+
+	pEvent->pos() = mapToScene(pEvent->pos()).toPoint();
+	qDebug() << pEvent->pos().x() << "," << pEvent->pos().y();
+
+	QPoint clickCoords = mapToScene(pEvent->pos()).toPoint();
+
+	QEvent* pEventCopy = 0;
+	pEventCopy = new QMouseEvent(
+		pEvent->type(),
+		clickCoords,
+		clickCoords,
+		pEvent->button(),
+		pEvent->buttons(),
+		pEvent->modifiers());
+
+	emit sigMousepress(pEventCopy);
 }
 
 void View2D::mouseReleaseEvent(QMouseEvent* pEvent)
 {
+	QPoint clickCoords = mapToScene(pEvent->pos()).toPoint();
+
+	QEvent* pEventCopy = 0;
+	pEventCopy = new QMouseEvent(
+		pEvent->type(),
+		clickCoords,
+		clickCoords,
+		pEvent->button(),
+		pEvent->buttons(),
+		pEvent->modifiers());
+
+	emit sigMousepress(pEventCopy);
 }
 
 void View2D::keyPressEvent(QKeyEvent* pEvent)
 {
+	
+	emit sigMousepress(pEvent);
 }
 
 void View2D::keyReleaseEvent(QKeyEvent* pEvent)
 {
+	emit sigMousepress(pEvent);
 }
 
 void View2D::leaveEvent(QEvent* pEvent)
 {
+	emit sigMousepress(pEvent);
 }
 
 void View2D::mouseDoubleClickEvent(QMouseEvent* pEvent)

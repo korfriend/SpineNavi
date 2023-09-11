@@ -22,6 +22,12 @@ public:
 	inline void setImage(Image2D img) { m_view->setImage(img); }
 	inline void display(void) { m_view->display(); }
 
+signals:
+	void sigEvent(QEvent*);
+
+private slots:
+	void slotEvent(QEvent* pEvent);
+
 private:
 
 	View2D* m_view;

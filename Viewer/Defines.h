@@ -270,6 +270,8 @@ public:
 			*q = std::any_cast<glm::fquat>(v[RBINFO::QT_LS2WS]);
 		if (t)
 			*t = std::any_cast<glm::fvec3>(v[RBINFO::TV_LS2WS]);
+
+		return true;
 	}
 
 	void AddRigidBody(const std::string& rbName, const std::bitset<128>& cid, const glm::fmat4x4& matLS2WS,

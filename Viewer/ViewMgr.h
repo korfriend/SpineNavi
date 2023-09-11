@@ -5,6 +5,7 @@
 #include "WindowCArm.h"
 #include "View2D.h"
 #include "Enums.h"
+#include "RenderEngine.h"
 #include "Defines.h"
 
 #include <qwidget.h>
@@ -13,7 +14,7 @@ class Q_DECL_EXPORT ViewMgr : public QWidget
 {
 	Q_OBJECT
 public:
-	ViewMgr(ViewLayout* layout, QWidget* parent = 0);
+	ViewMgr(ViewLayout* layout, RenderEngine* renderer, QWidget* parent = 0);
 	~ViewMgr();
 
 public:
@@ -34,6 +35,12 @@ public:
 	void setCalibMode();
 	void setNaviMode();
 
+signals:
+	void sigCalibMousePress(glm::ivec2 pos);
+
+private slots:
+	void slotCalibMousePress(glm::ivec2 pos);
+
 private:
 
 	// AP View.
@@ -49,6 +56,7 @@ private:
 	// Layout classes.
 	ViewLayout* m_mainLayout;
 	LAYOUT_TYPE			m_CurrentLayout;
+	RenderEngine* g_renderer;
 };
 
 

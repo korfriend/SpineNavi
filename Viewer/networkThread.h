@@ -23,6 +23,8 @@ public:
 	networkThread(int port = 22222, int bufferSize = 5000, int FD = 1000, QObject* parent = 0);
 	~networkThread();
 
+	void InitializeTask(__GC* gcp);
+
 	void setAlive(bool flag) { m_network_alive = flag; };
 	void setDownloadFlag(bool flag) { m_download_completed = flag; };
 
@@ -42,4 +44,6 @@ private:
 	const int m_FD;
 
 	char* m_buffer;
+
+	__GC* __gc;
 };
