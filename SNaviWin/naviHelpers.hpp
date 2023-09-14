@@ -372,4 +372,15 @@ std::vector<std::string> name##Map = split(#__VA_ARGS__, ',');\
 
 		return glm::fvec3(normalVector.x(), normalVector.y(), normalVector.z());
 	};
+
+	inline unsigned long long GetCurrentTimePack()
+	{
+		// 38 bit : year, 4 bit : month, 5 bit : day, 5 bit : hour, 6 bit : minute, 6 bit : second
+		_SYSTEMTIME st;
+		GetSystemTime(&st);
+
+		return st.wMilliseconds + ((unsigned long long)st.wSecond << 10) + ((unsigned long long)st.wMinute << 16) + ((unsigned long long)st.wHour << 22)
+			+ ((unsigned long long)st.wDay << 27) + ((unsigned long long)st.wMonth << 32) + ((unsigned long long)st.wYear << 36);
+	}
 }
+

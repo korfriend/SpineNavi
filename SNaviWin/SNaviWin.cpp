@@ -24,10 +24,14 @@
 #include <stdio.h>
 #include <ctime>
 
+
 #include <objidl.h>
 #include <gdiplus.h>
 #include <gdipluspath.h>
 #include <gdiplusgraphics.h>
+
+#include <filesystem>
+
 
 using namespace Gdiplus;
 #pragma comment (lib,"Gdiplus.lib")
@@ -135,15 +139,49 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 
 		__gc.g_showCalibMarkers = keyParam == '3';
 
+		string timePack = "";
+
 		if (!colored_img.empty())
 		{
-			//cv::Mat coloredImg;
-			//cv::cvtColor(img, coloredImg, cv::COLOR_GRAY2RGB);
-			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + ".png";
+			// store case
+
+			timePack = to_string(navihelpers::GetCurrentTimePack());
+
+			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + "_" + timePack + ".png";
 			cv::imwrite(downloadImgFileName, colored_img);
 
-			storeParams("test" + to_string(i) + ".txt", matRB2WS, downloadImgFileName);
+			storeParams("test" + to_string(i) + "_" + timePack + ".txt", matRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
+		}
+		else {
+			// load case
+			using std::filesystem::directory_iterator;
+
+			set<unsigned long long> latestTimePacks;
+			for (const auto& file : directory_iterator(__gc.g_folder_trackingInfo)) {
+				const std::string ss = file.path().u8string();
+				//char* ptr = std::strrchr(file.path().c_str(), '\\');     //문자열(path)의 뒤에서부터 '\'의 위치를 검색하여 반환
+
+				std::filesystem::path filePath = file.path().filename();
+				if (filePath.extension() == ".png") {
+					std::string fn = filePath.u8string();
+					if (fn.find("test" + to_string(i)) != std::string::npos) {
+						std::string::size_type filePos = fn.rfind('_');
+						//std::cout << file.path().filename().u8string() << std::endl;
+
+						if (filePos != std::string::npos)
+							++filePos;
+						else
+							filePos = 0;
+						std::string timePackExt = fn.substr(filePos);
+						timePackExt.erase(timePackExt.find_last_of("."), string::npos);
+						unsigned long long itimePackExt = std::stoll(timePackExt);
+						latestTimePacks.insert(itimePackExt);
+					}
+				}
+			}
+
+			timePack = to_string(*latestTimePacks.rbegin());
 		}
 
 		auto it = __gc.g_mapAidGroupCArmCam.find(EXTRINSIC_PHANTOM_IMG_INDEX);
@@ -154,7 +192,8 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 		it = __gc.g_mapAidGroupCArmCam.find(i);
 		if (it != __gc.g_mapAidGroupCArmCam.end())
 			vzm::RemoveSceneItem(it->second, true);
-		int aidGroup = calibtask::RegisterCArmImage(sidScene, __gc.g_folder_trackingInfo + "test" + to_string(i) + ".txt", "test" + to_string(i));
+		int aidGroup = calibtask::RegisterCArmImage(sidScene, 
+			__gc.g_folder_trackingInfo + "test" + to_string(i) + "_" + timePack + ".txt", "test" + to_string(i));
 		if (aidGroup != -1) {
 			__gc.g_mapAidGroupCArmCam[i] = aidGroup;
 
@@ -549,6 +588,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	optitrk::DeinitOptiTrackLib();
 	vzm::DeinitEngineLib();
+	__gc.Deinit();
 
 	//end = GetMicroCounter();
 	//printf("Elapsed Time (micro seconds) : %d", end - start);
@@ -833,7 +873,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					return 0;
 				}
 				if (__gc.g_selectedMkNames.size() < 4) {
-					cout << "\n" << "at least 4 points (last one is for tool tip) are needed!!" << endl;
+					cout << "\n" << "at least 4 points are needed!!" << endl;
 					return 0;
 				}
 
@@ -1042,18 +1082,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 
-		// by adjusting cam distance
+		if (__gc.g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) {
+			if (zDelta > 0)
+				cpCam1.fov_y *= 0.9f;
+			else
+				cpCam1.fov_y *= 1.1f;
+		}
+		else {
+			// by adjusting cam distance
 			if (zDelta > 0)
 				*(glm::fvec3*)cpCam1.pos += scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam1.view);
 			else
 				*(glm::fvec3*)cpCam1.pos -= scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam1.view);
+		}
 
-			vzm::SetCameraParams(cidCam1, cpCam1);
-		//Render();
-		//vzm::RenderScene(sidScene, cidCam1);
-
-		//InvalidateRect(hWnd, NULL, FALSE);
-		//UpdateWindow(hWnd);
+		vzm::SetCameraParams(cidCam1, cpCam1);
+		break;
 	}
 	case WM_ERASEBKGND:
 		return TRUE; // tell Windows that we handled it. (but don't actually draw anything)

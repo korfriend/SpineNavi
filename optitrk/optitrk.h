@@ -29,8 +29,8 @@ namespace optitrk
 	// mat_ls2ws ==> glm::fmat4x4
 	__dojostatic bool SetRigidBodyPropertyByIdx(const int rb_idx, const float smooth_term, const int test_smooth_term);
 	__dojostatic bool SetRigidBodyPropertyByName(const std::string& name, const float smooth_term, const int test_smooth_term);
-	__dojostatic bool GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid = NULL, float* rb_mse = NULL, std::vector<float>* rbmk_xyz_list = NULL, std::vector<bool>* mk_tracked_list = NULL, std::vector<float>* mk_quality_list = NULL, std::string* rb_name = NULL, float* qvec = NULL, float* tvec = NULL);
-	__dojostatic bool GetRigidBodyLocationByName(const std::string& name, float* mat_ls2ws, int* rb_idx = NULL, std::bitset<128>* cid = NULL, float* rb_mse = NULL, std::vector<float>* rbmk_xyz_list = NULL, std::vector<bool>* mk_tracked_list = NULL, std::vector<float>* mk_quality_list = NULL);
+	__dojostatic bool GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std::bitset<128>* cid = NULL, float* rb_mse = NULL, std::vector<float>* rbmk_xyz_list = NULL, std::vector<float>* pcmk_xyz_list = NULL, std::vector<bool>* mk_tracked_list = NULL, std::vector<float>* mk_quality_list = NULL, std::string* rb_name = NULL, float* qvec = NULL, float* tvec = NULL);
+	__dojostatic bool GetRigidBodyLocationByName(const std::string& name, float* mat_ls2ws, int* rb_idx = NULL, std::bitset<128>* cid = NULL, float* rb_mse = NULL, std::vector<float>* rbmk_xyz_list = NULL, std::vector<float>* pcmk_xyz_list = NULL, std::vector<bool>* mk_tracked_list = NULL, std::vector<float>* mk_quality_list = NULL);
 	__dojostatic bool SetRigidBodyEnabledbyIdx(const int rb_idx, const bool enabled);
 	__dojostatic bool SetRigidBodyEnabledbyName(const std::string& name, const bool enabled);
 

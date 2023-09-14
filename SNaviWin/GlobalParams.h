@@ -8,6 +8,7 @@
 #include <bitset>
 #include <string>
 #include <sstream>
+#include <fstream>
 #include <iomanip>
 #include <mutex>
 #include <thread>
@@ -151,6 +152,7 @@ public:
 		POSITION = 1, // glm::fvec3, world space
 		MK_NAME = 2, // string
 		MK_QUALITY = 3, // float // only for RB_MKSET
+		POSITION_RBPC = 4, // glm::fvec3, only for RB's PCMK
 	};
 	std::map<std::string, std::any> testData; // including serialized...
 private:
@@ -335,6 +337,7 @@ public:
 #define ERROR_CODE_NOT_ENOUGH_SELECTION 1
 #define ERROR_CODE_CARM_TRACKING_FAILURE 2
 #define ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED 3
+#define ERROR_CODE_INVALID_RECFILE 4
 //#define ERROR_CODE_NONE 0
 //#define ERROR_CODE_NONE 0
 //#define ERROR_CODE_NONE 0
@@ -345,10 +348,13 @@ typedef struct GlobalContainer {
 	std::string g_folder_data;
 	std::string g_folder_trackingInfo;
 	std::string g_profileFileName;
+	std::string g_recFileName;
 
 	std::string g_sceneName;// = "Scene1"; // Scene1, Scene2
 	std::string g_camName;// = "Cam1"; // World Camera, CArm Camera
 	std::string g_camName2;// = "Cam2"; // World Camera, CArm Camera
+
+	std::ofstream g_recFileStream;
 
 	std::map<std::string, int> g_selectedMkNames;
 	std::map<int, int> g_mapAidGroupCArmCam;
@@ -415,6 +421,11 @@ typedef struct GlobalContainer {
 #define OPTTRK_THREAD_TOOL_REGISTER 2
 #define OPTTRK_THREAD_TOOL_UPDATE 3
 	std::atomic_int g_optiEvent; // { OPTTRK_THREAD_FREE };
+#define OPTTRK_RECMODE_NONE 0
+#define OPTTRK_RECMODE_RECORD 1
+#define OPTTRK_RECMODE_LOAD 2
+	std::atomic_int g_optiRecordMode;
+	std::atomic_int g_optiRecordFrame;
 
 
 #define RENDER_THREAD_FREE 0
@@ -451,6 +462,7 @@ typedef struct GlobalContainer {
 		g_folder_data = "";
 		g_folder_trackingInfo = "";
 		g_profileFileName = "";
+		g_recFileName = "";
 
 		g_sceneName = "Scene1"; // Scene1, Scene2
 		g_camName = "Cam1"; // World Camera, CArm Camera
@@ -462,8 +474,10 @@ typedef struct GlobalContainer {
 		g_showCalibMarkers = false;
 
 		g_optiEvent = OPTTRK_THREAD_FREE;
+		g_optiRecordMode = OPTTRK_RECMODE_NONE;
 		g_renderEvent = RENDER_THREAD_FREE;
 		g_networkEvent = NETWORK_THREAD_FREE;
+		g_optiRecordFrame = 0;
 
 		g_tracker_alive = true;
 		g_network_alive = true;
@@ -475,5 +489,11 @@ typedef struct GlobalContainer {
 		g_error_duration = 0;
 		g_error_code = ERROR_CODE_NONE;
 
+	}
+
+	void Deinit() {
+		if (g_recFileStream.is_open()) {
+			g_recFileStream.close();
+		}
 	}
 } __GC;

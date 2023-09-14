@@ -826,6 +826,9 @@ namespace rendertask {
 			case ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED:
 				textItem.textStr = "Failure to Detect Calibration Patterns!";
 				break;
+			case ERROR_CODE_INVALID_RECFILE:
+				textItem.textStr = "Failure to Detect Calibration Patterns!";
+				break;
 			case ERROR_CODE_NONE:
 			default:
 				textItem.textStr = "";
