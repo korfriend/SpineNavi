@@ -152,6 +152,54 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 
 			storeParams("test" + to_string(i) + "_" + timePack + ".txt", matRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
+
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE_RECORD) {
+				if (!__gc.g_recScanStream.is_open()) {
+					__gc.g_recScanStream.open(__gc.g_recScanName);
+					if (!__gc.g_recScanStream.is_open()) {
+						__gc.SetErrorCode(ERROR_CODE_INVALID_RECFILE);
+						__gc.g_optiRecordMode = OPTTRK_RECMODE_NONE;
+					}
+
+					// to do //
+					std::vector<std::vector<std::string>> csvData(1);
+					std::vector<std::string>& csvRow1 = csvData[0];
+					csvRow1 = { "FRAME", "TIME", "AP/LL"};
+
+					// Write CSV data to the file
+					for (int i = 0; i < (int)csvData.size(); i++) {
+						std::vector<std::string>& csvRow = csvData[i];
+						for (int j = 0; j < (int)csvRow.size(); j++) {
+							__gc.g_recScanStream << csvRow[j];
+							if (j < csvRow.size() - 1) {
+								__gc.g_recScanStream << ',';
+							}
+							else 
+								__gc.g_recScanStream << '\n';
+						}
+					}
+				}
+				else {
+					// to do //
+					std::vector<std::string> csvRow = { to_string(__gc.g_optiRecordFrame), timePack, i == 1? "AP" : "LL" };
+
+					// Write CSV data to the file
+					for (int j = 0; j < (int)csvRow.size(); j++) {
+						__gc.g_recScanStream << csvRow[j];
+						if (j < csvRow.size() - 1) {
+							__gc.g_recScanStream << ',';
+						}
+						else 
+							__gc.g_recScanStream << '\n';
+					}
+				}
+			}
+			else {
+				if (__gc.g_recScanStream.is_open()) {
+					std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
+					__gc.g_recScanStream.close();
+				}
+			}
 		}
 		else {
 			// load case
@@ -399,8 +447,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	__gc.Init();
 	__gc.g_folder_data = getdatapath();
-	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-08-24/";
-	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-08-24.motive";
+	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-09-15/";
+	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-09-15.motive";
+	__gc.g_recFileName = __gc.g_folder_trackingInfo + "TrackingRecord.csv";
+	__gc.g_recScanName = __gc.g_folder_trackingInfo + "ScanRecord.csv";
 
 	rendertask::InitializeTask(&__gc);
 	nettask::InitializeTask(&__gc);
@@ -536,9 +586,9 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
 	//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
 
-	optitrk::SetCameraSettings(0, 4, 16, 230);
-	optitrk::SetCameraSettings(1, 4, 16, 230);
-	optitrk::SetCameraSettings(2, 4, 16, 230);
+	optitrk::SetCameraSettings(0, 4, 16, 200);
+	optitrk::SetCameraSettings(1, 4, 16, 200);
+	optitrk::SetCameraSettings(2, 4, 16, 200);
 
     // 전역 문자열을 초기화합니다.
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
@@ -697,7 +747,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
 	float scene_stage_scale = 5.f;
 
-	glm::fvec3 scene_stage_center = glm::fvec3();
+	// DOJO : NOTE scene_stage_center must not be the same as camera position
+	glm::fvec3 scene_stage_center = glm::fvec3(0, 0, 2); 
 	vzm::CameraParameters cpCam1;
 	if (sidScene != 0 && cidCam1 != 0) {
 		vzm::GetCameraParams(cidCam1, cpCam1);
@@ -753,6 +804,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case char('R') :
 			{
 				// recode mode.
+				// toggle
+				__gc.g_optiRecordMode == OPTTRK_RECMODE_RECORD ? __gc.g_optiRecordMode = OPTTRK_RECMODE_NONE
+					: __gc.g_optiRecordMode = OPTTRK_RECMODE_RECORD;
+
 				break;
 			}
 			case char('C') :
@@ -1114,7 +1169,7 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
 	int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
 	float scene_stage_scale = 5.f;
-	glm::fvec3 scene_stage_center = glm::fvec3();
+	glm::fvec3 scene_stage_center = glm::fvec3(0, 0, 2);
 	vzm::CameraParameters cpCam2;
 	if (sidScene != 0 && cidCam2 != 0) {
 		vzm::GetCameraParams(cidCam2, cpCam2);

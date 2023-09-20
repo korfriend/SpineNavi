@@ -1,7 +1,0 @@
-%YAML:1.0
----
-ToolTip: !!opencv-matrix
-   rows: 1
-   cols: 3
-   dt: f
-   data: [ 2.72282884e-02, -1.09691553e-01, -2.49538839e-01 ]

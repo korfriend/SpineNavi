@@ -360,9 +360,8 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 {
 	if (!is_initialized) return false;
 	if (rb_name) *rb_name = TT_RigidBodyName(rb_idx);
-	if (!TT_IsRigidBodyTracked(rb_idx)) {
-		return false;
-	}
+
+	bool isTracked = TT_IsRigidBodyTracked(rb_idx);
 
 	float   yaw, pitch, roll;
 	float   x, y, z;
@@ -493,6 +492,8 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 
 	if (rb_mse) {
 		*rb_mse = TT_RigidBodyMeanError(rb_idx);
+		// test //
+		if (!isTracked) *rb_mse = -1.f;
 	}
 	
 	if (mk_quality_list) {
@@ -510,7 +511,7 @@ bool optitrk::GetRigidBodyLocationByIdx(const int rb_idx, float* mat_ls2ws, std:
 		*cid = cid_bs;
 	}
 
-	return true;
+	return isTracked;
 }
 
 bool optitrk::GetRigidBodyLocationByName(const string& name, float* mat_ls2ws, int* rb_idx, std::bitset<128>* cid, float* rb_mse, std::vector<float>* rbmk_xyz_list, std::vector<float>* pcmk_xyz_list, std::vector<bool>* mk_tracked_list, std::vector<float>* mk_quality_list)

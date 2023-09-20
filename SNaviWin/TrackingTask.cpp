@@ -2,6 +2,7 @@
 
 #include "VisMtvApi.h"
 #include "ApiUtility.hpp"
+//#include "naviHelpers.hpp"
 
 #include "../optitrk/optitrk.h"
 
@@ -25,9 +26,15 @@ namespace trackingtask {
 
 		cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::READ);
 		if (fs.isOpened()) {
+			std::vector<glm::fvec3> toolUserData(2);
+
 			cv::Mat ocv3(1, 3, CV_32FC1);
-			fs["ToolTip"] >> ocv3;
-			memcpy(&__gc->g_toolTipPointLS, ocv3.ptr(), sizeof(glm::fvec3));
+			fs["ToolPos"] >> ocv3;
+			memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
+			fs["ToolVec"] >> ocv3;
+			memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
+
+			__gc->g_rbLocalUserPoints["tool"] = toolUserData;
 		}
 		fs.release();
 
@@ -158,12 +165,13 @@ namespace trackingtask {
 							mk[track_info::MKINFO::MK_CID] = mk_cid;
 							mk[track_info::MKINFO::POSITION] = pos;
 							mk[track_info::MKINFO::MK_QUALITY] = quality;
+							mk[track_info::MKINFO::TRACKED] = (bool)(quality > 0.5f);
 
 							rbMkSets.push_back(rbmkSet);
 						}
 
 						// 저장 시 tvec, quaternion 버전으로..
-						trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, mkMSE, rbmkSet);
+						trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, mkMSE, true, rbmkSet);
 					} // else if (rowTypes[i] == "Rigid Body")
 					else if (rowTypes[i] == "Marker") {
 						for (int j = 0; j < (int)rbMkSets.size(); j++) {
@@ -205,38 +213,41 @@ namespace trackingtask {
 					vector<float> posMKs;
 					vector<float> posPCMKs;
 					vector<float> mkQualities;
+					vector<bool> mkTrackeds;
 					bitset<128> rbCid;
 					fquat qvec;
 					fvec3 tvec;
-					if (optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, &rbCid, &rbMSE, &posMKs, &posPCMKs, NULL, &mkQualities, &rbName, (float*)&qvec, (float*)&tvec)) {
 
+					bool isTracked = optitrk::GetRigidBodyLocationByIdx(i, (float*)&matLS2WS, &rbCid, &rbMSE, &posMKs, &posPCMKs, &mkTrackeds, &mkQualities, &rbName, (float*)&qvec, (float*)&tvec);
+					if (isTracked) {
 						if (rbMSE > 0.01) cout << "\n" << "problematic error!! " << rbName << " : " << rbMSE << endl;
-
-						int numRbMks = (int)posMKs.size() / 3;
-						vector<fvec3> mkPts(numRbMks);
-						vector<fvec3> pcmkPts(numRbMks);
-						memcpy(&mkPts[0], &posMKs[0], sizeof(fvec3)* numRbMks);
-						memcpy(&pcmkPts[0], &posPCMKs[0], sizeof(fvec3)* numRbMks);
-						map<string, map<track_info::MKINFO, std::any>> rbmkSet;
-						for (int j = 0; j < numRbMks; j++) {
-							//CID = 0, // std::bitset<128>
-							//POSITION = 1, // glm::fvec3, world space
-							//MK_NAME = 2, // string
-							//MK_QUALITY = 3 // float // only for RB_MKSET
-							string mkName = rbName + ":Marker" + to_string(j + 1);
-							auto& pt = rbmkSet[mkName];
-							pt[track_info::MKINFO::MK_CID] = 0;
-							pt[track_info::MKINFO::POSITION] = mkPts[j];
-							pt[track_info::MKINFO::POSITION_RBPC] = pcmkPts[j];
-							pt[track_info::MKINFO::MK_NAME] = mkName;
-							pt[track_info::MKINFO::MK_QUALITY] = mkQualities[j];
-
-							float mk_qual = mkQualities[j];
-							//if (mk_qual < 0.9) cout << "\n" << "rb(" << j << ") marker problematic error!!  : " << mk_qual << endl;
-						}
-						trk_info.AddRigidBody(rbName, rbCid, matLS2WS, qvec, tvec, rbMSE, rbmkSet);
-
 					}
+
+					int numRbMks = (int)posMKs.size() / 3;
+					vector<fvec3> mkPts(numRbMks);
+					vector<fvec3> pcmkPts(numRbMks);
+					memcpy(&mkPts[0], &posMKs[0], sizeof(fvec3)* numRbMks);
+					memcpy(&pcmkPts[0], &posPCMKs[0], sizeof(fvec3)* numRbMks);
+					map<string, map<track_info::MKINFO, std::any>> rbmkSet;
+					for (int j = 0; j < numRbMks; j++) {
+						//CID = 0, // std::bitset<128>
+						//POSITION = 1, // glm::fvec3, world space
+						//MK_NAME = 2, // string
+						//MK_QUALITY = 3 // float // only for RB_MKSET
+						string mkName = rbName + ":Marker" + to_string(j + 1);
+						auto& pt = rbmkSet[mkName];
+						pt[track_info::MKINFO::MK_CID] = 0;
+						pt[track_info::MKINFO::POSITION] = mkPts[j];
+						pt[track_info::MKINFO::POSITION_RBPC] = pcmkPts[j];
+						pt[track_info::MKINFO::MK_NAME] = mkName;
+						pt[track_info::MKINFO::MK_QUALITY] = mkQualities[j];
+						pt[track_info::MKINFO::TRACKED] = (bool)mkTrackeds[j];
+
+						float mk_qual = mkQualities[j];
+						//if (mk_qual < 0.9) cout << "\n" << "rb(" << j << ") marker problematic error!!  : " << mk_qual << endl;
+					}
+					
+					trk_info.AddRigidBody(rbName, rbCid, matLS2WS, qvec, tvec, rbMSE, isTracked, rbmkSet);
 				}
 				vector<float> mkPts;
 				vector<float> mkResiduals;
@@ -301,23 +312,55 @@ namespace trackingtask {
 						std::vector<float> buf_rb_mks;
 						//std::vector<float> ws_mks;
 						if (optitrk::GetRigidBodyLocationByName("tool", __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks)) {
+							
 							std::vector<glm::fvec3> pos_rb_mks(buf_rb_mks.size() / 3);
 							memcpy(&pos_rb_mks[0], &buf_rb_mks[0], sizeof(float) * buf_rb_mks.size());
 
 							glm::fmat4x4 rbWS2LS = glm::inverse(rbLS2WS);
+							for (int i = 0; i < (int)pos_rb_mks.size(); i++)
+								pos_rb_mks[i] = vzmutils::transformPos(pos_rb_mks[i], rbWS2LS);
+							
+							// compute center pos
+							glm::fvec3 v02 = pos_rb_mks[2] - pos_rb_mks[0];
+							glm::fvec3 p02 = pos_rb_mks[0] + v02 * (float)(65.0 / 110.0);
+							glm::fvec3 v13 = pos_rb_mks[3] - pos_rb_mks[1];
+							glm::fvec3 p13 = pos_rb_mks[1] + v13 * (float)(40.41 / 90.82);
+							glm::fvec3 p1234 = (p02 + p13) * 0.5f;
 
-							__gc->g_toolTipPointLS = vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS);
+							// compute normal vec
+							glm::fvec3 nrl1234 = glm::normalize(glm::cross(v02, v13));
+							//fvec3 nrlLS = navihelpers::ComputeNormalVector(pos_rb_mks); // LS
+
+							// compute face vec
+							glm::fvec3 faceDir = glm::normalize(glm::cross(nrl1234, v02));
+
+							// compute line 
+							glm::fvec3 p_line1 = p1234 - nrl1234 * (float)(65.36 * 0.001); // meter
+
+							std::vector<glm::fvec3> toolUserData = { p_line1, faceDir };
+							__gc->g_rbLocalUserPoints["tool"] = toolUserData;
 
 							cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
 							cv::Mat ocv3(1, 3, CV_32FC1);
-							memcpy(ocv3.ptr(), &__gc->g_toolTipPointLS, sizeof(glm::fvec3));
-							fs << "ToolTip" << ocv3;
+							memcpy(ocv3.ptr(), &p_line1, sizeof(glm::fvec3));
+							fs << "ToolPos" << ocv3;
+							memcpy(ocv3.ptr(), &faceDir, sizeof(glm::fvec3));
+							fs << "ToolVec" << ocv3;
 							fs.release();
 
+							//__gc->g_toolTipPointLS = vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS);
+							//cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
+							//cv::Mat ocv3(1, 3, CV_32FC1);
+							//memcpy(ocv3.ptr(), &__gc->g_toolTipPointLS, sizeof(glm::fvec3));
+							//fs << "ToolTip" << ocv3;
+							//fs.release();
+							
 							// use cam direction...
 							UpdateRigidBodiesInThread();
 							optitrk::StoreProfile(__gc->g_profileFileName);
+							
 							__gc->g_optiEvent = OPTTRK_THREAD_FREE;
+
 						}
 					}
 				}
@@ -342,12 +385,15 @@ namespace trackingtask {
 						csvRow3 = { "", "ID" };
 						csvRow4 = { "", "" };
 						csvRow5 = { "Frame", "Time" };
-						for (int i = 0; i < 16; i++) {
-							csvRow1.push_back("Opti Camera");
-							csvRow2.push_back("center cam");
-							csvRow3.push_back("v120 1");
-							csvRow4.push_back("Mat Cam2WS");
-							csvRow5.push_back("mat[" + to_string(i) + "]");
+
+						for (int i = 0; i < 3; i++) {
+							for (int j = 0; j < 16; j++) {
+								csvRow1.push_back("Opti Camera");
+								csvRow2.push_back("center cam");
+								csvRow3.push_back("v120 " + to_string(i));
+								csvRow4.push_back("Mat Cam2WS");
+								csvRow5.push_back("mat[" + to_string(j) + "]");
+							}
 						}
 						vector< map<string, map<track_info::MKINFO, std::any>>> rbMkSets(numAllFramesRBs);
 						for (int i = 0; i < numAllFramesRBs; i++) {
@@ -357,10 +403,20 @@ namespace trackingtask {
 							map<string, map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[i];
 							std::bitset<128> cid;
 							trk_info.GetRigidBodyByIdx(i, &rbName, NULL, NULL, &rbmkSet, &cid);
+
+							const string cid_str = cid.to_string();
+							bitset<64>bss1(cid_str.substr(0, cid_str.size() / 2));          // first half
+							bitset<64>bss2(cid_str.substr(cid_str.size() / 2, cid_str.size())); // second half
+							unsigned long long int bss1ll = bss1.to_ullong();
+							unsigned long long int bss2ll = bss2.to_ullong();
+							stringstream res;
+							res << hex << bss2ll << hex << bss1ll;
+
 							for (int j = 0; j < 7; j++) {
 								csvRow1.push_back("Rigid Body");
 								csvRow2.push_back(rbName);
-								csvRow3.push_back(cid.to_string());
+
+								csvRow3.push_back(res.str());
 								csvRow4.push_back(j < 4 ? "Quaternion" : "TVec");
 								switch (j) {
 								case 0: csvRow5.push_back("X"); break;
@@ -400,44 +456,47 @@ namespace trackingtask {
 							map<string, map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[i];
 
 							int mk_count = 0;
-							for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
-								for (int j = 0; j < 3; j++) {
-									csvRow1.push_back("Marker");
-									csvRow2.push_back(it->first + " PC");
-									csvRow3.push_back(to_string(i << 8 | mk_count++));
-									csvRow4.push_back("Position");
-									switch (j) {
-									case 0: csvRow5.push_back("X"); break;
-									case 1: csvRow5.push_back("Y"); break;
-									case 2: csvRow5.push_back("Z"); break;
-									}
-								}
-							}
+							//for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
+							//	for (int j = 0; j < 3; j++) {
+							//		csvRow1.push_back("Marker");
+							//		csvRow2.push_back(it->first + " PC");
+							//		csvRow3.push_back(to_string(i << 8 | mk_count++));
+							//		csvRow4.push_back("Position");
+							//		switch (j) {
+							//		case 0: csvRow5.push_back("X"); break;
+							//		case 1: csvRow5.push_back("Y"); break;
+							//		case 2: csvRow5.push_back("Z"); break;
+							//		}
+							//	}
+							//}
 						}
 
 						// Write CSV data to the file
-						for (int i = 0; i < 4; i++) {
+						for (int i = 0; i < (int)csvData.size(); i++) {
 							std::vector<std::string>& csvRow = csvData[i];
 							for (int j = 0; j < (int)csvRow.size(); j++) {
 								__gc->g_recFileStream << csvRow[j];
 								if (j < csvRow.size() - 1) {
 									__gc->g_recFileStream << ',';
 								}
-								__gc->g_recFileStream << '\n';
+								else
+									__gc->g_recFileStream << '\n';
 							}
 						}
 					}
 					
-					if (__gc->g_optiRecordFrame % 20 == 0) {
+					if (__gc->g_optiRecordFrame % 100 == 0) {
 
 						std::vector<std::string> csvRow = { to_string(__gc->g_optiRecordFrame), to_string(timeBegin) };
 
 						std::vector<std::pair<std::string, glm::fvec3>> rb_pcmks;
 						glm::fmat4x4 matCam2WS;
-						trk_info.GetTrackingCamPose(1, matCam2WS);
-						const float* matData = (const float*)glm::value_ptr(matCam2WS);
-						for (int i = 0; i < 16; i++) {
-							csvRow.push_back(to_string(matData[i]));
+						for (int i = 0; i < 3; i++) {
+							trk_info.GetTrackingCamPose(i, matCam2WS);
+							const float* matData = (const float*)glm::value_ptr(matCam2WS);
+							for (int j = 0; j < 16; j++) {
+								csvRow.push_back(to_string(matData[j]));
+							}
 						}
 						for (int i = 0; i < numAllFramesRBs; i++) {
 							string rbName;
@@ -458,15 +517,15 @@ namespace trackingtask {
 							}
 							csvRow.push_back(std::to_string(mkMSE));
 
-							for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
-								glm::fvec3 posMk = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION]);
-								float qualMk = any_cast<float>(it->second[track_info::MKINFO::MK_QUALITY]);
-
-								csvRow.push_back(to_string(posMk.x));
-								csvRow.push_back(to_string(posMk.y));
-								csvRow.push_back(to_string(posMk.z));
-								csvRow.push_back(to_string(qualMk));
-							}
+							//for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
+							//	glm::fvec3 posMk = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION]);
+							//	float qualMk = any_cast<float>(it->second[track_info::MKINFO::MK_QUALITY]);
+							//
+							//	csvRow.push_back(to_string(posMk.x));
+							//	csvRow.push_back(to_string(posMk.y));
+							//	csvRow.push_back(to_string(posMk.z));
+							//	csvRow.push_back(to_string(qualMk));
+							//}
 						} // for (int i = 0; i < numAllFramesRBs; i++)
 
 						// to do : add markers...
@@ -483,7 +542,8 @@ namespace trackingtask {
 							if (j < csvRow.size() - 1) {
 								__gc->g_recFileStream << ',';
 							}
-							__gc->g_recFileStream << '\n';
+							else 
+								__gc->g_recFileStream << '\n';
 						}
 
 					}

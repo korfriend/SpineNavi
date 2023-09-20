@@ -153,6 +153,7 @@ public:
 		MK_NAME = 2, // string
 		MK_QUALITY = 3, // float // only for RB_MKSET
 		POSITION_RBPC = 4, // glm::fvec3, only for RB's PCMK
+		TRACKED = 5 // bool
 	};
 	std::map<std::string, std::any> testData; // including serialized...
 private:
@@ -164,6 +165,7 @@ private:
 		RB_MKSET = 3, // map<string, map<MKINFO, any>>
 		QT_LS2WS = 4, // glm::fquat
 		TV_LS2WS = 5, // glm::fvec3
+		TRACKED = 6, // bool
 	};
 
 	std::map<std::string, std::map<RBINFO, std::any>> __rbinfo;
@@ -208,6 +210,9 @@ public:
 	bool GetRigidBodyByIdx(const int rbIdx, std::string* rbName, glm::fmat4x4* matLS2WS, float* mkMSE, 
 		std::map<std::string, std::map<MKINFO, std::any>>* rbmkSet, std::bitset<128>* cid) {
 		auto it = __rbinfo.begin();
+
+		if (rbIdx >= (int)__rbinfo.size()) return false;
+		
 		std::advance(it, rbIdx);
 
 		if (it == __rbinfo.end()) return false;
@@ -224,7 +229,7 @@ public:
 		if (cid)
 			*cid = std::any_cast<std::bitset<128>>(v[RBINFO::RB_CID]);
 
-		return true;
+		return std::any_cast<bool>(v[RBINFO::TRACKED]);
 	}
 
 	bool GetRigidBodyByName(const std::string& rbName, glm::fmat4x4* matLS2WS, float* mkMSE, 
@@ -244,7 +249,7 @@ public:
 		if (cid)
 			*cid = std::any_cast<std::bitset<128>>(v[RBINFO::RB_CID]);
 
-		return true;
+		return std::any_cast<bool>(v[RBINFO::TRACKED]);
 	}
 
 	bool GetRigidBodyQuatTVecByName(const std::string& rbName, glm::fquat* q, glm::fvec3* t) {
@@ -257,10 +262,12 @@ public:
 			*q = std::any_cast<glm::fquat>(v[RBINFO::QT_LS2WS]);
 		if (t)
 			*t = std::any_cast<glm::fvec3>(v[RBINFO::TV_LS2WS]);
+
+		return std::any_cast<bool>(v[RBINFO::TRACKED]);
 	}
 
 	void AddRigidBody(const std::string& rbName, const std::bitset<128>& cid, const glm::fmat4x4& matLS2WS, 
-		const glm::fquat& qtLS2WS, const glm::fvec3& tvec, const float mkMSE,
+		const glm::fquat& qtLS2WS, const glm::fvec3& tvec, const float mkMSE, const bool isTracked,
 		const std::map<std::string, std::map<MKINFO, std::any>>& rbmkSet)
 	{
 		std::map<RBINFO, std::any>& v = __rbinfo[rbName];
@@ -270,6 +277,7 @@ public:
 		v[RBINFO::RB_MKSET] = rbmkSet;
 		v[RBINFO::QT_LS2WS] = qtLS2WS;
 		v[RBINFO::TV_LS2WS] = tvec;
+		v[RBINFO::TRACKED] = isTracked;
 
 		//std::vector<char> _buffer(sizeof(glm::fmat4x4) + sizeof(glm::fquat) + sizeof(glm::fvec3) + sizeof(float) + sizeof(___));
 	}
@@ -349,17 +357,20 @@ typedef struct GlobalContainer {
 	std::string g_folder_trackingInfo;
 	std::string g_profileFileName;
 	std::string g_recFileName;
+	std::string g_recScanName;
 
 	std::string g_sceneName;// = "Scene1"; // Scene1, Scene2
 	std::string g_camName;// = "Cam1"; // World Camera, CArm Camera
 	std::string g_camName2;// = "Cam2"; // World Camera, CArm Camera
 
 	std::ofstream g_recFileStream;
+	std::ofstream g_recScanStream;
 
 	std::map<std::string, int> g_selectedMkNames;
 	std::map<int, int> g_mapAidGroupCArmCam;
 
-	glm::fvec3 g_toolTipPointLS;
+	std::map<std::string, std::vector<glm::fvec3>> g_rbLocalUserPoints;
+
 	std::vector<glm::fvec3> g_testMKs;
 	std::vector<glm::fvec3> g_global_calib_MKs;
 

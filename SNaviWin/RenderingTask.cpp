@@ -281,96 +281,243 @@ namespace rendertask {
 	// numMKs : 개별 markers
 	void UpdateTrackInfo2Scene(track_info& trackInfo)
 	{
+		using namespace std;
+		using namespace navihelpers;
+		using namespace glm;
+
 		if (__gc == NULL) return;
 
-		int numMKs = trackInfo.NumMarkers();
-		int numRBs = trackInfo.NumRigidBodies();
+		int sidScene = vzmutils::GetSceneItemIdByName(__gc->g_sceneName);
 
-		//__gc->g_ui_banishing_count = std::max(--__gc->g_ui_banishing_count, (int)0);
-		//if (__gc->g_ui_banishing_count == 1) {
-		//	__gc->g_testMKs.clear();
-		//	int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
-		//	if (aidTestGroup != 0)
-		//		vzm::RemoveSceneItem(aidTestGroup);
-		//}
+		// Register Actors //
+		
+		int aidGroupCams = vzmutils::GetSceneItemIdByName("Tracking CAM Group");
+		if (aidGroupCams == 0) {
+			vzm::ActorParameters apGroupCams;
+			vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
+			vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
+			for (int i = 0; i < 3; i++) {
+				int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
+				vzm::ActorParameters apCamRes;
+				vzm::NewActor(apCamRes, "Cam" + to_string(i) + " Tris", aidCamTris);
+				vzm::NewActor(apCamRes, "Cam" + to_string(i) + " Lines", aidCamLines);
+				vzm::NewActor(apCamRes, "Cam" + to_string(i) + " Label", aidCamLabel);
+				vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
+				vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
+				vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
+			}
+		}
+		else {
+			static int oidCamTris[3]{}, oidCamLines[3]{}, oidCamLabel[3]{};
+			for (int i = 0; i < 3; i++) {
+				fmat4x4 matCam2WS;
+				assert(trackInfo.GetTrackingCamPose(i, matCam2WS));
+
+				int aidCamTris = vzmutils::GetSceneItemIdByName("Cam" + to_string(i) + " Tris");
+				int aidCamLines = vzmutils::GetSceneItemIdByName("Cam" + to_string(i) + " Lines");
+				int aidCamLabel = vzmutils::GetSceneItemIdByName("Cam" + to_string(i) + " Label");
+				vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
+				vzm::GetActorParams(aidCamTris, apCamTris);
+				vzm::GetActorParams(aidCamLines, apCamLines);
+				vzm::GetActorParams(aidCamLabel, apCamLabel);
+
+				Cam_Gen(matCam2WS, "CAM" + to_string(i), oidCamTris[i], oidCamLines[i], oidCamLabel[i]);
+
+				apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris[i]);
+				apCamTris.color[3] = 0.5f;
+				apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines[i]);
+				*(fvec4*)apCamLines.phong_coeffs = fvec4(0, 1, 0, 0);
+				apCamLines.line_thickness = 2;
+				apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel[i]);
+
+				vzm::SetActorParams(aidCamTris, apCamTris);
+				vzm::SetActorParams(aidCamLines, apCamLines);
+				vzm::SetActorParams(aidCamLabel, apCamLabel);
+			}
+		}
+		
+		static int oidAxis = 0;
+		static int oidMarker = 0;
+		static int oidProbe = 0;
+		static float probeCorrection = 0;
+		// axis 를 그리는 resource object 생성
+		if (vzm::GetResObjType(oidAxis) == vzm::ResObjType::UNDEFINED) {
+			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
+		}
+		// spherical marker 를 그리는 resource object 생성
+		if (vzm::GetResObjType(oidMarker) == vzm::ResObjType::UNDEFINED) {
+			glm::fvec4 pos(0, 0, 0, 1.f);
+			vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
+		}
+		// probe 를 그리는 resource object 생성
+		if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED ||
+			probeCorrection != __gc->g_probeTipCorrection) {
+			probeCorrection = __gc->g_probeTipCorrection;
+			//vzm::LoadModelFile(folder_data + "probe.obj", oidProbe);
+
+			glm::fvec3 posS(0, 0, 0.25f);
+			glm::fvec3 posE(0, 0, -probeCorrection);
+			//vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
+			glm::fvec3 pp[2] = { posE , posS };
+			float rr[2] = { 0.001, 0.001 };
+			//vzm::GenerateCylindersObject((float*)pp, __FP posE, 0.0025f, 0.0025f, oidProbe);
+			vzm::GenerateCylindersObject((float*)pp, (float*)rr, NULL, 1, oidProbe);
+			//glm::fvec4 pos(0, 0, 0, 0.001f);
+			//vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidProbe);
+		}
+
+		const int numRBs = trackInfo.NumRigidBodies();
+		map<string, int> mapSafeCheck;
+		for (int i = 0; i < numRBs; i++) {
+			string rbName;
+			float rb_error = 0;
+			bitset<128> rb_cid = 0;
+			fmat4x4 matRbLS2WS;
+			map<string, map<track_info::MKINFO, std::any>> rbmkSet;
+
+			// 여기에서 index 는 optitrack lib 에서 사용하는 index 와 다르다! track_info 구조체에서 사용하는 index 임!
+			bool isRbTracked = trackInfo.GetRigidBodyByIdx(i, &rbName, &matRbLS2WS, &rb_error, &rbmkSet, &rb_cid);
+			mapSafeCheck[rbName]++;
+			int aidRb = vzmutils::GetSceneItemIdByName(rbName);
+			vzm::ActorParameters apRb;
+			if (aidRb == 0) {
+				if (rbName == "probe") {
+					apRb.SetResourceID(vzm::ActorParameters::GEOMETRY, oidProbe);
+					*(glm::fvec4*)apRb.color = glm::fvec4(1, 0.3, 0.2, 1);
+				}
+				else {
+					apRb.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
+					apRb.line_thickness = 3;
+				}
+
+				vzm::NewActor(apRb, rbName, aidRb);
+				vzm::AppendSceneItemToSceneTree(aidRb, sidScene);
+			}
+			vzm::GetActorParams(aidRb, apRb);
+			apRb.label.textStr = rbName;
+			apRb.label.fontSize = 12.f;
+			if (isRbTracked) {
+				apRb.is_visible = true;
+				apRb.SetLocalTransform(__FP matRbLS2WS);
+			}
+			else {
+				apRb.is_visible = false;
+			}
+
+			
+			if (rbName == "tool") {
+
+				int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
+				int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
+				vzm::ActorParameters apToolBody, apToolTip;
+				if (aidToolBody == 0) {
+					vzm::NewActor(apToolBody, rbName + ":Body", aidToolBody);
+					apToolTip.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+					vzm::NewActor(apToolTip, rbName + ":Tip", aidToolTip);
+					vzm::AppendSceneItemToSceneTree(aidToolBody, aidRb);
+					vzm::AppendSceneItemToSceneTree(aidToolTip, aidRb);
+				}
+				vzm::GetActorParams(aidToolBody, apToolBody);
+				vzm::GetActorParams(aidToolTip, apToolTip);
+				bool isPivoted = __gc->g_rbLocalUserPoints.find("tool") != __gc->g_rbLocalUserPoints.end();
+				if (isRbTracked && isPivoted) {
+
+					apRb.is_visible = false;
+					apToolBody.is_visible = true;
+
+					{
+						vector<fvec3> toolUserData = __gc->g_rbLocalUserPoints["tool"];
+						// compute the line geometry in the tool's rigid body
+						fvec3 linePos[2] = { toolUserData[0], fvec3(0) };
+						static int oidToolLine = 0;
+						vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
+
+						apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
+						apToolBody.line_thickness = 3;
+						*(glm::fvec4*)apToolBody.color = glm::fvec4(1, 1, 1, 1);
+					}
+
+					apToolTip.is_visible = true;
+					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
+					apToolTip.SetLocalTransform(__FP matScale);
+				}
+				else {
+					apToolBody.is_visible = false;
+					apToolTip.is_visible = false;
+				}
+				vzm::SetActorParams(aidToolBody, apToolBody);
+				vzm::SetActorParams(aidToolTip, apToolTip);
+			}
+
+			/**/
+			// Rb markers //
+			
+			int aidGroupRbMks = vzmutils::GetSceneItemIdByName(rbName + ":Markers");
+			int numRbMks = apRb.test_params.GetParam("numRbMarkers", (int)0);
+			vzm::ActorParameters apRbMk;
+			if (aidGroupRbMks == 0) {
+				vzm::NewActor(apRbMk, rbName + ":Markers", aidGroupRbMks);
+				vzm::AppendSceneItemToSceneTree(aidGroupRbMks, aidRb);
+			}
+			else if (numRbMks != (int)rbmkSet.size()) {
+				vzm::RemoveSceneItem(aidGroupRbMks);
+				vzm::NewActor(apRbMk, rbName + ":Markers", aidGroupRbMks);
+				vzm::AppendSceneItemToSceneTree(aidGroupRbMks, aidRb);
+			}
+
+			glm::fmat4x4 matWS2RbLS = glm::inverse(matRbLS2WS);
+			for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
+				string rbmkName = it->first;
+				int aidRbMk = vzmutils::GetSceneItemIdByName(rbmkName);
+				if (aidRbMk == 0) {
+					apRbMk.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+					*(glm::fvec4*)apRbMk.color = glm::fvec4(1.f, 0.f, 0.f, 1.0f); // rgba
+					vzm::NewActor(apRbMk, rbmkName, aidRbMk);
+					vzm::AppendSceneItemToSceneTree(aidRbMk, aidGroupRbMks);
+				}
+				vzm::GetActorParams(aidRbMk, apRbMk);
+				auto& mkInfo = it->second;
+
+				bool isTrackedMk = std::any_cast<bool>(mkInfo[track_info::MKINFO::TRACKED]);
+				if (isTrackedMk) {
+					apRbMk.is_visible = true;
+
+					fvec3 posWS = std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
+					fvec3 posRbLS = vzmutils::transformPos(posWS, matWS2RbLS);
+
+					glm::fmat4x4 matT = glm::translate(posRbLS);
+					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.007f)); // set 1 cm to the marker diameter
+
+					matT = matT * matScale;
+					apRbMk.is_visible = true;
+					apRbMk.is_pickable = false;
+					apRbMk.SetLocalTransform(__FP matT);
+				}
+				else {
+					apRbMk.is_visible = false;
+				}
+
+				vzm::SetActorParams(aidRbMk, apRbMk);
+			}
+			/**/
+			vzm::SetActorParams(aidRb, apRb);
+		} // for (int i = 0; i < numRBs; i++)
+
+		int numMKs = trackInfo.NumMarkers();
+		//
+
+
+
+
+		/*
+		static std::set<std::string> sceneRbs;
 
 		// DOJO : 최초 한번만 리소스 오브젝트 생성 (static 으로 지정된 리소스 오브젝트 ID = 0 일 때, 생성) 
 		// 이를 actor 로 생성하고 scene tree 에 배치
 		{
-			using namespace std;
-			using namespace navihelpers;
-			using namespace glm;
 
-			int sidScene = vzmutils::GetSceneItemIdByName(__gc->g_sceneName);
 
-			// tracking camera (총 세개) 를 그리는 actors
-			static int aidGroupCams = 0;
-			if (aidGroupCams == 0) {
-				vzm::ActorParameters apGroupCams;
-				vzm::NewActor(apGroupCams, "Tracking CAM Group", aidGroupCams);
-				vzm::AppendSceneItemToSceneTree(aidGroupCams, sidScene);
 
-				static int oidCamModels[3] = { 0, 0, 0 };
-				for (int i = 0; i < 3; i++) {
-					fmat4x4 matCam2WS;
-					trackInfo.GetTrackingCamPose(i, matCam2WS);
-
-					int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
-					Cam_Gen(matCam2WS, "CAM" + to_string(i), oidCamTris, oidCamLines, oidCamLabel);
-
-					vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
-					apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
-					apCamTris.color[3] = 0.5f;
-					apCamLines.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLines);
-					*(fvec4*)apCamLines.phong_coeffs = fvec4(0, 1, 0, 0);
-					apCamLines.line_thickness = 2;
-					apCamLabel.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamLabel);
-					*(fvec4*)apCamLabel.phong_coeffs = fvec4(0, 1, 0, 0);
-					int aidCamTris = 0, aidCamLines = 0, aidCamLabel = 0;
-					vzm::NewActor(apCamTris, "Cam" + to_string(i) + " Tris", aidCamTris);
-					vzm::NewActor(apCamLines, "Cam" + to_string(i) + " Lines", aidCamLines);
-					vzm::NewActor(apCamLabel, "Cam" + to_string(i) + " Label", aidCamLabel);
-					vzm::AppendSceneItemToSceneTree(aidCamTris, aidGroupCams);
-					vzm::AppendSceneItemToSceneTree(aidCamLines, aidGroupCams);
-					vzm::AppendSceneItemToSceneTree(aidCamLabel, aidGroupCams);
-				}
-			}
-			//
-
-			static int oidAxis = 0;
-			static int oidMarker = 0;
-			static int oidProbe = 0;
-			static float probeCorrection = 0;
-			//static int oidLine = 0;
-			// axis 를 그리는 resource object 생성
-			if (vzm::GetResObjType(oidAxis) == vzm::ResObjType::UNDEFINED) {
-				vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
-			}
-			// spherical marker 를 그리는 resource object 생성
-			if (vzm::GetResObjType(oidMarker) == vzm::ResObjType::UNDEFINED) {
-				glm::fvec4 pos(0, 0, 0, 1.f);
-				vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
-			}
-			// probe 를 그리는 resource object 생성
-			if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED ||
-				probeCorrection != __gc->g_probeTipCorrection) {
-				probeCorrection = __gc->g_probeTipCorrection;
-				//vzm::LoadModelFile(folder_data + "probe.obj", oidProbe);
-
-				glm::fvec3 posS(0, 0, 0.25f);
-				glm::fvec3 posE(0, 0, -probeCorrection);
-				//vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
-				glm::fvec3 pp[2] = { posE , posS };
-				float rr[2] = { 0.001, 0.001 };
-				//vzm::GenerateCylindersObject((float*)pp, __FP posE, 0.0025f, 0.0025f, oidProbe);
-				vzm::GenerateCylindersObject((float*)pp, (float*)rr, NULL, 1, oidProbe);
-				//glm::fvec4 pos(0, 0, 0, 0.001f);
-				//vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidProbe);
-			}
-			//if (oidLine == 0) {
-			//	glm::fvec3 linePos[2] = { glm::fvec3(0, 0, 0), glm::fvec3(0, 0, 1) };
-			//	vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidLine);
-			//}
 
 			// tracking 된 rigid bodies 중, probe 와 그외 일반 rigid body frame 을 나타낼 scene actor 에 생성된 resource (oidProbe, oidAxis) 를 할당
 			// 최초 한 번만 할당하며 scene 에 tracking unit 의 이름이 있는지로 확인하고 없을 때, 할당
@@ -385,6 +532,8 @@ namespace rendertask {
 
 				// 여기에서 index 는 optitrack lib 에서 사용하는 index 와 다르다! track_info 구조체에서 사용하는 index 임!
 				if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet, &rb_cid)) {
+
+					sceneRbs.insert(rbName);
 
 					int aidRb = vzmutils::GetSceneItemIdByName(rbName);
 					if (aidRb != 0) {
@@ -522,12 +671,16 @@ namespace rendertask {
 			}
 		}
 
+		std::set<std::string> rbNotVis = sceneRbs;
+
 		// DOJO : scene tree 에 배치된 (rigid body) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동 
 		for (int i = 0; i < numRBs; i++) {
 			std::string rbName;
 			glm::fmat4x4 matLS2WS;
 			std::map<std::string, std::map<track_info::MKINFO, std::any>> rbmkSet;
 			if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, &rbmkSet, NULL)) {
+
+				rbNotVis.erase(rbName);
 
 				int aidRb = vzmutils::GetSceneItemIdByName(rbName);
 				vzm::ActorParameters apRb;
@@ -559,6 +712,41 @@ namespace rendertask {
 				}
 
 				if (rbName == "tool") {
+					using namespace glm;
+
+					//const float tool_lineLength = (float)(0.149);
+					const float tool_lineLength = (float)(0.255);
+					
+					std::vector<fvec3> toolUserData = __gc->g_rbLocalUserPoints["tool"];
+					// compute the line geometry in the tool's rigid body
+					glm::fvec3 posTipLS = toolUserData[0] + toolUserData[1] * tool_lineLength;
+					glm::fvec3 linePos[2] = { toolUserData[0], posTipLS };
+					static int oidToolLine = 0;
+					if (vzm::GetResObjType(oidToolLine) == vzm::ResObjType::UNDEFINED)
+						vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
+
+
+					int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
+					int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
+					assert(aidToolBody != 0 && aidToolTip != 0);
+
+					vzm::ActorParameters apToolBody, apToolTip;
+					vzm::GetActorParams(aidToolBody, apToolBody);
+					apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
+					apToolBody.line_thickness = 3;
+					*(fvec4*)apToolBody.color = fvec4(1, 1, 1, 1);
+					vzm::SetActorParams(aidToolBody, apToolBody);
+
+					// local transform to the tip sphere
+					vzm::GetActorParams(aidToolTip, apToolTip);
+					*(fvec4*)apToolTip.color = fvec4(1, 1, 0, 1);
+					glm::fmat4x4 matLS = glm::translate(posTipLS); //posTipLS
+					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
+					matLS = matLS * matScale;
+					apToolTip.SetLocalTransform(__FP matLS);
+					vzm::SetActorParams(aidToolTip, apToolTip);
+				}
+				if (rbName == "tool_legacy") {
 					using namespace glm;
 
 					const float tipMarkerRadius = (float)(0.019 * 0.5);
@@ -633,6 +821,15 @@ namespace rendertask {
 					vzm::SetActorParams(aidToolTip, apToolTip);
 				}
 			}
+		}
+
+		for (auto it = rbNotVis.begin(); it != rbNotVis.end(); it++) {
+
+			int aidRb = vzmutils::GetSceneItemIdByName(*it);
+			vzm::ActorParameters apRb;
+			vzm::GetActorParams(aidRb, apRb);
+			apRb.is_visible = false;
+			vzm::SetActorParams(aidRb, apRb);
 		}
 
 		// DOJO : scene tree 에 배치된 (marker) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동
@@ -737,6 +934,9 @@ namespace rendertask {
 				}
 			}
 		}
+
+
+		/**/
 	}
 
 	// DOJO : 현재 Scene (__gc->g_sceneName) 에서 등록된 camera (__gc->g_camName, __gc->g_camName2) 들에 대해 렌더링하는 함수
