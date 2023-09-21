@@ -70,7 +70,7 @@ __GC __gc;
 
 auto ___LoadMyVariable = [](const std::string& pname, const int idx) {
 	cv::Mat ocvVec3(1, 3, CV_32FC1);
-	cv::FileStorage fs(__gc.g_folder_trackingInfo + "my_test_variables.txt", cv::FileStorage::Mode::READ);
+	cv::FileStorage fs(__gc.g_folder_trackingInfo + "my_test_variables.txt", cv::FileStorage::Mode::WRITE);
 	fs[pname] >> ocvVec3;
 	glm::fvec3 p1;
 	memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
@@ -341,8 +341,13 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	// DOJO: concurrent queue 에서 가장 최신에 저장된 tracking frame 정보 pop out
 	track_info trackInfo;
 
+	if (__gc.g_optiRecordFrame > 0)
+		__gc.g_optiRecordFrame++;
+
 	//for smaller overhead
 	__gc.g_track_que.wait_and_pop(trackInfo);
+
+	if (trackInfo.NumMarkers() == 0 && trackInfo.NumRigidBodies() == 0) return;
 
 	if (__gc.g_renderEvent == RENDER_THREAD_DOWNLOAD_IMG_PROCESS) {
 		//__gc.g_renderEvent = RENDER_THREAD_BUSY;
@@ -451,6 +456,26 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-09-15.motive";
 	__gc.g_recFileName = __gc.g_folder_trackingInfo + "TrackingRecord.csv";
 	__gc.g_recScanName = __gc.g_folder_trackingInfo + "ScanRecord.csv";
+	__gc.g_configFileName = __gc.g_folder_trackingInfo + "Config.txt";
+
+	{
+		cv::FileStorage __config_fs(__gc.g_configFileName, cv::FileStorage::Mode::WRITE);
+		__config_fs << "RecordeMode" << std::string("LOAD");
+		__config_fs << "RecordePeriod" << 2;
+		__config_fs.release();
+
+		cv::FileStorage config_fs(__gc.g_configFileName, cv::FileStorage::Mode::READ);
+		std::string configLoad;
+		int recordPeriod;
+		config_fs["RecordeMode"] >> configLoad;
+		config_fs["RecordePeriod"] >> recordPeriod;
+		__gc.g_optiRecordPeriod = recordPeriod;
+		config_fs.release();
+
+		if (configLoad == "LOAD") {
+			__gc.g_optiRecordMode = OPTTRK_RECMODE_LOAD;
+		}
+	}
 
 	rendertask::InitializeTask(&__gc);
 	nettask::InitializeTask(&__gc);

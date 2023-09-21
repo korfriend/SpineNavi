@@ -54,8 +54,8 @@ namespace trackingtask {
 				if (__gc->g_recFileStream.is_open()) {
 					std::cout << "CSV data has been written to " << __gc->g_recFileName << std::endl;
 					__gc->g_recFileStream.close();
+					__gc->g_optiRecordFrame = 0;
 				}
-				__gc->g_optiRecordFrame = 0;
 			};
 			auto string2cid = [](const std::string id) {
 				std::bitset<128> cid;
@@ -85,112 +85,127 @@ namespace trackingtask {
 			if (__gc->g_optiRecordMode == OPTTRK_RECMODE_LOAD) {
 
 				recFinished();
+				static int frameCount = 0;
 
 				if (__gc->g_optiRecordFrame == 0) {
 					csvTrkData.Load(__gc->g_recFileName, rapidcsv::LabelParams(0, 0));
 
-					rowTypes = csvTrkData.GetRow<std::string>(0);
-					rowNames = csvTrkData.GetRow<std::string>(1);
-					rowIds = csvTrkData.GetRow<std::string>(2);
-					rowDataType = csvTrkData.GetRow<std::string>(3);
+					rowTypes = csvTrkData.GetRow<std::string>(-1);
+					rowNames = csvTrkData.GetRow<std::string>(0);
+					rowIds = csvTrkData.GetRow<std::string>(1);
+					rowDataType = csvTrkData.GetRow<std::string>(2);
 
 					numCols = (int)csvTrkData.GetColumnCount();
 					numRows = (int)csvTrkData.GetRowCount();
 
 					// get rbNames 
+					rbNames.clear();
 					std::set<std::string> rbNamesChecker;
 					for (int i = 0; i < numCols; i++) {
 						if (rowTypes[i] == "Rigid Body") {
 							string rbName = rowNames[i];
 							if (rbNamesChecker.find(rbName) == rbNamesChecker.end()) {
+								rbNamesChecker.insert(rbName);
 								rbNames.push_back(rbName);
 							}
 						}
 					}
+
+					__gc->g_optiRecordFrame = 1;
+					frameCount = 0;
 				}
 
-				const int frameRowIdx = 5;
 
-				std::vector<std::string> rowData = csvTrkData.GetRow<std::string>((int)frameRowIdx + (int)__gc->g_optiRecordFrame);
+				const int frameRowIdx = 4;
+				const int numTotalFrames = numRows - 4;
 
-				glm::fmat4x4 matData;
-				float* pmat = glm::value_ptr(matData);
-				glm::fvec3 posData;
-				float* ppos = glm::value_ptr(posData);
-				glm::fquat qtData;
-				float* pqt = glm::value_ptr(qtData);
+				std::string frameStr = csvTrkData.GetRowName((int)frameRowIdx + (int)(frameCount % numTotalFrames));
+				int recordFrame = std::stoi(frameStr);
+				if (__gc->g_optiRecordFrame > recordFrame) {
 
-				//int numAllFramesRBs = (int)rbNames.size();
-				vector< map<string, map<track_info::MKINFO, std::any>>> rbMkSets;// (numAllFramesRBs);
-				for (int i = 0; i < numCols; i++) {
-					if (rowTypes[i] == "Opti Camera") {
-						for (int j = 0; j < 16; j++, i++) {
-							float fv = std::stof(rowData[j]);
-							pmat[j] = fv;
-						}
-						trk_info.AddTrackingCamPose(matData);
-					}
-					else if (rowTypes[i] == "Rigid Body") {
-						string rbName = rowNames[i];
-						bitset<128> cid = string2cid(rowIds[i]);
-						for (int j = 0; j < 4; j++, i++) {
-							float fv = std::stof(rowData[i]);
-							pqt[j] = fv;
-						}
-						for (int j = 0; j < 3; j++, i++) {
-							float fv = std::stof(rowData[i]);
-							ppos[j] = fv;
-						}
+					std::vector<std::string> rowData = csvTrkData.GetRow<std::string>((int)frameRowIdx + (int)(frameCount % numTotalFrames));
+					frameCount++;
 
-						glm::fmat4x4 mat_r = glm::toMat4(qtData);
-						glm::fmat4x4 mat_t = glm::translate(posData);
-						glm::fmat4x4 matLS2WS = mat_t * mat_r;
+					glm::fmat4x4 matData;
+					float* pmat = glm::value_ptr(matData);
+					glm::fvec3 posData;
+					float* ppos = glm::value_ptr(posData);
+					glm::fquat qtData;
+					float* pqt = glm::value_ptr(qtData);
 
-						float mkMSE = std::stof(rowData[i++]);
-						std::map<std::string, std::map<track_info::MKINFO, std::any>> rbmkSet;
-						while (rowTypes[i] == "Rigid Body Marker") {
-							string mkName = rowNames[i];
-							bitset<128> mk_cid = string2cid(rowIds[i]);
-							glm::fvec3 pos;
-							float quality;
-							for (int j = 0; j < 4; j++) {
-								float fv = std::stof(rowData[i++]);
-								if (j != 3)
-									((float*)&pos)[j] = fv;
-								else
-									quality = fv;
+					//int numAllFramesRBs = (int)rbNames.size();
+					vector< map<string, map<track_info::MKINFO, std::any>>> rbMkSets;// (numAllFramesRBs);
+					for (int i = 0; i < numCols - 1; i++) {
+						if (rowTypes[i] == "Opti Camera") {
+							for (int j = 0; j < 16; j++, i++) {
+								float fv = std::stof(rowData[i]);
+								pmat[j] = fv;
 							}
-							std::map<track_info::MKINFO, std::any>& mk = rbmkSet[mkName];
-							mk[track_info::MKINFO::MK_NAME] = mkName;
-							mk[track_info::MKINFO::MK_CID] = mk_cid;
-							mk[track_info::MKINFO::POSITION] = pos;
-							mk[track_info::MKINFO::MK_QUALITY] = quality;
-							mk[track_info::MKINFO::TRACKED] = (bool)(quality > 0.5f);
+							trk_info.AddTrackingCamPose(matData);
+						}
+						else if (rowTypes[i] == "Rigid Body") {
+							string rbName = rowNames[i];
+							bitset<128> cid = string2cid(rowIds[i]);
+							for (int j = 0; j < 4; j++, i++) {
+								float fv = std::stof(rowData[i]);
+								pqt[j] = fv;
+							}
+							for (int j = 0; j < 3; j++, i++) {
+								float fv = std::stof(rowData[i]);
+								ppos[j] = fv;
+							}
 
+							glm::fmat4x4 mat_r = glm::toMat4(qtData);
+							glm::fmat4x4 mat_t = glm::translate(posData);
+							glm::fmat4x4 matLS2WS = mat_t * mat_r;
+
+							float mkMSE = std::stof(rowData[i++]);
+
+							std::map<std::string, std::map<track_info::MKINFO, std::any>> rbmkSet;
+							while (rowTypes[i] == "Rigid Body Marker") {
+								string mkName = rowNames[i];
+								bitset<128> mk_cid = string2cid(rowIds[i]);
+								glm::fvec3 pos;
+								float quality;
+								for (int j = 0; j < 4; j++, i++) {
+									float fv = std::stof(rowData[i]);
+									if (j != 3)
+										((float*)&pos)[j] = fv;
+									else
+										quality = fv;
+								}
+								std::map<track_info::MKINFO, std::any>& mk = rbmkSet[mkName];
+								mk[track_info::MKINFO::MK_NAME] = mkName;
+								mk[track_info::MKINFO::MK_CID] = mk_cid;
+								mk[track_info::MKINFO::POSITION] = pos;
+								mk[track_info::MKINFO::MK_QUALITY] = quality;
+								mk[track_info::MKINFO::TRACKED] = (bool)(quality > 0.5f);
+							}
 							rbMkSets.push_back(rbmkSet);
-						}
 
-						// 저장 시 tvec, quaternion 버전으로..
-						trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, mkMSE, true, rbmkSet);
-					} // else if (rowTypes[i] == "Rigid Body")
-					else if (rowTypes[i] == "Marker") {
-						for (int j = 0; j < (int)rbMkSets.size(); j++) {
-							std::map<std::string, std::map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[j];
-							int mk_count = 0;
-							for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
-								std::bitset<128> cid = j << 8 | mk_count++;
-								std::string mkName = any_cast<std::string>(it->second[track_info::MKINFO::MK_NAME]);
-								glm::fvec3 mkPos = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION]);
-								trk_info.AddMarker(cid, mkPos, mkName);
+							// 저장 시 tvec, quaternion 버전으로..
+							trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, mkMSE, mkMSE >= 0, rbmkSet);
+						} // else if (rowTypes[i] == "Rigid Body")
+						else if (rowTypes[i] == "Marker") {
+							int mkIdx = 1;
+							for (int j = 0; j < (int)rbMkSets.size(); j++) {
+								std::map<std::string, std::map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[j];
+								int mk_count = 0;
+								for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
+									std::bitset<128> cid = j << 8 | mk_count++;
+									std::string mkName = any_cast<std::string>(it->second[track_info::MKINFO::MK_NAME]);
+									glm::fvec3 mkPos = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION]);
+									trk_info.AddMarker(cid, mkPos, "Marker" + to_string(mk_count));
+								}
 							}
+							i = numCols + 1;
 						}
-					}
-					i--;
-				} // for (int i = 0; i < numCols; i++)
-
-				// __gc->g_optiRecordMode == OPTTRK_RECMODE_LOAD
-
-				__gc->g_optiRecordFrame++;
+						else {
+							i++;
+						}
+						i--;
+					} // for (int i = 0; i < numCols; i++)
+				}
 			}
 			else {	// __gc->g_optiRecordMode != OPTTRK_RECMODE_LOAD
 
@@ -456,19 +471,19 @@ namespace trackingtask {
 							map<string, map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[i];
 
 							int mk_count = 0;
-							//for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
-							//	for (int j = 0; j < 3; j++) {
-							//		csvRow1.push_back("Marker");
-							//		csvRow2.push_back(it->first + " PC");
-							//		csvRow3.push_back(to_string(i << 8 | mk_count++));
-							//		csvRow4.push_back("Position");
-							//		switch (j) {
-							//		case 0: csvRow5.push_back("X"); break;
-							//		case 1: csvRow5.push_back("Y"); break;
-							//		case 2: csvRow5.push_back("Z"); break;
-							//		}
-							//	}
-							//}
+							for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
+								for (int j = 0; j < 3; j++) {
+									csvRow1.push_back("Marker");
+									csvRow2.push_back(it->first + " PC");
+									csvRow3.push_back(to_string(i << 8 | mk_count++));
+									csvRow4.push_back("Position");
+									switch (j) {
+									case 0: csvRow5.push_back("X"); break;
+									case 1: csvRow5.push_back("Y"); break;
+									case 2: csvRow5.push_back("Z"); break;
+									}
+								}
+							}
 						}
 
 						// Write CSV data to the file
@@ -485,7 +500,7 @@ namespace trackingtask {
 						}
 					}
 					
-					if (__gc->g_optiRecordFrame % 100 == 0) {
+					if (__gc->g_optiRecordFrame % __gc->g_optiRecordPeriod == 0) {
 
 						std::vector<std::string> csvRow = { to_string(__gc->g_optiRecordFrame), to_string(timeBegin) };
 
@@ -498,11 +513,12 @@ namespace trackingtask {
 								csvRow.push_back(to_string(matData[j]));
 							}
 						}
+						vector< map<string, map<track_info::MKINFO, std::any>>> rbMkSets(numAllFramesRBs);
 						for (int i = 0; i < numAllFramesRBs; i++) {
 							string rbName;
 							//glm::fmat4x4 matLS2WS;
 							float mkMSE;
-							map<string, map<track_info::MKINFO, std::any>> rbmkSet;
+							map<string, map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[i];
 							trk_info.GetRigidBodyByIdx(i, &rbName, NULL, &mkMSE, &rbmkSet, NULL);
 							glm::fquat q;
 							glm::fvec3 tvec;
@@ -517,24 +533,27 @@ namespace trackingtask {
 							}
 							csvRow.push_back(std::to_string(mkMSE));
 
-							//for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
-							//	glm::fvec3 posMk = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION]);
-							//	float qualMk = any_cast<float>(it->second[track_info::MKINFO::MK_QUALITY]);
-							//
-							//	csvRow.push_back(to_string(posMk.x));
-							//	csvRow.push_back(to_string(posMk.y));
-							//	csvRow.push_back(to_string(posMk.z));
-							//	csvRow.push_back(to_string(qualMk));
-							//}
+							for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
+								glm::fvec3 posMk = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION]);
+								float qualMk = any_cast<float>(it->second[track_info::MKINFO::MK_QUALITY]);
+
+								csvRow.push_back(to_string(posMk.x));
+								csvRow.push_back(to_string(posMk.y));
+								csvRow.push_back(to_string(posMk.z));
+								csvRow.push_back(to_string(qualMk));
+							}
 						} // for (int i = 0; i < numAllFramesRBs; i++)
 
-						// to do : add markers...
-						//int numMks = trk_info.NumMarkers();
-						//for (int i = 0; i < numMks; i++) {
-						//	std::map<track_info::MKINFO, std::any> mk;
-						//	trk_info.GetMarkerByIdx(i, mk);
-						//	//mk[track_info::MKINFO::]
-						//}
+						for (int i = 0; i < numAllFramesRBs; i++) {
+							map<string, map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[i];
+
+							for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
+								glm::fvec3 posMk = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION_RBPC]);
+								csvRow.push_back(to_string(posMk.x));
+								csvRow.push_back(to_string(posMk.y));
+								csvRow.push_back(to_string(posMk.z));
+							}
+						}
 
 						// Write CSV data to the file
 						for (int j = 0; j < csvRow.size(); j++) {
@@ -545,9 +564,11 @@ namespace trackingtask {
 							else 
 								__gc->g_recFileStream << '\n';
 						}
-
+						__gc->g_optiRecordFrame++;
 					}
-					__gc->g_optiRecordFrame++;
+					if (__gc->g_optiRecordFrame == 0) {
+						__gc->g_optiRecordFrame = 1;
+					}
 				}
 				else {
 					recFinished();

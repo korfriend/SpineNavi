@@ -359,6 +359,7 @@ typedef struct GlobalContainer {
 	std::string g_profileFileName;
 	std::string g_recFileName;
 	std::string g_recScanName;
+	std::string g_configFileName;
 
 	std::string g_sceneName;// = "Scene1"; // Scene1, Scene2
 	std::string g_camName;// = "Cam1"; // World Camera, CArm Camera
@@ -438,7 +439,7 @@ typedef struct GlobalContainer {
 #define OPTTRK_RECMODE_LOAD 2
 	std::atomic_int g_optiRecordMode;
 	std::atomic_int g_optiRecordFrame;
-
+	std::atomic_int g_optiRecordPeriod;
 
 #define RENDER_THREAD_FREE 0
 #define RENDER_THREAD_DOWNLOAD_IMG_PROCESS 1
@@ -490,6 +491,7 @@ typedef struct GlobalContainer {
 		g_renderEvent = RENDER_THREAD_FREE;
 		g_networkEvent = NETWORK_THREAD_FREE;
 		g_optiRecordFrame = 0;
+		g_optiRecordPeriod = 10;
 
 		g_tracker_alive = true;
 		g_network_alive = true;

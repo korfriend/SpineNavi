@@ -367,7 +367,6 @@ namespace rendertask {
 		}
 
 		const int numRBs = trackInfo.NumRigidBodies();
-		map<string, int> mapSafeCheck;
 		for (int i = 0; i < numRBs; i++) {
 			string rbName;
 			float rb_error = 0;
@@ -377,7 +376,6 @@ namespace rendertask {
 
 			// 여기에서 index 는 optitrack lib 에서 사용하는 index 와 다르다! track_info 구조체에서 사용하는 index 임!
 			bool isRbTracked = trackInfo.GetRigidBodyByIdx(i, &rbName, &matRbLS2WS, &rb_error, &rbmkSet, &rb_cid);
-			mapSafeCheck[rbName]++;
 			int aidRb = vzmutils::GetSceneItemIdByName(rbName);
 			vzm::ActorParameters apRb;
 			if (aidRb == 0) {
@@ -493,6 +491,7 @@ namespace rendertask {
 					matT = matT * matScale;
 					apRbMk.is_visible = true;
 					apRbMk.is_pickable = false;
+					//apRbMk.label.textStr = to_string(aidRbMk);
 					apRbMk.SetLocalTransform(__FP matT);
 				}
 				else {
