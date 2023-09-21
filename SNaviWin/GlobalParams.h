@@ -336,6 +336,7 @@ public:
 		v[MKINFO::POSITION] = mkPos;
 		v[MKINFO::MK_NAME] = mkName;
 		v[MKINFO::MK_QUALITY] = 1.f;
+		v[MKINFO::TRACKED] = true;
 
 		__mksByName[mkName] = cid;
 	}

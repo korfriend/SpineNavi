@@ -453,17 +453,19 @@ namespace rendertask {
 			// Rb markers //
 			
 			int aidGroupRbMks = vzmutils::GetSceneItemIdByName(rbName + ":Markers");
-			int numRbMks = apRb.test_params.GetParam("numRbMarkers", (int)0);
+			int numPrevRbMks = apRb.test_params.GetParam("numRbMarkers", (int)0);
+			int numCurRbMks = (int)rbmkSet.size();
 			vzm::ActorParameters apRbMk;
 			if (aidGroupRbMks == 0) {
 				vzm::NewActor(apRbMk, rbName + ":Markers", aidGroupRbMks);
 				vzm::AppendSceneItemToSceneTree(aidGroupRbMks, aidRb);
 			}
-			else if (numRbMks != (int)rbmkSet.size()) {
+			else if (numPrevRbMks != numCurRbMks) {
 				vzm::RemoveSceneItem(aidGroupRbMks);
 				vzm::NewActor(apRbMk, rbName + ":Markers", aidGroupRbMks);
 				vzm::AppendSceneItemToSceneTree(aidGroupRbMks, aidRb);
 			}
+			apRb.test_params.SetParam("numRbMarkers", numCurRbMks);
 
 			glm::fmat4x4 matWS2RbLS = glm::inverse(matRbLS2WS);
 			for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
@@ -476,17 +478,17 @@ namespace rendertask {
 					vzm::AppendSceneItemToSceneTree(aidRbMk, aidGroupRbMks);
 				}
 				vzm::GetActorParams(aidRbMk, apRbMk);
-				auto& mkInfo = it->second;
+				auto& rbmkInfo = it->second;
 
-				bool isTrackedMk = std::any_cast<bool>(mkInfo[track_info::MKINFO::TRACKED]);
+				bool isTrackedMk = std::any_cast<bool>(rbmkInfo[track_info::MKINFO::TRACKED]);
 				if (isTrackedMk) {
 					apRbMk.is_visible = true;
 
-					fvec3 posWS = std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
+					fvec3 posWS = std::any_cast<fvec3>(rbmkInfo[track_info::MKINFO::POSITION]);
 					fvec3 posRbLS = vzmutils::transformPos(posWS, matWS2RbLS);
 
 					glm::fmat4x4 matT = glm::translate(posRbLS);
-					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.007f)); // set 1 cm to the marker diameter
+					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.005f)); // set 0.7 cm to the marker diameter
 
 					matT = matT * matScale;
 					apRbMk.is_visible = true;
@@ -503,440 +505,90 @@ namespace rendertask {
 			vzm::SetActorParams(aidRb, apRb);
 		} // for (int i = 0; i < numRBs; i++)
 
-		int numMKs = trackInfo.NumMarkers();
-		//
-
-
-
-
-		/*
-		static std::set<std::string> sceneRbs;
-
-		// DOJO : 최초 한번만 리소스 오브젝트 생성 (static 으로 지정된 리소스 오브젝트 ID = 0 일 때, 생성) 
-		// 이를 actor 로 생성하고 scene tree 에 배치
-		{
-
-
-
-
-			// tracking 된 rigid bodies 중, probe 와 그외 일반 rigid body frame 을 나타낼 scene actor 에 생성된 resource (oidProbe, oidAxis) 를 할당
-			// 최초 한 번만 할당하며 scene 에 tracking unit 의 이름이 있는지로 확인하고 없을 때, 할당
-			// rigid body 에 등록된 마커도 같이 등록
-			for (int i = 0; i < numRBs; i++) {
-				std::string rbName;
-				float rb_error = 0;
-				std::bitset<128> rb_cid = 0;
-				map<string, map<track_info::MKINFO, std::any>> rbmkSet;
-
-				static std::map<std::string, std::bitset<128>> actorTrackObjMapper;
-
-				// 여기에서 index 는 optitrack lib 에서 사용하는 index 와 다르다! track_info 구조체에서 사용하는 index 임!
-				if (trackInfo.GetRigidBodyByIdx(i, &rbName, NULL, &rb_error, &rbmkSet, &rb_cid)) {
-
-					sceneRbs.insert(rbName);
-
-					int aidRb = vzmutils::GetSceneItemIdByName(rbName);
-					if (aidRb != 0) {
-						auto it = actorTrackObjMapper.find(rbName);
-						if (it == actorTrackObjMapper.end()) {
-							vzm::RemoveSceneItem(aidRb);
-							aidRb = 0;
-						}
-						else {
-							if (it->second != rb_cid) {
-								vzm::RemoveSceneItem(aidRb);
-								aidRb = 0;
-							}
-						}
-
-						actorTrackObjMapper[rbName] = rb_cid;
-					}
-
-					if (aidRb == 0) {
-						vzm::ActorParameters apRb;
-						if (rbName == "probe") {
-							apRb.SetResourceID(vzm::ActorParameters::GEOMETRY, oidProbe);
-							*(glm::fvec4*)apRb.color = glm::fvec4(1, 0.3, 0.2, 1);
-						}
-						else {
-							apRb.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
-							apRb.line_thickness = 3;
-						}
-						apRb.is_visible = false;
-						vzm::NewActor(apRb, rbName, aidRb);
-						vzm::AppendSceneItemToSceneTree(aidRb, sidScene);
-
-						if (rbName == "probe") {
-						}
-						else if (rbName == "tool") {
-							vzm::ActorParameters apEmpty;
-							int aidToolBody = 0, aidToolTip = 0;
-							vzm::NewActor(apEmpty, rbName + ":Body", aidToolBody);
-							apEmpty.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-							vzm::NewActor(apEmpty, rbName + ":Tip", aidToolTip);
-							vzm::AppendSceneItemToSceneTree(aidToolBody, aidRb);
-							vzm::AppendSceneItemToSceneTree(aidToolTip, aidRb);
-						}
-						else {
-							std::vector<glm::fvec3> pinfo(3);
-							pinfo[0] = glm::fvec3(0, 0, 0);
-							pinfo[1] = glm::fvec3(-1, 0, 0);
-							pinfo[2] = glm::fvec3(0, -1, 0);
-							int oidLabelText = 0;
-							vzm::GenerateTextObject((float*)&pinfo[0], rbName, 0.035, true, false, oidLabelText);
-							vzm::ActorParameters apLabelText;
-							apLabelText.SetResourceID(vzm::ActorParameters::GEOMETRY, oidLabelText);
-							*(glm::fvec4*)apLabelText.phong_coeffs = glm::fvec4(0, 1, 0, 0);
-							int aidLabelText = 0;
-							vzm::NewActor(apLabelText, rbName + ":Label", aidLabelText);
-							vzm::AppendSceneItemToSceneTree(aidLabelText, aidRb);
-						}
-
-						// rigid body 의 markers 들을 최초 할당
-						// 개수가 달라질 수 있다...  방법1. rbuid (마커/RB 용 따로 작업 확인) 확인, 방법2. mk 개수 체크 
-						for (auto& rbmk : rbmkSet) {
-							map<track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
-
-							string rbmk_name = std::any_cast<std::string>(rbmk_v[track_info::MKINFO::MK_NAME]);
-							int aidMarker = vzmutils::GetSceneItemIdByName(rbmk_name);
-							if (aidMarker == 0) {
-								vzm::ActorParameters apMarker;
-								apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-								apMarker.is_visible = false;
-								apMarker.is_pickable = false;
-								*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 0.f, 0.f, 0.3f); // rgba
-								vzm::NewActor(apMarker, rbmk_name, aidMarker);
-								vzm::AppendSceneItemToSceneTree(aidMarker, aidRb);
-							}
-						}
-					}
+		auto displayMarkers = [&sidScene](const map<string, fvec3>& mks, const string& groupName
+			, const fvec4& mkColor, const float r, const bool isPickable = false, const bool isVisible = true) {
+			int numCurMKs = (int)mks.size();
+			int aidGroupMks = vzmutils::GetSceneItemIdByName(groupName);
+			vzm::ActorParameters apMkGroup;
+			if (aidGroupMks == 0) {
+				vzm::NewActor(apMkGroup, groupName, aidGroupMks);
+				vzm::AppendSceneItemToSceneTree(aidGroupMks, sidScene);
+			}
+			else {
+				vzm::GetActorParams(aidGroupMks, apMkGroup);
+				int numPrevMks = apMkGroup.test_params.GetParam("numMarkers", (int)0);
+				if (numCurMKs != numPrevMks) {
+					vzm::RemoveSceneItem(aidGroupMks);
+					vzm::NewActor(apMkGroup, groupName, aidGroupMks);
+					vzm::AppendSceneItemToSceneTree(aidGroupMks, sidScene);
 				}
 			}
+			apMkGroup.test_params.SetParam("numMarkers", numCurMKs);
+			vzm::SetActorParams(aidGroupMks, apMkGroup);
 
-			// tracking 된 individual markers 를 나타낼 spherical shape 의 scene actor 에 생성된 resource (oidMarker) 를 할당
-			// 최초 한 번만 할당하며 scene 에 tracking unit 의 이름이 있는지로 확인하고 없을 때, 할당
-			for (int i = 0; i < numMKs; i++) {
-				std::map<track_info::MKINFO, std::any> mk;
-				if (trackInfo.GetMarkerByIdx(i, mk)) {
-					std::string mkName = std::any_cast<std::string>(mk[track_info::MKINFO::MK_NAME]);
-					int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
-					if (aidMarker == 0) {
-						vzm::ActorParameters apMarker;
-						apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-						apMarker.is_visible = false;
-						*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 1.f, 1.f, 1.f); // rgba
-						vzm::NewActor(apMarker, mkName, aidMarker);
-						vzm::AppendSceneItemToSceneTree(aidMarker, sidScene);
-					}
-				}
-			}
+			for (auto& mk : mks) {
 
-			int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
-			if (aidTestGroup == 0) {
-				vzm::ActorParameters apGroup;
-				vzm::NewActor(apGroup, "testMK Group", aidTestGroup);
-				vzm::AppendSceneItemToSceneTree(aidTestGroup, sidScene);
-			}
-			for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
-				std::string testMkName = "testMk-" + std::to_string(i);
-				int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
-				if (aidMarkerTest == 0) {
-					vzm::ActorParameters apMarker;
-					apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-					apMarker.is_visible = false;
-					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 0, 1.f, 1.f); // rgba
-					vzm::NewActor(apMarker, testMkName, aidMarkerTest);
-					vzm::AppendSceneItemToSceneTree(aidMarkerTest, aidTestGroup);
-				}
-			}
-
-			int aidCalibMkGroup = vzmutils::GetSceneItemIdByName("Calib MK Group");
-			if (aidCalibMkGroup == 0) {
-				vzm::ActorParameters apGroup;
-				vzm::NewActor(apGroup, "Calib MK Group", aidTestGroup);
-				vzm::AppendSceneItemToSceneTree(aidTestGroup, sidScene);
-			}
-			for (int i = 0; i < (int)__gc->g_homographyPairs.size(); i++) {
-				std::string calibMkName = "calibMk-" + std::to_string(i);
-				int aidMarkerCalib = vzmutils::GetSceneItemIdByName(calibMkName);
-				if (aidMarkerCalib == 0) {
-					vzm::ActorParameters apMarker;
-					apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-					apMarker.is_visible = false;
-					*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 0, 1.f, 1.f); // rgba
-					vzm::NewActor(apMarker, calibMkName, aidMarkerCalib);
-					vzm::AppendSceneItemToSceneTree(aidMarkerCalib, aidTestGroup);
-					
-				}
-			}
-		}
-
-		std::set<std::string> rbNotVis = sceneRbs;
-
-		// DOJO : scene tree 에 배치된 (rigid body) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동 
-		for (int i = 0; i < numRBs; i++) {
-			std::string rbName;
-			glm::fmat4x4 matLS2WS;
-			std::map<std::string, std::map<track_info::MKINFO, std::any>> rbmkSet;
-			if (trackInfo.GetRigidBodyByIdx(i, &rbName, &matLS2WS, NULL, &rbmkSet, NULL)) {
-
-				rbNotVis.erase(rbName);
-
-				int aidRb = vzmutils::GetSceneItemIdByName(rbName);
-				vzm::ActorParameters apRb;
-				vzm::GetActorParams(aidRb, apRb);
-				apRb.is_visible = true;
-
-				apRb.SetLocalTransform(__FP matLS2WS);
-				vzm::SetActorParams(aidRb, apRb);
-
-				glm::fmat4x4 matWS2LS = glm::inverse(matLS2WS);
-
-				for (auto& rbmk : rbmkSet) {
-					std::map<track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
-
-					std::string rbmk_name = std::any_cast<std::string>(rbmk_v[track_info::MKINFO::MK_NAME]);
-					glm::fvec3 pos = std::any_cast<glm::fvec3>(rbmk_v[track_info::MKINFO::POSITION]);
-					glm::fvec3 posRb = vzmutils::transformPos(pos, matWS2LS);
-
-					glm::fmat4x4 matMkLS2WS = glm::translate(posRb);
-					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.007f)); // set 1 cm to the marker diameter
-					matMkLS2WS = matMkLS2WS * matScale;
-					int aidMarker = vzmutils::GetSceneItemIdByName(rbmk_name);
-					vzm::ActorParameters apMarker;
-					vzm::GetActorParams(aidMarker, apMarker);
-					apMarker.is_visible = true;
-					apMarker.is_pickable = false;
-					apMarker.SetLocalTransform(__FP matMkLS2WS);
-					vzm::SetActorParams(aidMarker, apMarker);
-				}
-
-				if (rbName == "tool") {
-					using namespace glm;
-
-					//const float tool_lineLength = (float)(0.149);
-					const float tool_lineLength = (float)(0.255);
-					
-					std::vector<fvec3> toolUserData = __gc->g_rbLocalUserPoints["tool"];
-					// compute the line geometry in the tool's rigid body
-					glm::fvec3 posTipLS = toolUserData[0] + toolUserData[1] * tool_lineLength;
-					glm::fvec3 linePos[2] = { toolUserData[0], posTipLS };
-					static int oidToolLine = 0;
-					if (vzm::GetResObjType(oidToolLine) == vzm::ResObjType::UNDEFINED)
-						vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
-
-
-					int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
-					int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
-					assert(aidToolBody != 0 && aidToolTip != 0);
-
-					vzm::ActorParameters apToolBody, apToolTip;
-					vzm::GetActorParams(aidToolBody, apToolBody);
-					apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
-					apToolBody.line_thickness = 3;
-					*(fvec4*)apToolBody.color = fvec4(1, 1, 1, 1);
-					vzm::SetActorParams(aidToolBody, apToolBody);
-
-					// local transform to the tip sphere
-					vzm::GetActorParams(aidToolTip, apToolTip);
-					*(fvec4*)apToolTip.color = fvec4(1, 1, 0, 1);
-					glm::fmat4x4 matLS = glm::translate(posTipLS); //posTipLS
-					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
-					matLS = matLS * matScale;
-					apToolTip.SetLocalTransform(__FP matLS);
-					vzm::SetActorParams(aidToolTip, apToolTip);
-				}
-				if (rbName == "tool_legacy") {
-					using namespace glm;
-
-					const float tipMarkerRadius = (float)(0.019 * 0.5);
-					int numToolPoints = rbmkSet.size();
-
-					std::vector<fvec3> toolLocalPts;
-					for (auto& rbmk : rbmkSet) {
-						std::map<track_info::MKINFO, std::any>& rbmk_v = rbmk.second;
-						glm::fvec3 pos = std::any_cast<glm::fvec3>(rbmk_v[track_info::MKINFO::POSITION]);
-						glm::fvec3 posRb = vzmutils::transformPos(pos, matWS2LS);
-						toolLocalPts.push_back(posRb);
-					}
-
-					fvec3 posCenterLS = fvec3(0, 0, 0);
-					fvec3 posTipMkLS = __gc->g_toolTipPointLS;
-					for (int i = 0; i < numToolPoints - 1; i++) {
-						posCenterLS += toolLocalPts[i];
-					}
-					posCenterLS /= (float)(numToolPoints - 1);
-
-					// compute normal
-					fvec3 nrlLS = navihelpers::ComputeNormalVector(toolLocalPts); // LS
-
-					// correct the normal direction using cam view
-					int cidCam1 = vzmutils::GetSceneItemIdByName(__gc->g_camName); // Cam1
-					vzm::CameraParameters cam1Param;
-					vzm::GetCameraParams(cidCam1, cam1Param);
-					fvec3 camViewLS = vzmutils::transformVec(*(fvec3*)cam1Param.view, matWS2LS);
-					if (dot(nrlLS, camViewLS) > 0) nrlLS *= -1.f;
-
-					// compute line point of the tool
-					fvec3 posLineLS = posCenterLS - nrlLS * 0.07f;
-
-					// compute the direction of a tip (using inverse of the cam up)
-					fvec3 camUpLS = vzmutils::transformVec(*(fvec3*)cam1Param.up, matWS2LS);
-					fvec3 dirToolLS = normalize(posTipMkLS - posLineLS);
-
-					// compute the line geometry in the tool's rigid body
-					fvec3 posTipLS = posTipMkLS - dirToolLS * tipMarkerRadius;
-					glm::fvec3 linePos[2] = { posLineLS, posTipLS };
-					static int oidToolLine = 0;
-					if (vzm::GetResObjType(oidToolLine) == vzm::ResObjType::UNDEFINED)
-						vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
-
-
-					//{
-					//	// test //
-					//__gc->g_testMKs[0] = vzmutils::transformPos(posCenterLS, matLS2WS);
-					//__gc->g_testMKs[1] = vzmutils::transformPos(posLineLS, matLS2WS);
-					//__gc->g_testMKs[2] = vzmutils::transformPos(posTipLS, matLS2WS);
-					//}
-
-
-					int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
-					int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
-					assert(aidToolBody != 0 && aidToolTip != 0);
-
-					vzm::ActorParameters apToolBody, apToolTip;
-					vzm::GetActorParams(aidToolBody, apToolBody);
-					apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
-					apToolBody.line_thickness = 3;
-					*(fvec4*)apToolBody.color = fvec4(1, 1, 1, 1);
-					vzm::SetActorParams(aidToolBody, apToolBody);
-
-					// local transform to the tip sphere
-					vzm::GetActorParams(aidToolTip, apToolTip);
-					*(fvec4*)apToolTip.color = fvec4(1, 1, 0, 1);
-					glm::fmat4x4 matLS = glm::translate(posTipLS);
-					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.002f)); // set 1 cm to the marker diameter
-					matLS = matLS * matScale;
-					apToolTip.SetLocalTransform(__FP matLS);
-					vzm::SetActorParams(aidToolTip, apToolTip);
-				}
-			}
-		}
-
-		for (auto it = rbNotVis.begin(); it != rbNotVis.end(); it++) {
-
-			int aidRb = vzmutils::GetSceneItemIdByName(*it);
-			vzm::ActorParameters apRb;
-			vzm::GetActorParams(aidRb, apRb);
-			apRb.is_visible = false;
-			vzm::SetActorParams(aidRb, apRb);
-		}
-
-		// DOJO : scene tree 에 배치된 (marker) actor 들의 위치를 tracking 정보를 바탕으로 변환 이동
-		for (int i = 0; i < numMKs; i++) {
-			std::map<track_info::MKINFO, std::any> mk;
-			if (trackInfo.GetMarkerByIdx(i, mk)) {
-				std::string mkName = std::any_cast<std::string>(mk[track_info::MKINFO::MK_NAME]);
-				glm::fvec3 pos = std::any_cast<glm::fvec3>(mk[track_info::MKINFO::POSITION]);
-
-				glm::fmat4x4 matLS2WS = glm::translate(pos);
-				glm::fmat4x4 matScale = glm::scale(glm::fvec3(__gc->g_calribmodeToggle ? 0.01f : 0.005f)); // set 1 cm to the marker diameter
-				matLS2WS = matLS2WS * matScale;
-				int aidMarker = vzmutils::GetSceneItemIdByName(mkName);
+				int aidMarker = vzmutils::GetSceneItemIdByName(mk.first);
 				vzm::ActorParameters apMarker;
+				if (aidMarker == 0) {
+					apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+					vzm::NewActor(apMarker, mk.first, aidMarker);
+					vzm::AppendSceneItemToSceneTree(aidMarker, aidGroupMks);
+				}
 				vzm::GetActorParams(aidMarker, apMarker);
-				apMarker.is_visible = true;
-				apMarker.is_pickable = true;
-				apMarker.label.textStr = "";
+				// note: the individual markers given by GetMarkerByIdx are always tracked 
 
-				*(glm::fvec4*)apMarker.color = glm::fvec4(1, 1, 1, __gc->g_calribmodeToggle? 0.5f : 1);
-				auto it = __gc->g_selectedMkNames.find(mkName);
+				fvec3 posWS = std::any_cast<fvec3>(mk.second);
+
+				float targetR = __gc->g_calribmodeToggle ? 2.f * r : r;
+				*(glm::fvec4*)apMarker.color = mkColor; // rgba
+				apMarker.color[3] = __gc->g_calribmodeToggle ? 0.8f : 0.5f;
+				auto it = __gc->g_selectedMkNames.find(mk.first);
 				if (it != __gc->g_selectedMkNames.end()) {
 					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 0.5);
-
 					apMarker.label.textStr = "p:" + std::to_string(it->second);
 					apMarker.label.fontSize = 15.f;
 				}
 
-				apMarker.SetLocalTransform(__FP matLS2WS);
+				glm::fmat4x4 matT = glm::translate(posWS);
+				glm::fmat4x4 matScale = glm::scale(glm::fvec3(targetR)); // set 0.7 cm to the marker diameter
+
+				matT = matT * matScale;
+				apMarker.is_visible = isVisible;
+				apMarker.is_pickable = isPickable;
+				apMarker.SetLocalTransform(__FP matT);
+
 				vzm::SetActorParams(aidMarker, apMarker);
 			}
+		};
+
+
+		map<string, fvec3> optiMarkers;
+		for (int i = 0; i < (int)trackInfo.NumMarkers(); i++) {
+			std::map<track_info::MKINFO, std::any> mkInfo;
+			// "Marker[i+1]"
+			assert(trackInfo.GetMarkerByIdx(i, mkInfo));
+			optiMarkers[std::any_cast<std::string>(mkInfo[track_info::MKINFO::MK_NAME])] 
+				= std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
 		}
+		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.5f), 0.007f, true);
 
-		// test display
-		{
-			// for testing
-			for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
-				std::string testMkName = "testMk-" + std::to_string(i);
-				int aidMarkerTest = vzmutils::GetSceneItemIdByName(testMkName);
-				if (aidMarkerTest != 0) {
-					glm::fmat4x4 matLS2WS = glm::translate(__gc->g_testMKs[i]);
-					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.001f)); // set 1 cm to the marker diameter
-					matLS2WS = matLS2WS * matScale;
 
-					vzm::ActorParameters apMarker;
-					vzm::GetActorParams(aidMarkerTest, apMarker);
-					apMarker.is_visible = true;
-					apMarker.label.textStr = __gc->g_calribmodeToggle? "c:" + std::to_string(i) : "";
-					apMarker.label.iColor = 0xFF00FF;
-					apMarker.label.fontSize = 15.f;
-					apMarker.label.posScreenX = 10;
-					*(glm::fvec4*)apMarker.color = glm::fvec4(1, 0, 1, 0.5);
-
-					apMarker.SetLocalTransform(__FP matLS2WS);
-					vzm::SetActorParams(aidMarkerTest, apMarker);
-				}
-			}
+		map<string, fvec3> testMarkers;
+		for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
+			testMarkers["testMK" + to_string(i + 1)] = __gc->g_testMKs[i];
 		}
+		displayMarkers(testMarkers, "TestMarkers", glm::fvec4(0, 0, 1.f, 0.5f), 0.007f);
 
 
-		//int aidCalibMkGroup = vzmutils::GetSceneItemIdByName("Calib MK Group");
-		//if (aidCalibMkGroup == 0) {
-		//	vzm::ActorParameters apGroup;
-		//	vzm::NewActor(apGroup, "Calib MK Group", aidTestGroup);
-		//	vzm::AppendSceneItemToSceneTree(aidTestGroup, sidScene);
-		//}
-		//for (int i = 0; i < (int)__gc->g_homographyPairs.size(); i++) {
-		//	std::string calibMkName = "calibMk-" + std::to_string(i);
-		//	int aidMarkerCalib = vzmutils::GetSceneItemIdByName(calibMkName);
-		//	if (aidMarkerCalib == 0) {
-		//		vzm::ActorParameters apMarker;
-		//		apMarker.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
-		//		apMarker.is_visible = false;
-		//		*(glm::fvec4*)apMarker.color = glm::fvec4(1.f, 0, 1.f, 1.f); // rgba
-		//		vzm::NewActor(apMarker, calibMkName, aidMarkerCalib);
-		//		vzm::AppendSceneItemToSceneTree(aidMarkerCalib, aidTestGroup);
-		//
-		//	}
-		//}
-
-		{
-			glm::fmat4x4 matCArmRB2WS;
-			trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
-
-			int mkIndex = 0;
-			for (auto it = __gc->g_homographyPairs.begin(); it != __gc->g_homographyPairs.end(); it++)
-			{
-				glm::fvec3 posCalibMKRB = it->first;
-				std::string testMkName = "calibMk-" + std::to_string(mkIndex++);
-				int aidMarkerCalib = vzmutils::GetSceneItemIdByName(testMkName);
-				if (aidMarkerCalib != 0) {
-					glm::fmat4x4 matLS2WS = matCArmRB2WS * glm::translate(posCalibMKRB);
-					glm::fmat4x4 matScale = glm::scale(glm::fvec3(0.001f)); // set 1 cm to the marker diameter
-					matLS2WS = matLS2WS * matScale;
-
-					vzm::ActorParameters apMarker;
-					vzm::GetActorParams(aidMarkerCalib, apMarker);
-					apMarker.is_visible = __gc->g_showCalibMarkers;
-					//apMarker.label.textStr = "(" + std::to_string(it->second.x) + ", " + std::to_string(it->second.y) + ")";
-					apMarker.SetLocalTransform(__FP matLS2WS);
-					vzm::SetActorParams(aidMarkerCalib, apMarker);
-				}
-			}
+		map<string, fvec3> calibMarkers;
+		int mkIndex = 1;
+		glm::fmat4x4 matCArmRB2WS;
+		trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
+		for (auto it : __gc->g_homographyPairs) {
+			calibMarkers["calibMK" + to_string(mkIndex++)] = it.first;
 		}
-
-
-		/**/
+		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 1.f), 0.003f, false, __gc->g_showCalibMarkers);
 	}
 
 	// DOJO : 현재 Scene (__gc->g_sceneName) 에서 등록된 camera (__gc->g_camName, __gc->g_camName2) 들에 대해 렌더링하는 함수
