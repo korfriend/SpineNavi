@@ -575,7 +575,9 @@ namespace trackingtask {
 				}
 				// __gc->g_optiRecordMode != OPTTRK_RECMODE_LOAD
 			} 
-			__gc->g_track_que.push(trk_info);
+
+			if (trk_info.NumMarkers() > 0 || trk_info.NumRigidBodies() > 0)
+				__gc->g_track_que.push(trk_info);
 		}
 	}
 }

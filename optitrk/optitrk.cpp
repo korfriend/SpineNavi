@@ -349,6 +349,49 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 	return true;
 }
 
+bool StartPivotSample(const std::bitset<128>& cidRb, const int numSamples)
+{
+	Core::cUID rigidBodyID((cidRb >> 64).to_ullong(), ((cidRb << 64) >> 64).to_ullong());
+	return TT_RigidBodyPivotSolverStart(rigidBodyID, numSamples);
+}
+
+bool ProcessPivotSample(float* progress, float* errInit, float* errResult)
+{
+	auto SolverStateToString = [](TT_RigidBodyPivotSolverStates pivotSolverState) {
+		std::string stateStr;
+		switch (pivotSolverState) {
+		case TT_RigidBodyPivotSolver_Initialized: stateStr = "Initialized"; break;
+		case TT_RigidBodyPivotSolver_Sampling: stateStr = "Sampling"; break;
+		case TT_RigidBodyPivotSolver_Solving: stateStr = "Solving"; break;
+		case TT_RigidBodyPivotSolver_Complete: stateStr = "Complete"; break;
+		case TT_RigidBodyPivotSolver_Uninitialized: stateStr = "Uninitialized"; break;
+		}
+		return stateStr;
+	};
+
+	TT_RigidBodyPivotSolverStates pivotSolverState = TT_RigidBodyPivotSolverState();
+	std::cout << "RigidBodyPivotSolverStates : " << SolverStateToString(pivotSolverState) << std:: endl;
+	if (pivotSolverState == TT_RigidBodyPivotSolver_Uninitialized)
+		return false;
+
+	bool ret = TT_RigidBodyPivotSolverSample();
+
+	pivotSolverState = TT_RigidBodyPivotSolverState();
+
+	if (progress) *progress = TT_RigidBodyPivotSolverProgress();
+	if (errInit) *errInit = TT_RigidBodyPivotSolverInitialError();
+
+	if (pivotSolverState == TT_RigidBodyPivotSolver_Complete) {
+		if (errResult) *errResult = TT_RigidBodyPivotSolverResultError();
+		TT_RigidBodyPivotSolverApplyResult(); 
+	}
+	else {
+		if (errResult) *errResult = -1.f;
+	}
+	return ret;
+}
+
+
 bool optitrk::Test(float* v) {
 	float   yaw, pitch, roll;
 	float   x, y, z;
