@@ -36,8 +36,9 @@ namespace optitrk
 
 	__dojostatic bool SetRigidBody(const std::string& rbName, const int numMKs, const float* mkPosArray);
 
-	__dojostatic bool StartPivotSample(const std::bitset<128>& cidRb, const int numSamples); 
+	__dojostatic bool StartPivotSample(const std::bitset<128>& cidRb, const int numSamples);
 	__dojostatic bool ProcessPivotSample(float* progress, float* errInit, float* errResult); // a percentage of the total samples during sampling.
+	__dojostatic bool ResetPivot(); // a percentage of the total samples during sampling.
 
 	// mat_cam2ws ==> glm::fmat4x4
 	// normal camera space.. up : y down (-y), view : +z

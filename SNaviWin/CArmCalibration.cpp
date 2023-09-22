@@ -825,7 +825,7 @@ namespace calibtask {
 
 		if (calib_mode == "LEGO" || calib_mode == "FMARKERS") {
 			if (__gc->g_selectedMkNames.size() != 4) {
-				__gc->SetErrorCode(ERROR_CODE::NOT_ENOUGH_SELECTION);
+				__gc->SetErrorCode("4 Points are Needed!");
 				cout << "\n4 points are needed!!" << endl;
 				return false;
 			}
@@ -838,7 +838,7 @@ namespace calibtask {
 		glm::fvec3 t;
 		track_info& trackInfo = *(track_info*)trk;
 		if (!trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
-			__gc->SetErrorCode(ERROR_CODE::C_ARM_TRACKING_FAILURE);
+			__gc->SetErrorCode("Failure to Get C-Arm Rigidbody!");
 			cout << "\nfailure to get c-arm rigid body" << endl;
 			return false;
 		}
@@ -853,14 +853,14 @@ namespace calibtask {
 		if (calib_mode == "LEGO") {
 			mystudents::Get2DPostionsFromLegoPhantom(source2detImg, points2d);
 			if (points2d.size() != 60) {
-				__gc->SetErrorCode(ERROR_CODE::INVALID_CALIB_PATTERN_DETECTED);
+				__gc->SetErrorCode("60 Circles must be Detected! " + std::to_string(points2d.size()));
 				cout << "\n# of circles must be 60 if PHANTOM_MODE is LEGO" << endl;
 				return false;
 			}
 		}
 		else if (calib_mode == "FILM") {
 			if (points2d.size() != 77) {
-				__gc->SetErrorCode(ERROR_CODE::INVALID_CALIB_PATTERN_DETECTED);
+				__gc->SetErrorCode("77 Circles must be Detected! " + std::to_string(points2d.size()));
 				cout << "\n# of circles must be 77 if PHANTOM_MODE is FILM" << endl;
 				return false;
 			}
@@ -876,7 +876,7 @@ namespace calibtask {
 			}
 			
 			if (points2d.size() != rows * cols) {
-				__gc->SetErrorCode(ERROR_CODE::INVALID_CALIB_PATTERN_DETECTED);
+				__gc->SetErrorCode(std::to_string(rows * cols) + " Circles must be Detected! " + std::to_string(points2d.size()));
 				cout << "\n# of circles must be " << rows * cols << " if PHANTOM_MODE is FMARKERS" << endl;
 				return false;
 			}

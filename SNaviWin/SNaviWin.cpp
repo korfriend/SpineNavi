@@ -157,7 +157,7 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 				if (!__gc.g_recScanStream.is_open()) {
 					__gc.g_recScanStream.open(__gc.g_recScanName);
 					if (!__gc.g_recScanStream.is_open()) {
-						__gc.SetErrorCode(ERROR_CODE::INVALID_RECFILE);
+						__gc.SetErrorCode("Invalid Rec File!");
 						__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
 					}
 
@@ -462,14 +462,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		cv::FileStorage __config_fs(__gc.g_configFileName, cv::FileStorage::Mode::WRITE);
 		__config_fs << "RecordeMode" << std::string("LOAD");
 		__config_fs << "RecordePeriod" << 2;
+		__config_fs << "PivotSamples" << 100;
 		__config_fs.release();
 
 		cv::FileStorage config_fs(__gc.g_configFileName, cv::FileStorage::Mode::READ);
 		std::string configLoad;
-		int recordPeriod;
 		config_fs["RecordeMode"] >> configLoad;
-		config_fs["RecordePeriod"] >> recordPeriod;
-		__gc.g_optiRecordPeriod = recordPeriod;
+		config_fs["RecordePeriod"] >> __gc.g_optiRecordPeriod;
+		config_fs["PivotSamples"] >> __gc.g_optiPivotSamples;
 		config_fs.release();
 
 		if (configLoad == "LOAD") {
@@ -814,7 +814,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case char('L') :
 			{
 				if (__gc.g_calribmodeToggle) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					__gc.SetErrorCode("Loading Camera is Not Allowed during Calib Mode!");
 					break;
 				}
 
@@ -835,7 +835,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case char('R') :
 			{
 				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					__gc.SetErrorCode("Recording is Not Allowed during Playing Rec File!");
 					break;
 				}
 				// recode mode.
@@ -849,7 +849,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case char('C') :
 			{
 				if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					__gc.SetErrorCode("Not Allowed during Rec Processing!");
 					break;
 				}
 
@@ -884,15 +884,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case char('U') :
 			{
+				if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+					__gc.SetErrorCode("Not Allowed during Rec Processing!");
+					break;
+				}
+
 				if (!__gc.g_calribmodeToggle) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					__gc.SetErrorCode("No Marker Selection!");
 					break;
 				}
 
 				// update "c-arm" RB
 				int numSelectedMKs = (int)__gc.g_selectedMkNames.size();
 				if (numSelectedMKs < 3) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ENOUGH_SELECTION);
+					__gc.SetErrorCode("At least 3 Points are Needed!");
 					cout << "\n" << "at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
 					break;
 				}
@@ -958,24 +963,50 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				break;
 			}
 			case char('T') : {
+				if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+					__gc.SetErrorCode("Not Allowed during Rec Processing!");
+					break;
+				}
 				if (!__gc.g_calribmodeToggle) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					__gc.SetErrorCode("No Marker Selection!");
 					cout << "\n" << "not calibration mode!!" << endl;
-					return 0;
+					break;
 				}
 				if (__gc.g_selectedMkNames.size() < 4) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ENOUGH_SELECTION);
+					__gc.SetErrorCode("At least 3 Points are Needed!");
 					cout << "\n" << "at least 4 points are needed!!" << endl;
-					return 0;
+					break;
 				}
 
 				// 툴 등록하기..
 				__gc.g_optiEvent = OPTTRK_THREAD::TOOL_REGISTER;
 				while (__gc.g_optiEvent != OPTTRK_THREAD::FREE) { Sleep(2); }
-				__gc.g_testMKs.clear();
-				__gc.g_testMKs.push_back(glm::fvec3(0));
-				__gc.g_testMKs.push_back(glm::fvec3(0));
-				__gc.g_testMKs.push_back(glm::fvec3(0));
+				//__gc.g_testMKs.clear();
+				//__gc.g_testMKs.push_back(glm::fvec3(0));
+				//__gc.g_testMKs.push_back(glm::fvec3(0));
+				//__gc.g_testMKs.push_back(glm::fvec3(0));
+				break;
+			}
+			case char('P') : {
+				if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+					__gc.SetErrorCode("Not Allowed during Rec Processing!");
+					break;
+				}
+				if (__gc.g_calribmodeToggle) {
+					__gc.SetErrorCode("Pivoting is Not Allowed during Marker Selection!");
+					break;
+				}
+				if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_RESET_PIVOT) {
+					__gc.SetErrorCode("Wait for Canceling Pivot Process!");
+					break;
+				}
+				track_info trk = __gc.g_track_que.front(); // __gc.g_track_que.wait_and_pop(trk);
+				if (!trk.GetRigidBodyQuatTVecByName("tool", NULL, NULL)) {
+					__gc.SetErrorCode("No Tool is Registered!");
+					break;
+				}
+				if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT) __gc.g_optiEvent = OPTTRK_THREAD::TOOL_RESET_PIVOT;
+				else __gc.g_optiEvent = OPTTRK_THREAD::TOOL_PIVOT;
 				break;
 			}
 			//case char('E') : {
@@ -1000,8 +1031,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case char('X') :
 			{
+				if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+					__gc.SetErrorCode("Not Allowed during Rec Processing!");
+					break;
+				}
 				if (!__gc.g_calribmodeToggle) {
-					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					__gc.SetErrorCode("No Marker Selection!");
 					cout << "\n" << "not calibration mode!!" << endl;
 					break;
 				}
@@ -1010,7 +1045,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				cv::Mat downloadedImg = cv::imread(__gc.g_folder_trackingInfo + "test_downloaded.png");
 
 				if (downloadedImg.empty()) {
-					__gc.SetErrorCode(ERROR_CODE::NO_DOWNLOAD_IMAGE);
+					__gc.SetErrorCode("No Download Image!");
 					cout << "\n" << "no downloaded image" << endl;
 					break;
 				}
@@ -1030,10 +1065,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				break;
 			}
 			default: {
-				track_info trk = __gc.g_track_que.front(); //__gc.g_track_que.wait_and_pop(trk);
-				if (trk.IsValidTracking()) {
-					cv::Mat emptyImg;
-					saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0, emptyImg);
+				if (wParam >= char('0') && wParam <= char('9')) {
+					if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+						__gc.SetErrorCode("Not Allowed during Rec Processing!");
+						break;
+					}
+
+					track_info trk = __gc.g_track_que.front(); //__gc.g_track_que.wait_and_pop(trk);
+					if (trk.IsValidTracking()) {
+						cv::Mat emptyImg;
+						saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0, emptyImg);
+					}
 				}
 				break;
 			}

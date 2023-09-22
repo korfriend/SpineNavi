@@ -345,22 +345,13 @@ public:
 	}
 };
 
-enum class ERROR_CODE {
-	NONE = 0,
-	NOT_ENOUGH_SELECTION,
-	C_ARM_TRACKING_FAILURE,
-	INVALID_CALIB_PATTERN_DETECTED,
-	INVALID_RECFILE,
-	NOT_ALLOWED_OPERATION,
-	NO_DOWNLOAD_IMAGE,
-};
-
 enum class OPTTRK_THREAD {
 	FREE = 0,
 	C_ARM_REGISTER,
 	TOOL_REGISTER,
 	TOOL_UPDATE,
-	INVALID_RECFILE,
+	TOOL_PIVOT,
+	TOOL_RESET_PIVOT,
 };
 
 enum class OPTTRK_RECMODE {
@@ -456,7 +447,9 @@ typedef struct GlobalContainer {
 	std::atomic<OPTTRK_THREAD> g_optiEvent; // { OPTTRK_THREAD::FREE };
 	std::atomic<OPTTRK_RECMODE> g_optiRecordMode;
 	std::atomic_int g_optiRecordFrame;
-	std::atomic_int g_optiRecordPeriod;
+	int g_optiRecordPeriod;
+	int g_optiPivotSamples;
+	int g_optiPivotProgress;
 
 	std::atomic<RENDER_THREAD> g_renderEvent;// { RENDER_THREAD::FREE };
 
@@ -478,11 +471,11 @@ typedef struct GlobalContainer {
 	concurrent_queue<track_info> g_track_que;
 
 
-	std::atomic_int g_error_duration;
-	std::atomic<ERROR_CODE> g_error_code;
-	void SetErrorCode(ERROR_CODE errorCode) {
-		g_error_code = errorCode;
-		g_error_duration = 100;
+	std::atomic_int g_error_duration; // frames
+	std::string g_error_text;
+	void SetErrorCode(std::string errorText, int duration = 100) {
+		g_error_text = errorText;
+		g_error_duration = duration;
 	}
 	void Init() {
 
@@ -506,6 +499,8 @@ typedef struct GlobalContainer {
 		g_networkEvent = NETWORK_THREAD_FREE;
 		g_optiRecordFrame = 0;
 		g_optiRecordPeriod = 10;
+		g_optiPivotSamples = 100;
+		g_optiPivotProgress = 0;
 
 		g_tracker_alive = true;
 		g_network_alive = true;
@@ -515,7 +510,7 @@ typedef struct GlobalContainer {
 		g_ui_banishing_count = 0;
 
 		g_error_duration = 0;
-		g_error_code = ERROR_CODE::NONE;
+		g_error_text = "";
 
 	}
 

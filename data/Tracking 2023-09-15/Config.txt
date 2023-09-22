@@ -2,3 +2,4 @@
 ---
 RecordeMode: LOAD
 RecordePeriod: 2
+PivotSamples: 100

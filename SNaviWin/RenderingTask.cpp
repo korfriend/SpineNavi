@@ -667,11 +667,14 @@ namespace rendertask {
 		textItem.posScreenY = 50;
 		cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
 
+		textItem.textStr = __gc->g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT ? "PIVOTING MODE " + std::to_string(__gc->g_optiPivotProgress) + "%" : "";
+		cpCam1.text_items.SetParam("PIVOT_PROGRESS", textItem);
+
 		if (__gc->g_downloadCompleted > 0) __gc->g_downloadCompleted--;
 
 		// error code display
 		if (__gc->g_error_duration == 0) {
-			__gc->g_error_code = ERROR_CODE::NONE;
+			__gc->g_error_text = "";
 		}
 		textItem.alignment = "LEFT";
 		textItem.fontSize = 40.f;
@@ -680,31 +683,7 @@ namespace rendertask {
 		textItem.alpha = __gc->g_error_duration * 0.01f;
 		textItem.posScreenX = 10;
 		textItem.posScreenY = cpCam1.h / 2 - 30;
-		switch (__gc->g_error_code)
-		{
-		case ERROR_CODE::NOT_ENOUGH_SELECTION:
-			textItem.textStr = "Not Enough Selection!";
-			break;
-		case ERROR_CODE::C_ARM_TRACKING_FAILURE:
-			textItem.textStr = "C-Arm RB Tracking Failure!";
-			break;
-		case ERROR_CODE::INVALID_CALIB_PATTERN_DETECTED:
-			textItem.textStr = "Failure to Detect Calibration Patterns!";
-			break;
-		case ERROR_CODE::INVALID_RECFILE:
-			textItem.textStr = "Failure to Open Rec File!";
-			break;
-		case ERROR_CODE::NOT_ALLOWED_OPERATION:
-			textItem.textStr = "Not Allowed Operation! Please Check the Current Process";
-			break;
-		case ERROR_CODE::NO_DOWNLOAD_IMAGE:
-			textItem.textStr = "No Download Image!";
-			break;
-		case ERROR_CODE::NONE:
-		default:
-			textItem.textStr = "";
-			break;
-		}
+		textItem.textStr = __gc->g_error_text;
 		__gc->g_error_duration = std::max(__gc->g_error_duration - 1, (int)0);
 		cpCam1.text_items.SetParam("ERRORCODE", textItem);
 

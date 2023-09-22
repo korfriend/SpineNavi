@@ -349,13 +349,13 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 	return true;
 }
 
-bool StartPivotSample(const std::bitset<128>& cidRb, const int numSamples)
+bool optitrk::StartPivotSample(const std::bitset<128>& cidRb, const int numSamples)
 {
 	Core::cUID rigidBodyID((cidRb >> 64).to_ullong(), ((cidRb << 64) >> 64).to_ullong());
 	return TT_RigidBodyPivotSolverStart(rigidBodyID, numSamples);
 }
 
-bool ProcessPivotSample(float* progress, float* errInit, float* errResult)
+bool optitrk::ProcessPivotSample(float* progress, float* errInit, float* errResult)
 {
 	auto SolverStateToString = [](TT_RigidBodyPivotSolverStates pivotSolverState) {
 		std::string stateStr;
@@ -391,6 +391,10 @@ bool ProcessPivotSample(float* progress, float* errInit, float* errResult)
 	return ret;
 }
 
+bool optitrk::ResetPivot() 
+{
+	return TT_RigidBodyPivotSolverReset();
+}
 
 bool optitrk::Test(float* v) {
 	float   yaw, pitch, roll;

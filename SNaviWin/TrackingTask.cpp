@@ -306,82 +306,110 @@ namespace trackingtask {
 				// because the critical section APIs are not successfully applied, naive path is added to avoid the read/write/modify hazard
 				// e.g., this tracking thread is trying to access the optitrack tracking resources while the main thread (event) is modifying the optitrack tracking resources
 
-				if (__gc->g_optiEvent != OPTTRK_THREAD::FREE) {
-					std::vector<glm::fvec3> selectedMks;
-					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
+				static int pivotState = 0;
+				std::vector<glm::fvec3> selectedMks;
+				GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
 
-					// if you want to use switch with g_optiMode, make sure thread-safe of g_optiMode
-					if (__gc->g_optiEvent == OPTTRK_THREAD::C_ARM_REGISTER) {
-						optitrk::SetRigidBody("c-arm", __gc->g_selectedMkNames.size(), (float*)&selectedMks[0]);
+				switch (__gc->g_optiEvent) {
+				case OPTTRK_THREAD::C_ARM_REGISTER: {
+					optitrk::SetRigidBody("c-arm", __gc->g_selectedMkNames.size(), (float*)&selectedMks[0]);
+					UpdateRigidBodiesInThread();
+					optitrk::StoreProfile(__gc->g_profileFileName);
+					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+				} break;
+				case OPTTRK_THREAD::TOOL_REGISTER: {
+					cout << "\nregister tool success!" << endl;
+					int numSelectedMKs = (int)__gc->g_selectedMkNames.size();
+					optitrk::SetRigidBody("tool", numSelectedMKs, (float*)&selectedMks[0]);
+					__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
+				} break;
+				case OPTTRK_THREAD::TOOL_UPDATE: {
+
+					glm::fmat4x4 rbLS2WS;
+					int rbIdx = -1;
+					std::vector<float> buf_rb_mks;
+					//std::vector<float> ws_mks;
+					if (optitrk::GetRigidBodyLocationByName("tool", __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks)) {
+
+						std::vector<glm::fvec3> pos_rb_mks(buf_rb_mks.size() / 3);
+						memcpy(&pos_rb_mks[0], &buf_rb_mks[0], sizeof(float) * buf_rb_mks.size());
+
+						glm::fmat4x4 rbWS2LS = glm::inverse(rbLS2WS);
+						for (int i = 0; i < (int)pos_rb_mks.size(); i++)
+							pos_rb_mks[i] = vzmutils::transformPos(pos_rb_mks[i], rbWS2LS);
+
+						// compute center pos
+						glm::fvec3 v02 = pos_rb_mks[2] - pos_rb_mks[0];
+						glm::fvec3 p02 = pos_rb_mks[0] + v02 * (float)(65.0 / 110.0);
+						glm::fvec3 v13 = pos_rb_mks[3] - pos_rb_mks[1];
+						glm::fvec3 p13 = pos_rb_mks[1] + v13 * (float)(40.41 / 90.82);
+						glm::fvec3 p1234 = (p02 + p13) * 0.5f;
+
+						// compute normal vec
+						glm::fvec3 nrl1234 = glm::normalize(glm::cross(v02, v13));
+						//fvec3 nrlLS = navihelpers::ComputeNormalVector(pos_rb_mks); // LS
+
+						// compute face vec
+						glm::fvec3 faceDir = glm::normalize(glm::cross(nrl1234, v02));
+
+						// compute line 
+						glm::fvec3 p_line1 = p1234 - nrl1234 * (float)(65.36 * 0.001); // meter
+
+						std::vector<glm::fvec3> toolUserData = { p_line1, faceDir };
+						__gc->g_rbLocalUserPoints["tool"] = toolUserData;
+
+						cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
+						cv::Mat ocv3(1, 3, CV_32FC1);
+						memcpy(ocv3.ptr(), &p_line1, sizeof(glm::fvec3));
+						fs << "ToolPos" << ocv3;
+						memcpy(ocv3.ptr(), &faceDir, sizeof(glm::fvec3));
+						fs << "ToolVec" << ocv3;
+						fs.release();
+
+						//__gc->g_toolTipPointLS = vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS);
+						//cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
+						//cv::Mat ocv3(1, 3, CV_32FC1);
+						//memcpy(ocv3.ptr(), &__gc->g_toolTipPointLS, sizeof(glm::fvec3));
+						//fs << "ToolTip" << ocv3;
+						//fs.release();
+
+						// use cam direction...
 						UpdateRigidBodiesInThread();
 						optitrk::StoreProfile(__gc->g_profileFileName);
+
 						__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+
 					}
-					else if (__gc->g_optiEvent == OPTTRK_THREAD::TOOL_REGISTER) {
-						cout << "\nregister tool success!" << endl;
-						int numSelectedMKs = (int)__gc->g_selectedMkNames.size();
-						optitrk::SetRigidBody("tool", numSelectedMKs, (float*)&selectedMks[0]);
+				} break;
+				case OPTTRK_THREAD::TOOL_PIVOT: {
+					bitset<128> rbCID;
+					if (trk_info.GetRigidBodyByName("tool", NULL, NULL, NULL, &rbCID)) {
+						float progress, initErr, returnErr;
+						switch (pivotState) {
+						case 0:
+							if (optitrk::StartPivotSample(rbCID, __gc->g_optiPivotSamples)) pivotState = 1;
+							break;
+						case 1:
+							if (optitrk::ProcessPivotSample(&progress, &initErr, &returnErr)) {
+								__gc->g_optiPivotProgress = (int)progress;
 
-						__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
-					}
-					else if (__gc->g_optiEvent == OPTTRK_THREAD::TOOL_UPDATE) {
-
-						glm::fmat4x4 rbLS2WS;
-						int rbIdx = -1;
-						std::vector<float> buf_rb_mks;
-						//std::vector<float> ws_mks;
-						if (optitrk::GetRigidBodyLocationByName("tool", __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks)) {
-							
-							std::vector<glm::fvec3> pos_rb_mks(buf_rb_mks.size() / 3);
-							memcpy(&pos_rb_mks[0], &buf_rb_mks[0], sizeof(float) * buf_rb_mks.size());
-
-							glm::fmat4x4 rbWS2LS = glm::inverse(rbLS2WS);
-							for (int i = 0; i < (int)pos_rb_mks.size(); i++)
-								pos_rb_mks[i] = vzmutils::transformPos(pos_rb_mks[i], rbWS2LS);
-							
-							// compute center pos
-							glm::fvec3 v02 = pos_rb_mks[2] - pos_rb_mks[0];
-							glm::fvec3 p02 = pos_rb_mks[0] + v02 * (float)(65.0 / 110.0);
-							glm::fvec3 v13 = pos_rb_mks[3] - pos_rb_mks[1];
-							glm::fvec3 p13 = pos_rb_mks[1] + v13 * (float)(40.41 / 90.82);
-							glm::fvec3 p1234 = (p02 + p13) * 0.5f;
-
-							// compute normal vec
-							glm::fvec3 nrl1234 = glm::normalize(glm::cross(v02, v13));
-							//fvec3 nrlLS = navihelpers::ComputeNormalVector(pos_rb_mks); // LS
-
-							// compute face vec
-							glm::fvec3 faceDir = glm::normalize(glm::cross(nrl1234, v02));
-
-							// compute line 
-							glm::fvec3 p_line1 = p1234 - nrl1234 * (float)(65.36 * 0.001); // meter
-
-							std::vector<glm::fvec3> toolUserData = { p_line1, faceDir };
-							__gc->g_rbLocalUserPoints["tool"] = toolUserData;
-
-							cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
-							cv::Mat ocv3(1, 3, CV_32FC1);
-							memcpy(ocv3.ptr(), &p_line1, sizeof(glm::fvec3));
-							fs << "ToolPos" << ocv3;
-							memcpy(ocv3.ptr(), &faceDir, sizeof(glm::fvec3));
-							fs << "ToolVec" << ocv3;
-							fs.release();
-
-							//__gc->g_toolTipPointLS = vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS);
-							//cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
-							//cv::Mat ocv3(1, 3, CV_32FC1);
-							//memcpy(ocv3.ptr(), &__gc->g_toolTipPointLS, sizeof(glm::fvec3));
-							//fs << "ToolTip" << ocv3;
-							//fs.release();
-							
-							// use cam direction...
-							UpdateRigidBodiesInThread();
-							optitrk::StoreProfile(__gc->g_profileFileName);
-							
-							__gc->g_optiEvent = OPTTRK_THREAD::FREE;
-
+								if (progress == 100.f) {
+									pivotState = 0;
+									__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+									__gc->SetErrorCode("Pivot (InitErr: " + std::to_string(initErr) + ", RetErr: " + std::to_string(returnErr) + ")");
+								}
+							}
+							break;
 						}
 					}
+				} break;
+				case OPTTRK_THREAD::TOOL_RESET_PIVOT: {
+					optitrk::ResetPivot();
+					pivotState = 0;
+					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+				} break;
+				case OPTTRK_THREAD::FREE:
+				default: break;
 				}
 
 				if (__gc->g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
@@ -390,7 +418,7 @@ namespace trackingtask {
 
 						__gc->g_recFileStream.open(__gc->g_recFileName);
 						if (!__gc->g_recFileStream.is_open()) {
-							__gc->SetErrorCode(ERROR_CODE::INVALID_RECFILE);
+							__gc->SetErrorCode("Invalid Rec File!");
 							__gc->g_optiRecordMode = OPTTRK_RECMODE::NONE;
 						}
 						std::vector<std::vector<std::string>> csvData(5);
