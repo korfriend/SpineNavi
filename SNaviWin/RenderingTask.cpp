@@ -590,6 +590,126 @@ namespace rendertask {
 		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 1.f), 0.003f, false, __gc->g_showCalibMarkers);
 	}
 
+	// DOJO: Scene 에 Text GUI 생성
+	void SetTextDisplay(const int cidCam1)
+	{
+		//int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
+		//vzm::ActorParameters apFrameText;
+		//vzm::GetActorParams(aidFrameText, apFrameText);
+		//int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
+		//std::vector<glm::fvec3> pinfo(3);
+		//pinfo[0] = glm::fvec3(0, 0.3, 0);
+		//pinfo[1] = glm::fvec3(0, 0, -1);
+		//pinfo[2] = glm::fvec3(0, 1, 0);
+		//vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+
+		static int frameCount = 0;
+		int frame = __gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD ? (int)__gc->g_optiRecordFrame : frameCount++;
+
+		vzm::CameraParameters cpCam1;
+		vzm::GetCameraParams(cidCam1, cpCam1);
+		vzm::TextItem textItem;
+		textItem.textStr = "Frame : " + std::to_string(frame);
+		textItem.fontSize = 30.f;
+		textItem.iColor = 0xFFFFFF;
+		textItem.posScreenX = 0;
+		textItem.posScreenY = cpCam1.h - 40;
+		cpCam1.text_items.SetParam("FRAME", textItem);
+
+		textItem.textStr = __gc->g_useGlobalPairs ? "Global Pairs (" + std::to_string(__gc->g_homographyPairs.size()) + ")" : "Local Pairs";
+		textItem.fontSize = 30.f;
+		textItem.iColor = 0xFFFFFF;
+		textItem.posScreenX = 0;
+		textItem.posScreenY = cpCam1.h - 80;
+		cpCam1.text_items.SetParam("PAIRMODE", textItem);
+
+		textItem.textStr = "Probe Tip Correction : " + std::to_string(__gc->g_probeTipCorrection * 0.001f) + " mm";
+		textItem.fontSize = 20.f;
+		textItem.iColor = 0xFFFFFF;
+		textItem.posScreenX = 0;
+		textItem.posScreenY = cpCam1.h - 120;
+		cpCam1.text_items.SetParam("PROBETIP_CORRECTION", textItem);
+
+		textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
+		textItem.fontSize = 30.f;
+		textItem.alpha = __gc->g_downloadCompleted * 0.01f;
+		textItem.iColor = 0xFF00FF;
+		textItem.posScreenX = 300;
+		textItem.posScreenY = cpCam1.h - 40;
+		cpCam1.text_items.SetParam("DOWNLOADED", textItem);
+
+		static float blinkAlpha = 1.f;
+		static bool isDecrease = true;
+		blinkAlpha = isDecrease? blinkAlpha - 0.02f : blinkAlpha + 0.02f;
+		blinkAlpha = std::max(std::min(blinkAlpha, 1.f), 0.f);
+		if (blinkAlpha <= 0.5f) isDecrease = false;
+		else if (blinkAlpha >= 1.0f) isDecrease = true;
+
+		// top-right
+		switch (__gc->g_optiRecordMode) {
+		case OPTTRK_RECMODE::RECORD: textItem.textStr = "*REC*"; break;
+		case OPTTRK_RECMODE::LOAD: textItem.textStr = "*PLAY REC*"; break;
+		case OPTTRK_RECMODE::NONE:
+		default:
+			textItem.textStr = ""; break;
+		}
+		textItem.fontSize = 30.f; 
+		textItem.alpha = blinkAlpha;
+		textItem.fontWeight = 9;
+		textItem.iColor = 0xFF3030;
+		textItem.alignment = "RIGHT";
+		textItem.posScreenX = cpCam1.w - 500;
+		textItem.posScreenY = 10;
+		cpCam1.text_items.SetParam("RECORD", textItem);
+
+		textItem.textStr = __gc->g_calribmodeToggle ? "SELECTING MARKER MODE (" + std::to_string(__gc->g_selectedMkNames.size()) + ")" : "";
+		textItem.iColor = 0xFFFF30;
+		textItem.posScreenY = 50;
+		cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
+
+		if (__gc->g_downloadCompleted > 0) __gc->g_downloadCompleted--;
+
+		// error code display
+		if (__gc->g_error_duration == 0) {
+			__gc->g_error_code = ERROR_CODE::NONE;
+		}
+		textItem.alignment = "LEFT";
+		textItem.fontSize = 40.f;
+		textItem.iColor = 0xFF5050;
+		textItem.fontWeight = 7;
+		textItem.alpha = __gc->g_error_duration * 0.01f;
+		textItem.posScreenX = 10;
+		textItem.posScreenY = cpCam1.h / 2 - 30;
+		switch (__gc->g_error_code)
+		{
+		case ERROR_CODE::NOT_ENOUGH_SELECTION:
+			textItem.textStr = "Not Enough Selection!";
+			break;
+		case ERROR_CODE::C_ARM_TRACKING_FAILURE:
+			textItem.textStr = "C-Arm RB Tracking Failure!";
+			break;
+		case ERROR_CODE::INVALID_CALIB_PATTERN_DETECTED:
+			textItem.textStr = "Failure to Detect Calibration Patterns!";
+			break;
+		case ERROR_CODE::INVALID_RECFILE:
+			textItem.textStr = "Failure to Open Rec File!";
+			break;
+		case ERROR_CODE::NOT_ALLOWED_OPERATION:
+			textItem.textStr = "Not Allowed Operation! Please Check the Current Process";
+			break;
+		case ERROR_CODE::NO_DOWNLOAD_IMAGE:
+			textItem.textStr = "No Download Image!";
+			break;
+		case ERROR_CODE::NONE:
+		default:
+			textItem.textStr = "";
+			break;
+		}
+		__gc->g_error_duration = std::max(__gc->g_error_duration - 1, (int)0);
+		cpCam1.text_items.SetParam("ERRORCODE", textItem);
+
+		vzm::SetCameraParams(cidCam1, cpCam1);
+	}
 	// DOJO : 현재 Scene (__gc->g_sceneName) 에서 등록된 camera (__gc->g_camName, __gc->g_camName2) 들에 대해 렌더링하는 함수
 	// Timer 에 등록된 CALLBACK TimerProc 에서 호출됨 (note: Timer 가 본 어플리케이션에서 rendering thread 로 사용됨)
 	void RenderTrackingScene(const track_info* trackInfo)
@@ -600,10 +720,6 @@ namespace rendertask {
 		if (trackInfo)
 			UpdateTrackInfo2Scene(*(track_info*)trackInfo);
 
-		static int frameCount = 0;
-
-		int frame = frameCount++;
-
 		int sidScene = vzmutils::GetSceneItemIdByName(__gc->g_sceneName);
 		int cidCam1 = vzmutils::GetSceneItemIdByName(__gc->g_camName);
 		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc->g_camName2);
@@ -611,113 +727,31 @@ namespace rendertask {
 		if ((sidScene & cidCam1 & cidCam2) == 0)
 			return;
 
-		// DOJO: Scene 에 "Frame : 숫자" Text 뜨게 하는 (Actor에 사용될) 리소스(오브젝트) 생성 
-		{
-			//int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
-			//vzm::ActorParameters apFrameText;
-			//vzm::GetActorParams(aidFrameText, apFrameText);
-			//int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
-			//std::vector<glm::fvec3> pinfo(3);
-			//pinfo[0] = glm::fvec3(0, 0.3, 0);
-			//pinfo[1] = glm::fvec3(0, 0, -1);
-			//pinfo[2] = glm::fvec3(0, 1, 0);
-			//vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+		SetTextDisplay(cidCam1);
 
-			vzm::CameraParameters cpCam1;
-			vzm::GetCameraParams(cidCam1, cpCam1);
-			vzm::TextItem textItem;
-			textItem.textStr = "Frame : " + std::to_string(frame);
-			textItem.fontSize = 30.f;
-			textItem.iColor = 0xFFFFFF;
-			textItem.posScreenX = 0;
-			textItem.posScreenY = cpCam1.h - 40;
-			cpCam1.text_items.SetParam("FRAME", textItem);
+		// DOJO : Animation effect
+		// cpInterCams 는 매 스캔 시 업데이트되며, 
+		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
+		int cidCams[2] = { cidCam1 , cidCam2 };
+		for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
 
-			textItem.textStr = __gc->g_useGlobalPairs? "Global Pairs (" + std::to_string(__gc->g_homographyPairs.size()) + ")" : "Local Pairs";
-			textItem.fontSize = 30.f;
-			textItem.iColor = 0xFFFFFF;
-			textItem.posScreenX = 0;
-			textItem.posScreenY = cpCam1.h - 80;
-			cpCam1.text_items.SetParam("PAIRMODE", textItem);
+			int frameIdx = g_arAnimationKeyFrame[i];
+			if (frameIdx >= 0) {
+				vzm::CameraParameters& cpCam = g_cpInterCams[i][frameIdx];
+				cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+				vzm::SetCameraParams(cidCams[i], cpCam);
+				if (frameIdx == g_numAnimationCount - 1)
+					frameIdx = -1;
+				else
+					frameIdx++;
 
-			textItem.textStr = "Probe Tip Correction : " + std::to_string(__gc->g_probeTipCorrection * 0.001f) + " mm";
-			textItem.fontSize = 20.f;
-			textItem.iColor = 0xFFFFFF;
-			textItem.posScreenX = 0;
-			textItem.posScreenY = cpCam1.h - 120;
-			cpCam1.text_items.SetParam("PROBETIP_CORRECTION", textItem);
-
-			textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
-			textItem.fontSize = 30.f;
-			textItem.alpha = __gc->g_downloadCompleted * 0.01f;
-			textItem.iColor = 0xFF00FF;
-			textItem.posScreenX = 300;
-			textItem.posScreenY = cpCam1.h - 40;
-			cpCam1.text_items.SetParam("DOWNLOADED", textItem);
-
-			if (__gc->g_downloadCompleted > 0) __gc->g_downloadCompleted--;
-
-			// error code display
-			if (__gc->g_error_duration == 0) {
-				__gc->g_error_code = ERROR_CODE_NONE;
+				g_arAnimationKeyFrame[i] = frameIdx;
+				//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
+				//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
 			}
-			textItem.fontSize = 30.f;
-			textItem.iColor = 0xFF0000;
-			textItem.alpha = __gc->g_error_duration * 0.01f;
-			textItem.posScreenX = 300;
-			textItem.posScreenY = cpCam1.h - 80;
-			switch (__gc->g_error_code)
-			{
-			case ERROR_CODE_NOT_ENOUGH_SELECTION:
-				textItem.textStr = "Not Enough Selection!";
-				break;
-			case ERROR_CODE_CARM_TRACKING_FAILURE:
-				textItem.textStr = "C-Arm RB Tracking Failure!";
-				break;
-			case ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED:
-				textItem.textStr = "Failure to Detect Calibration Patterns!";
-				break;
-			case ERROR_CODE_INVALID_RECFILE:
-				textItem.textStr = "Failure to Detect Calibration Patterns!";
-				break;
-			case ERROR_CODE_NONE:
-			default:
-				textItem.textStr = "";
-				break;
-			}
-			__gc->g_error_duration = std::max(__gc->g_error_duration - 1, (int)0);
-			cpCam1.text_items.SetParam("ERRORCODE", textItem);
-
-			vzm::SetCameraParams(cidCam1, cpCam1);
 		}
 
-		// generate scene actors with updated trackInfo
-		{
-			// DOJO : Animation effect
-			// cpInterCams 는 매 스캔 시 업데이트되며, 
-			// slerp 로 인터폴레이션된 camera 정보를 받아 옴
-			int cidCams[2] = { cidCam1 , cidCam2 };
-
-			for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
-
-				int frameIdx = g_arAnimationKeyFrame[i];
-				if (frameIdx >= 0) {
-					vzm::CameraParameters& cpCam = g_cpInterCams[i][frameIdx];
-					cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
-					vzm::SetCameraParams(cidCams[i], cpCam);
-					if (frameIdx == g_numAnimationCount - 1)
-						frameIdx = -1;
-					else
-						frameIdx++;
-
-					g_arAnimationKeyFrame[i] = frameIdx;
-					//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
-					//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
-				}
-			}
-
-			vzm::RenderScene(sidScene, cidCam1);
-			vzm::RenderScene(sidScene, cidCam2);
-		}
+		vzm::RenderScene(sidScene, cidCam1);
+		vzm::RenderScene(sidScene, cidCam2);
 	}
 }

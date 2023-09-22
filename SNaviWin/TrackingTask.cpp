@@ -82,7 +82,7 @@ namespace trackingtask {
 				return cid;
 			};
 
-			if (__gc->g_optiRecordMode == OPTTRK_RECMODE_LOAD) {
+			if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
 
 				recFinished();
 				static int frameCount = 0;
@@ -115,15 +115,19 @@ namespace trackingtask {
 					frameCount = 0;
 				}
 
-
 				const int frameRowIdx = 4;
 				const int numTotalFrames = numRows - 4;
 
-				std::string frameStr = csvTrkData.GetRowName((int)frameRowIdx + (int)(frameCount % numTotalFrames));
+				if (frameCount >= numTotalFrames) {
+					frameCount = 0;
+					__gc->g_optiRecordFrame = 1;
+				}
+
+				std::string frameStr = csvTrkData.GetRowName((int)frameRowIdx + (int)frameCount);
 				int recordFrame = std::stoi(frameStr);
 				if (__gc->g_optiRecordFrame > recordFrame) {
 
-					std::vector<std::string> rowData = csvTrkData.GetRow<std::string>((int)frameRowIdx + (int)(frameCount % numTotalFrames));
+					std::vector<std::string> rowData = csvTrkData.GetRow<std::string>((int)frameRowIdx + (int)frameCount);
 					frameCount++;
 
 					glm::fmat4x4 matData;
@@ -207,7 +211,7 @@ namespace trackingtask {
 					} // for (int i = 0; i < numCols; i++)
 				}
 			}
-			else {	// __gc->g_optiRecordMode != OPTTRK_RECMODE_LOAD
+			else {	// __gc->g_optiRecordMode != OPTTRK_RECMODE::LOAD
 
 				optitrk::UpdateFrame();
 
@@ -302,25 +306,25 @@ namespace trackingtask {
 				// because the critical section APIs are not successfully applied, naive path is added to avoid the read/write/modify hazard
 				// e.g., this tracking thread is trying to access the optitrack tracking resources while the main thread (event) is modifying the optitrack tracking resources
 
-				if (__gc->g_optiEvent != OPTTRK_THREAD_FREE) {
+				if (__gc->g_optiEvent != OPTTRK_THREAD::FREE) {
 					std::vector<glm::fvec3> selectedMks;
 					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
 
 					// if you want to use switch with g_optiMode, make sure thread-safe of g_optiMode
-					if (__gc->g_optiEvent == OPTTRK_THREAD_C_ARM_REGISTER) {
+					if (__gc->g_optiEvent == OPTTRK_THREAD::C_ARM_REGISTER) {
 						optitrk::SetRigidBody("c-arm", __gc->g_selectedMkNames.size(), (float*)&selectedMks[0]);
 						UpdateRigidBodiesInThread();
 						optitrk::StoreProfile(__gc->g_profileFileName);
-						__gc->g_optiEvent = OPTTRK_THREAD_FREE;
+						__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 					}
-					else if (__gc->g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) {
+					else if (__gc->g_optiEvent == OPTTRK_THREAD::TOOL_REGISTER) {
 						cout << "\nregister tool success!" << endl;
 						int numSelectedMKs = (int)__gc->g_selectedMkNames.size();
 						optitrk::SetRigidBody("tool", numSelectedMKs, (float*)&selectedMks[0]);
 
-						__gc->g_optiEvent = OPTTRK_THREAD_TOOL_UPDATE;
+						__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
 					}
-					else if (__gc->g_optiEvent == OPTTRK_THREAD_TOOL_UPDATE) {
+					else if (__gc->g_optiEvent == OPTTRK_THREAD::TOOL_UPDATE) {
 
 						glm::fmat4x4 rbLS2WS;
 						int rbIdx = -1;
@@ -374,20 +378,20 @@ namespace trackingtask {
 							UpdateRigidBodiesInThread();
 							optitrk::StoreProfile(__gc->g_profileFileName);
 							
-							__gc->g_optiEvent = OPTTRK_THREAD_FREE;
+							__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 
 						}
 					}
 				}
 
-				if (__gc->g_optiRecordMode == OPTTRK_RECMODE_RECORD) {
+				if (__gc->g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
 
 					if (__gc->g_optiRecordFrame == 0) {
 
 						__gc->g_recFileStream.open(__gc->g_recFileName);
 						if (!__gc->g_recFileStream.is_open()) {
-							__gc->SetErrorCode(ERROR_CODE_INVALID_RECFILE);
-							__gc->g_optiRecordMode = OPTTRK_RECMODE_NONE;
+							__gc->SetErrorCode(ERROR_CODE::INVALID_RECFILE);
+							__gc->g_optiRecordMode = OPTTRK_RECMODE::NONE;
 						}
 						std::vector<std::vector<std::string>> csvData(5);
 						std::vector<std::string>& csvRow1 = csvData[0];
@@ -573,7 +577,7 @@ namespace trackingtask {
 				else {
 					recFinished();
 				}
-				// __gc->g_optiRecordMode != OPTTRK_RECMODE_LOAD
+				// __gc->g_optiRecordMode != OPTTRK_RECMODE::LOAD
 			} 
 
 			if (trk_info.NumMarkers() > 0 || trk_info.NumRigidBodies() > 0)

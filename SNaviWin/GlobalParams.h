@@ -37,6 +37,7 @@ private:
 
 	std::condition_variable the_condition_variable;
 	int MAX_QUEUE;
+	Data undefinedData;
 
 public:
 	concurrent_queue(int cap = 10)
@@ -116,6 +117,8 @@ public:
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
+		if (the_queue.empty())
+			return undefinedData;
 		return the_queue.front();
 	}
 
@@ -123,6 +126,8 @@ public:
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
+		if (the_queue.empty())
+			return undefinedData;
 		return the_queue.front();
 	}
 
@@ -183,16 +188,6 @@ private:
 public:
 	track_info() { }
 
-	void Serialize(std::vector<char>& buffer) {
-		// first : __rbinfo
-		// 4 bytes : num items
-		// 
-	}
-
-	void Deserialize(const std::vector<char>& buffer) {
-
-	}
-
 	void AddTrackingCamPose(const glm::fmat4x4& matCam2WS) {
 		__matrice_Cam2WS.push_back(matCam2WS);
 	}
@@ -201,6 +196,14 @@ public:
 		if (camIdx >= __matrice_Cam2WS.size()) return false;
 		matCam2WS = __matrice_Cam2WS[camIdx];
 		return true;
+	}
+
+	bool IsValidTracking() {
+		return NumCameras() + NumRigidBodies() + NumMarkers() > 0;
+	}
+
+	int NumCameras() {
+		return (int)__matrice_Cam2WS.size();
 	}
 
 	int NumRigidBodies() {
@@ -342,15 +345,36 @@ public:
 	}
 };
 
-#define ERROR_CODE_NONE 0
-#define ERROR_CODE_NOT_ENOUGH_SELECTION 1
-#define ERROR_CODE_CARM_TRACKING_FAILURE 2
-#define ERROR_CODE_INVALID_CALIB_PATTERN_DETECTED 3
-#define ERROR_CODE_INVALID_RECFILE 4
-//#define ERROR_CODE_NONE 0
-//#define ERROR_CODE_NONE 0
-//#define ERROR_CODE_NONE 0
-//#define ERROR_CODE_NONE 0
+enum class ERROR_CODE {
+	NONE = 0,
+	NOT_ENOUGH_SELECTION,
+	C_ARM_TRACKING_FAILURE,
+	INVALID_CALIB_PATTERN_DETECTED,
+	INVALID_RECFILE,
+	NOT_ALLOWED_OPERATION,
+	NO_DOWNLOAD_IMAGE,
+};
+
+enum class OPTTRK_THREAD {
+	FREE = 0,
+	C_ARM_REGISTER,
+	TOOL_REGISTER,
+	TOOL_UPDATE,
+	INVALID_RECFILE,
+};
+
+enum class OPTTRK_RECMODE {
+	NONE = 0,
+	RECORD,
+	LOAD,
+};
+
+enum class RENDER_THREAD {
+	FREE = 0,
+	DOWNLOAD_IMG_PROCESS,
+	BUSY,
+};
+
 typedef struct GlobalContainer {
 
 	//================ NOT THREAD SAFE GROUP 0
@@ -429,22 +453,12 @@ typedef struct GlobalContainer {
 	float g_probeTipCorrection; // forward tip 
 
 	//================ THREAD SAFE GROUP ==================
-#define OPTTRK_THREAD_FREE 0
-#define OPTTRK_THREAD_C_ARM_REGISTER 1
-#define OPTTRK_THREAD_TOOL_REGISTER 2
-#define OPTTRK_THREAD_TOOL_UPDATE 3
-	std::atomic_int g_optiEvent; // { OPTTRK_THREAD_FREE };
-#define OPTTRK_RECMODE_NONE 0
-#define OPTTRK_RECMODE_RECORD 1
-#define OPTTRK_RECMODE_LOAD 2
-	std::atomic_int g_optiRecordMode;
+	std::atomic<OPTTRK_THREAD> g_optiEvent; // { OPTTRK_THREAD::FREE };
+	std::atomic<OPTTRK_RECMODE> g_optiRecordMode;
 	std::atomic_int g_optiRecordFrame;
 	std::atomic_int g_optiRecordPeriod;
 
-#define RENDER_THREAD_FREE 0
-#define RENDER_THREAD_DOWNLOAD_IMG_PROCESS 1
-#define RENDER_THREAD_BUSY 2
-	std::atomic_int g_renderEvent;// { RENDER_THREAD_FREE };
+	std::atomic<RENDER_THREAD> g_renderEvent;// { RENDER_THREAD::FREE };
 
 #define NETWORK_THREAD_FREE 0
 	std::atomic_int g_networkEvent;// { NETWORK_THREAD_FREE };
@@ -465,8 +479,8 @@ typedef struct GlobalContainer {
 
 
 	std::atomic_int g_error_duration;
-	std::atomic_int g_error_code;
-	void SetErrorCode(int errorCode) {
+	std::atomic<ERROR_CODE> g_error_code;
+	void SetErrorCode(ERROR_CODE errorCode) {
 		g_error_code = errorCode;
 		g_error_duration = 100;
 	}
@@ -486,9 +500,9 @@ typedef struct GlobalContainer {
 		g_useGlobalPairs = true;
 		g_showCalibMarkers = false;
 
-		g_optiEvent = OPTTRK_THREAD_FREE;
-		g_optiRecordMode = OPTTRK_RECMODE_NONE;
-		g_renderEvent = RENDER_THREAD_FREE;
+		g_optiEvent = OPTTRK_THREAD::FREE;
+		g_optiRecordMode = OPTTRK_RECMODE::NONE;
+		g_renderEvent = RENDER_THREAD::FREE;
 		g_networkEvent = NETWORK_THREAD_FREE;
 		g_optiRecordFrame = 0;
 		g_optiRecordPeriod = 10;
@@ -501,7 +515,7 @@ typedef struct GlobalContainer {
 		g_ui_banishing_count = 0;
 
 		g_error_duration = 0;
-		g_error_code = ERROR_CODE_NONE;
+		g_error_code = ERROR_CODE::NONE;
 
 	}
 

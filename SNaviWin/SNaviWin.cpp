@@ -43,8 +43,8 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 #include "CArmCalibration.h"
 
-#define DESIRED_SCREEN_W 950
-#define DESIRED_SCREEN_H 950
+#define DESIRED_SCREEN_W 512
+#define DESIRED_SCREEN_H 512
 #define USE_WHND true
 #define RECODE_MODE
 
@@ -153,12 +153,12 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 			storeParams("test" + to_string(i) + "_" + timePack + ".txt", matRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
 
-			if (__gc.g_optiRecordMode == OPTTRK_RECMODE_RECORD) {
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
 				if (!__gc.g_recScanStream.is_open()) {
 					__gc.g_recScanStream.open(__gc.g_recScanName);
 					if (!__gc.g_recScanStream.is_open()) {
-						__gc.SetErrorCode(ERROR_CODE_INVALID_RECFILE);
-						__gc.g_optiRecordMode = OPTTRK_RECMODE_NONE;
+						__gc.SetErrorCode(ERROR_CODE::INVALID_RECFILE);
+						__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
 					}
 
 					// to do //
@@ -349,10 +349,8 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	//for smaller overhead
 	__gc.g_track_que.wait_and_pop(trackInfo);
 
-	if (trackInfo.NumMarkers() == 0 && trackInfo.NumRigidBodies() == 0) return;
-
-	if (__gc.g_renderEvent == RENDER_THREAD_DOWNLOAD_IMG_PROCESS) {
-		//__gc.g_renderEvent = RENDER_THREAD_BUSY;
+	if (__gc.g_renderEvent == RENDER_THREAD::DOWNLOAD_IMG_PROCESS) {
+		//__gc.g_renderEvent = RENDER_THREAD::BUSY;
 		memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
 
 
@@ -395,7 +393,7 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 			else
 				saveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam2, 1, downloadColorImg);
 		}
-		__gc.g_renderEvent = RENDER_THREAD_FREE;
+		__gc.g_renderEvent = RENDER_THREAD::FREE;
 	}
 
 	//track_info* ptrackInfo = NULL;
@@ -475,7 +473,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		config_fs.release();
 
 		if (configLoad == "LOAD") {
-			__gc.g_optiRecordMode = OPTTRK_RECMODE_LOAD;
+			__gc.g_optiRecordMode = OPTTRK_RECMODE::LOAD;
 		}
 	}
 
@@ -607,7 +605,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	vzm::InitEngineLib("SpineNavi");
 	vzm::SetLogConfiguration(true, 4);
 
-	if (__gc.g_optiRecordMode != OPTTRK_RECMODE_LOAD) {
+	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
 		bool optitrkMode = optitrk::InitOptiTrackLib();
 		optitrk::LoadProfileAndCalibInfo(__gc.g_profileFileName, "");
 
@@ -665,7 +663,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	__gc.g_network_alive = false;
 	network_processing_thread.join();
 	
-	if (__gc.g_optiRecordMode = OPTTRK_RECMODE_LOAD) {
+	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
 		optitrk::DeinitOptiTrackLib();
 	}
 
@@ -794,16 +792,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_KEYDOWN:
 	{
-		if (__gc.g_optiEvent != OPTTRK_THREAD_FREE 
-			|| __gc.g_renderEvent != RENDER_THREAD_FREE
+		if (__gc.g_optiEvent != OPTTRK_THREAD::FREE 
+			|| __gc.g_renderEvent != RENDER_THREAD::FREE
 			|| __gc.g_networkEvent != NETWORK_THREAD_FREE) break;
 
 		using namespace std;
 		switch (wParam) {
 			case char('S') :
 			{
-				if (__gc.g_calribmodeToggle) break;
-
 				cv::FileStorage fs(__gc.g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::WRITE);
 				cv::Mat ocvVec3(1, 3, CV_32FC1);
 				memcpy(ocvVec3.ptr(), cpCam1.pos, sizeof(float) * 3);
@@ -817,7 +813,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case char('L') :
 			{
-				if (__gc.g_calribmodeToggle) break;
+				if (__gc.g_calribmodeToggle) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					break;
+				}
 
 				cv::FileStorage fs(__gc.g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 				if (fs.isOpened()) {
@@ -835,23 +834,26 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			}
 			case char('R') :
 			{
+				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					break;
+				}
 				// recode mode.
 				// toggle
-				__gc.g_optiRecordMode == OPTTRK_RECMODE_RECORD ? __gc.g_optiRecordMode = OPTTRK_RECMODE_NONE
-					: __gc.g_optiRecordMode = OPTTRK_RECMODE_RECORD;
+				
+				__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD ? __gc.g_optiRecordMode = OPTTRK_RECMODE::NONE
+					: __gc.g_optiRecordMode = OPTTRK_RECMODE::RECORD;
 
 				break;
 			}
 			case char('C') :
 			{
-				__gc.g_calribmodeToggle = !__gc.g_calribmodeToggle;
+				if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					break;
+				}
 
-				vzm::TextItem textItem;
-				textItem.textStr = __gc.g_calribmodeToggle? "SELECTING MARKER MODE" : "";
-				textItem.fontSize = 30.f;
-				textItem.iColor = 0xFFFF00;
-				textItem.posScreenX = 0;
-				textItem.posScreenY = 0;
+				__gc.g_calribmodeToggle = !__gc.g_calribmodeToggle;
 
 				if (!__gc.g_calribmodeToggle) {
 					__gc.g_testMKs.clear();
@@ -877,28 +879,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				cpCam1.aspect_ratio = cpCam1.ip_w / cpCam1.ip_h;
 				cpCam1.np = 0.15f;
 
-				cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
-
 				vzm::SetCameraParams(cidCam1, cpCam1);
 				break;
 			}
 			case char('U') :
 			{
-				if (!__gc.g_calribmodeToggle)
-					return 0;
-				// to do
+				if (!__gc.g_calribmodeToggle) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
+					break;
+				}
+
 				// update "c-arm" RB
 				int numSelectedMKs = (int)__gc.g_selectedMkNames.size();
 				if (numSelectedMKs < 3) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ENOUGH_SELECTION);
 					cout << "\n" << "at least 3 points are needed to register a rigid body!! current # of points : " << numSelectedMKs << endl;
-					return 0;
+					break;
 				}
 
 				cout << "\n" << "rigidbody for c-arm is registered with " << numSelectedMKs << " points" << endl;
 
-				__gc.g_optiEvent = OPTTRK_THREAD_C_ARM_REGISTER;
+				__gc.g_optiEvent = OPTTRK_THREAD::C_ARM_REGISTER;
 
-				while (__gc.g_optiEvent == OPTTRK_THREAD_C_ARM_REGISTER) { Sleep(2); }
+				while (__gc.g_optiEvent == OPTTRK_THREAD::C_ARM_REGISTER) { Sleep(2); }
 
 				// int aidRbCarm = vzmutils::GetSceneItemIdByName("c-arm");
 				// vzm::RemoveSceneItem(aidRbCarm);
@@ -922,51 +925,53 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				break;
 			}
 			case char('Y') : { // just for test
-				track_info trk;
-				trk = __gc.g_track_que.front();
-				glm::fmat4x4 matRB2WS;
-				if (trk.GetRigidBodyByName("probe", &matRB2WS, NULL, NULL, NULL)) {
-					glm::fvec3 p = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
-
-					//if (trk.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL)) 
-					{
-
-						//glm::fmat4x4 matWS2RB = glm::inverse(matRB2WS);
+				//track_info trk;
+				//trk = __gc.g_track_que.front();
+				//glm::fmat4x4 matRB2WS;
+				//if (trk.GetRigidBodyByName("probe", &matRB2WS, NULL, NULL, NULL)) {
+				//	glm::fvec3 p = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
+				//
+				//	//if (trk.GetRigidBodyByName("c-arm", &matRB2WS, NULL, NULL, NULL)) 
+				//	{
+				//
+				//		//glm::fmat4x4 matWS2RB = glm::inverse(matRB2WS);
 						//p = vzmutils::transformPos(p, matWS2RB);
-						cv::Mat ocvVec3(1, 3, CV_32FC1);
-						memcpy(ocvVec3.ptr(), &p, sizeof(float) * 3);
-						cv::FileStorage fs(__gc.g_folder_trackingInfo + "test_tip.txt", cv::FileStorage::Mode::WRITE);
-						fs << "probe_tip" << ocvVec3;
-						fs.release();
-
-						int idx = (int)___LoadMyVariable("test0", 0);
-
-						cv::FileStorage __fs(__gc.g_folder_trackingInfo + "test_tip_sphere.txt", cv::FileStorage::Mode::READ);
-						__fs["inter_sphere_" + std::to_string(idx)] >> ocvVec3;
-						glm::fvec3 p1;
-						memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
-						__fs.release();
-
-						float r = glm::length(p1 - p);
-						std::cout << "\ntest : " << r << std::endl;
-					}
-
-				}
+				//		cv::Mat ocvVec3(1, 3, CV_32FC1);
+				//		memcpy(ocvVec3.ptr(), &p, sizeof(float) * 3);
+				//		cv::FileStorage fs(__gc.g_folder_trackingInfo + "test_tip.txt", cv::FileStorage::Mode::WRITE);
+				//		fs << "probe_tip" << ocvVec3;
+				//		fs.release();
+				//
+				//		int idx = (int)___LoadMyVariable("test0", 0);
+				//
+				//		cv::FileStorage __fs(__gc.g_folder_trackingInfo + "test_tip_sphere.txt", cv::FileStorage::Mode::READ);
+				//		__fs["inter_sphere_" + std::to_string(idx)] >> ocvVec3;
+				//		glm::fvec3 p1;
+				//		memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
+				//		__fs.release();
+				//
+				//		float r = glm::length(p1 - p);
+				//		std::cout << "\ntest : " << r << std::endl;
+				//	}
+				//
+				//}
 				break;
 			}
 			case char('T') : {
 				if (!__gc.g_calribmodeToggle) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
 					cout << "\n" << "not calibration mode!!" << endl;
 					return 0;
 				}
 				if (__gc.g_selectedMkNames.size() < 4) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ENOUGH_SELECTION);
 					cout << "\n" << "at least 4 points are needed!!" << endl;
 					return 0;
 				}
 
 				// 툴 등록하기..
-				__gc.g_optiEvent = OPTTRK_THREAD_TOOL_REGISTER;
-				while (__gc.g_optiEvent != OPTTRK_THREAD_FREE) { Sleep(2); }
+				__gc.g_optiEvent = OPTTRK_THREAD::TOOL_REGISTER;
+				while (__gc.g_optiEvent != OPTTRK_THREAD::FREE) { Sleep(2); }
 				__gc.g_testMKs.clear();
 				__gc.g_testMKs.push_back(glm::fvec3(0));
 				__gc.g_testMKs.push_back(glm::fvec3(0));
@@ -996,38 +1001,40 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			case char('X') :
 			{
 				if (!__gc.g_calribmodeToggle) {
+					__gc.SetErrorCode(ERROR_CODE::NOT_ALLOWED_OPERATION);
 					cout << "\n" << "not calibration mode!!" << endl;
-					return 0;
+					break;
 				}
 				//#define MYDEFINE
 
 				cv::Mat downloadedImg = cv::imread(__gc.g_folder_trackingInfo + "test_downloaded.png");
 
 				if (downloadedImg.empty()) {
+					__gc.SetErrorCode(ERROR_CODE::NO_DOWNLOAD_IMAGE);
 					cout << "\n" << "no downloaded image" << endl;
-					return false;
+					break;
 				}
 				__gc.g_downloadCompleted = 100;
 				cv::cvtColor(downloadedImg, g_curScanGrayImg, cv::COLOR_RGB2GRAY);
 				cout << "\n" << "calibration with the previous downloaded image" << endl;
 
-				track_info trk;
-				//__gc.g_track_que.wait_and_pop(trk);
-				trk = __gc.g_track_que.front();
-				if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trk, __gc.g_useGlobalPairs)) {
-					cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
-					//download_completed = false; 
-					saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0, processColorImg);
-					__gc.g_ui_banishing_count = 100;
+				track_info trk = __gc.g_track_que.front(); // __gc.g_track_que.wait_and_pop(trk);
+				if (trk.IsValidTracking()) {
+					if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trk, __gc.g_useGlobalPairs)) {
+						cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
+						//download_completed = false; 
+						saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0, processColorImg);
+						__gc.g_ui_banishing_count = 100;
+					}
 				}
 				break;
 			}
 			default: {
-				track_info trk;
-				//__gc.g_track_que.wait_and_pop(trk);
-				trk = __gc.g_track_que.front();
-				cv::Mat emptyImg;
-				saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0, emptyImg);
+				track_info trk = __gc.g_track_que.front(); //__gc.g_track_que.wait_and_pop(trk);
+				if (trk.IsValidTracking()) {
+					cv::Mat emptyImg;
+					saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0, emptyImg);
+				}
 				break;
 			}
 		}
@@ -1090,7 +1097,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 	{
-		if (__gc.g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) break;
+		if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_REGISTER) break;
 		int x = GET_X_LPARAM(lParam);
 		int y = GET_Y_LPARAM(lParam);
 		if (x == 0 && y == 0) break;
@@ -1169,7 +1176,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
 
-		if (__gc.g_optiEvent == OPTTRK_THREAD_TOOL_REGISTER) {
+		if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_REGISTER) {
 			if (zDelta > 0)
 				cpCam1.fov_y *= 0.9f;
 			else

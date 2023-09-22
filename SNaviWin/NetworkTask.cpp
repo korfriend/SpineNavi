@@ -154,8 +154,8 @@ namespace nettask {
 						memcpy(&__gc->g_downloadImgBuffer[0], &bufferTmp[0], file_size);
 
 						// fence ¿ªÇÒ...
-						__gc->g_renderEvent = RENDER_THREAD_DOWNLOAD_IMG_PROCESS;
-						while (__gc->g_renderEvent != RENDER_THREAD_FREE) Sleep(5);
+						__gc->g_renderEvent = RENDER_THREAD::DOWNLOAD_IMG_PROCESS;
+						while (__gc->g_renderEvent != RENDER_THREAD::FREE) Sleep(5);
 
 						__gc->g_downloadCompleted = 99;
 						//cv::imshow("test", g_curScanImg);
