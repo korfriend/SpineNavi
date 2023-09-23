@@ -118,7 +118,7 @@ auto storeParams = [](const std::string& paramsFileName, const glm::fmat4x4& mat
 // AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
 // note : this function needs to be called in the render thread
 auto saveAndChangeViewState = [](const int keyParam, const int sidScene, const int cidCam, const int viewIdx, 
-	const glm::fmat4x4* pmatCArmRB2WS, const cv::Mat* pcolored_img)
+	const glm::fmat4x4* pmatCArmRB2WS, const cv::Mat* pcolored_img, const std::string* load_timePack = NULL)
 {
 	// note: matCArmRB2WS is used only when a valid pcolored_img is not NULL 
 	using namespace std;
@@ -214,33 +214,39 @@ auto saveAndChangeViewState = [](const int keyParam, const int sidScene, const i
 		} // if (pcolored_img)
 		else { // // if (pcolored_img == NULL)
 			// load case
-			using std::filesystem::directory_iterator;
 
-			set<unsigned long long> latestTimePacks;
-			for (const auto& file : directory_iterator(__gc.g_folder_trackingInfo)) {
-				const std::string ss = file.path().u8string();
-				//char* ptr = std::strrchr(file.path().c_str(), '\\');     //문자열(path)의 뒤에서부터 '\'의 위치를 검색하여 반환
+			if (load_timePack == NULL) {
+				using std::filesystem::directory_iterator;
 
-				std::filesystem::path filePath = file.path().filename();
-				if (filePath.extension() == ".png") {
-					std::string fn = filePath.u8string();
-					if (fn.find("test" + to_string(i)) != std::string::npos) {
-						std::string::size_type filePos = fn.rfind('_');
-						//std::cout << file.path().filename().u8string() << std::endl;
+				set<unsigned long long> latestTimePacks;
+				for (const auto& file : directory_iterator(__gc.g_folder_trackingInfo)) {
+					const std::string ss = file.path().u8string();
+					//char* ptr = std::strrchr(file.path().c_str(), '\\');     //문자열(path)의 뒤에서부터 '\'의 위치를 검색하여 반환
 
-						if (filePos != std::string::npos)
-							++filePos;
-						else
-							filePos = 0;
-						std::string timePackExt = fn.substr(filePos);
-						timePackExt.erase(timePackExt.find_last_of("."), string::npos);
-						unsigned long long itimePackExt = std::stoll(timePackExt);
-						latestTimePacks.insert(itimePackExt);
+					std::filesystem::path filePath = file.path().filename();
+					if (filePath.extension() == ".png") {
+						std::string fn = filePath.u8string();
+						if (fn.find("test" + to_string(i)) != std::string::npos) {
+							std::string::size_type filePos = fn.rfind('_');
+							//std::cout << file.path().filename().u8string() << std::endl;
+
+							if (filePos != std::string::npos)
+								++filePos;
+							else
+								filePos = 0;
+							std::string timePackExt = fn.substr(filePos);
+							timePackExt.erase(timePackExt.find_last_of("."), string::npos);
+							unsigned long long itimePackExt = std::stoll(timePackExt);
+							latestTimePacks.insert(itimePackExt);
+						}
 					}
 				}
-			}
 
-			timePack = to_string(*latestTimePacks.rbegin());
+				timePack = to_string(*latestTimePacks.rbegin());
+			}
+			else {
+				timePack = *load_timePack;
+			}
 		}
 
 		auto it = __gc.g_mapAidGroupCArmCam.find(EXTRINSIC_PHANTOM_IMG_INDEX);
@@ -429,29 +435,15 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 			recRowCount++;
 
 			bool isAP = rowData[1] == "AP";
-			unsigned long long timePack = stoull(rowData[0]);
 
-			string scanImgNamePrefix = __gc.g_folder_trackingInfo + "test" + to_string(isAP ? 1 : 2) + "_" + rowData[0];
-			if (scanImgNamePrefix.back() == ' ') scanImgNamePrefix.pop_back();
-			cv::FileStorage fs(scanImgNamePrefix + ".txt", cv::FileStorage::Mode::READ);
-			if (fs.isOpened()) {
-				cv::Mat rb2wsMat;
-				fs["rb2wsMat"] >> rb2wsMat; // memory storage ordering in opengl
-				std::string imgFileName;
-				fs["imgFile"] >> imgFileName;
-				fs.release();
-
-				glm::fmat4x4 matCArmRB2WS = *(glm::fmat4x4*)rb2wsMat.ptr();
-				cv::Mat downloadColorImg = cv::imread(imgFileName);
-
-				if (isAP) {
-					saveAndChangeViewState(char('1'), sidScene, cidCam1, 0, &matCArmRB2WS, &downloadColorImg);
-				}
-				else {
-					saveAndChangeViewState(char('2'), sidScene, cidCam2, 1, &matCArmRB2WS, &downloadColorImg);
-				}
+			string timePack = rowData[0];
+			if (timePack.back() == ' ') timePack.pop_back();
+			if (isAP) {
+				saveAndChangeViewState(char('1'), sidScene, cidCam1, 0, NULL, NULL, &timePack);
 			}
-
+			else {
+				saveAndChangeViewState(char('2'), sidScene, cidCam2, 1, NULL, NULL, &timePack);
+			}
 		}
 	}
 	else {
