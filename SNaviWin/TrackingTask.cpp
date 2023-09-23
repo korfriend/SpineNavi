@@ -307,21 +307,23 @@ namespace trackingtask {
 				// e.g., this tracking thread is trying to access the optitrack tracking resources while the main thread (event) is modifying the optitrack tracking resources
 
 				static int pivotState = 0;
-				std::vector<glm::fvec3> selectedMks;
-				GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
 
 				switch (__gc->g_optiEvent) {
 				case OPTTRK_THREAD::C_ARM_REGISTER: {
-					optitrk::SetRigidBody("c-arm", __gc->g_selectedMkNames.size(), (float*)&selectedMks[0]);
+					std::vector<glm::fvec3> selectedMks;
+					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
+					optitrk::SetRigidBody("c-arm", selectedMks.size(), (float*)&selectedMks[0]);
 					UpdateRigidBodiesInThread();
 					optitrk::StoreProfile(__gc->g_profileFileName);
 					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 				} break;
 				case OPTTRK_THREAD::TOOL_REGISTER: {
+					std::vector<glm::fvec3> selectedMks;
+					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
 					cout << "\nregister tool success!" << endl;
-					int numSelectedMKs = (int)__gc->g_selectedMkNames.size();
+					int numSelectedMKs = (int)selectedMks.size();
 					optitrk::SetRigidBody("tool", numSelectedMKs, (float*)&selectedMks[0]);
-					__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
+					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 				} break;
 				case OPTTRK_THREAD::TOOL_UPDATE: {
 
@@ -393,11 +395,15 @@ namespace trackingtask {
 							if (optitrk::ProcessPivotSample(&progress, &initErr, &returnErr)) {
 								__gc->g_optiPivotProgress = (int)progress;
 
-								if (progress == 100.f) {
+								if (returnErr >= 0.f) {
 									pivotState = 0;
-									__gc->g_optiEvent = OPTTRK_THREAD::FREE;
-									__gc->SetErrorCode("Pivoting Completed \nInitErr: " + std::to_string(initErr) + "mm, RetErr: " + std::to_string(returnErr) + "mm");
+									//__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+									__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
+									__gc->SetErrorCode("Pivoting Completed \nInitErr: " + std::to_string(initErr) + "mm, RetErr: " + std::to_string(returnErr) + "mm", 200);
 								}
+							}
+							else {
+								__gc->SetErrorCode("Pivoting Sample Error!", 30);
 							}
 							break;
 						}

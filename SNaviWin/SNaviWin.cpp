@@ -43,8 +43,8 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 #include "CArmCalibration.h"
 
-#define DESIRED_SCREEN_W 512
-#define DESIRED_SCREEN_H 512
+#define DESIRED_SCREEN_W 900
+#define DESIRED_SCREEN_H 900
 #define USE_WHND true
 #define RECODE_MODE
 
@@ -553,16 +553,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	__gc.g_configFileName = __gc.g_folder_trackingInfo + "Config.txt";
 
 	{
-		cv::FileStorage __config_fs(__gc.g_configFileName, cv::FileStorage::Mode::WRITE);
-		__config_fs << "RecordeMode" << std::string("LOAD");
-		__config_fs << "RecordePeriod" << 2;
-		__config_fs << "PivotSamples" << 100;
-		__config_fs.release();
+		//cv::FileStorage __config_fs(__gc.g_configFileName, cv::FileStorage::Mode::WRITE);
+		//__config_fs << "RecordMode" << std::string("LOAD");
+		//__config_fs << "RecordPeriod" << 2;
+		//__config_fs << "PivotSamples" << 100;
+		//__config_fs.release();
 
 		cv::FileStorage config_fs(__gc.g_configFileName, cv::FileStorage::Mode::READ);
 		std::string configLoad;
-		config_fs["RecordeMode"] >> configLoad;
-		config_fs["RecordePeriod"] >> __gc.g_optiRecordPeriod;
+		config_fs["RecordMode"] >> configLoad;
+		config_fs["RecordPeriod"] >> __gc.g_optiRecordPeriod;
 		config_fs["PivotSamples"] >> __gc.g_optiPivotSamples;
 		config_fs.release();
 
@@ -884,8 +884,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 	case WM_KEYDOWN:
 	{
-		if (__gc.g_optiEvent != OPTTRK_THREAD::FREE 
-			|| __gc.g_renderEvent != RENDER_THREAD::FREE
+		if (__gc.g_renderEvent != RENDER_THREAD::FREE
 			|| __gc.g_networkEvent != NETWORK_THREAD_FREE) break;
 
 		using namespace std;

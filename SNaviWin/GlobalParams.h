@@ -449,7 +449,7 @@ typedef struct GlobalContainer {
 	std::atomic_int g_optiRecordFrame; // count in main thread (same as render thread)
 	int g_optiRecordPeriod;
 	int g_optiPivotSamples;
-	int g_optiPivotProgress;
+	std::atomic_int g_optiPivotProgress;
 
 	std::atomic<RENDER_THREAD> g_renderEvent;// { RENDER_THREAD::FREE };
 

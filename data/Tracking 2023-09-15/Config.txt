@@ -1,5 +1,5 @@
 %YAML:1.0
 ---
-RecordeMode: LOAD
-RecordePeriod: 2
-PivotSamples: 100
+RecordMode: NONE
+RecordPeriod: 2
+PivotSamples: 10000
