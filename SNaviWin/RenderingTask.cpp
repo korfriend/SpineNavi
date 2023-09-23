@@ -676,7 +676,7 @@ namespace rendertask {
 		if (__gc->g_error_duration == 0) {
 			__gc->g_error_text = "";
 		}
-		textItem.alignment = "LEFT";
+		textItem.alignment = "CENTER";
 		textItem.fontSize = 40.f;
 		textItem.iColor = 0xFF5050;
 		textItem.fontWeight = 7;
@@ -706,8 +706,6 @@ namespace rendertask {
 		if ((sidScene & cidCam1 & cidCam2) == 0)
 			return;
 
-		SetTextDisplay(cidCam1);
-
 		// DOJO : Animation effect
 		// cpInterCams 는 매 스캔 시 업데이트되며, 
 		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
@@ -729,6 +727,8 @@ namespace rendertask {
 				//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
 			}
 		}
+
+		SetTextDisplay(cidCam1);
 
 		vzm::RenderScene(sidScene, cidCam1);
 		vzm::RenderScene(sidScene, cidCam2);

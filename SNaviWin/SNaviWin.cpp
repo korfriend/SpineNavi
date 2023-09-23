@@ -117,61 +117,72 @@ auto storeParams = [](const std::string& paramsFileName, const glm::fmat4x4& mat
 // DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
 // AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
 // note : this function needs to be called in the render thread
-auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam, 
-	const int sidScene, const int cidCam, const int viewIdx, const cv::Mat& colored_img) 
+auto saveAndChangeViewState = [](const int keyParam, const int sidScene, const int cidCam, const int viewIdx, 
+	const glm::fmat4x4* pmatCArmRB2WS, const cv::Mat* pcolored_img)
 {
+	// note: matCArmRB2WS is used only when a valid pcolored_img is not NULL 
 	using namespace std;
 	char LOADKEYS[10] = { '0' , '1', '2', '3', '4', '5', '6', '7', '8', '9' };
 	for (int i = 0; i < 10; i++) {
 		if (keyParam != LOADKEYS[i]) continue;
 
-		track_info* trk = (track_info*)&trackInfo;
-		glm::fquat q;
-		glm::fvec3 t;
-		if (!trk->GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
-			cout << "\nfailure to get c-arm rigid body" << endl;
-			return false;
-		}
-
-		glm::fmat4x4 mat_r = glm::toMat4(q);
-		glm::fmat4x4 mat_t = glm::translate(t);
-		glm::fmat4x4 matRB2WS = mat_t * mat_r;
+		//track_info* trk = (track_info*)&trackInfo;
+		//glm::fquat q;
+		//glm::fvec3 t;
+		//if (!trk->GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+		//	cout << "\nfailure to get c-arm rigid body" << endl;
+		//	return false;
+		//}
+		//
+		//glm::fmat4x4 mat_r = glm::toMat4(q);
+		//glm::fmat4x4 mat_t = glm::translate(t);
+		//glm::fmat4x4 matCArmRB2WS = mat_t * mat_r;
 
 		__gc.g_showCalibMarkers = keyParam == '3';
 
-		string timePack = "";
+		string timePack;
 
-		if (!colored_img.empty())
+		if (pcolored_img)
 		{
-			// store case
+			const cv::Mat& colored_img = *pcolored_img;
+			const glm::fmat4x4& matCArmRB2WS = *pmatCArmRB2WS;
+			if (colored_img.empty()) {
+				__gc.SetErrorCode("The Image is Empty!");
+				return false;
+			}
 
 			timePack = to_string(navihelpers::GetCurrentTimePack());
 
 			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + "_" + timePack + ".png";
 			cv::imwrite(downloadImgFileName, colored_img);
 
-			storeParams("test" + to_string(i) + "_" + timePack + ".txt", matRB2WS, downloadImgFileName);
+			storeParams("test" + to_string(i) + "_" + timePack + ".txt", matCArmRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
 
 			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
+				if (colored_img.empty()) {
+					__gc.SetErrorCode("Not Allowed Calibration Image during Recording");
+					__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
+					return false;
+				}
 				if (!__gc.g_recScanStream.is_open()) {
 					__gc.g_recScanStream.open(__gc.g_recScanName);
 					if (!__gc.g_recScanStream.is_open()) {
 						__gc.SetErrorCode("Invalid Rec File!");
 						__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
+						return false;
 					}
 
-					// to do //
 					std::vector<std::vector<std::string>> csvData(1);
-					std::vector<std::string>& csvRow1 = csvData[0];
-					csvRow1 = { "FRAME", "TIME", "AP/LL"};
+					std::vector<std::string>& csvRow = csvData[0];
+					csvRow = { "FRAME", "TIME", "AP/LL"};
 
 					// Write CSV data to the file
-					for (int i = 0; i < (int)csvData.size(); i++) {
-						std::vector<std::string>& csvRow = csvData[i];
-						for (int j = 0; j < (int)csvRow.size(); j++) {
-							__gc.g_recScanStream << csvRow[j];
-							if (j < csvRow.size() - 1) {
+					for (int j = 0; j < (int)csvData.size(); j++) {
+						std::vector<std::string>& csvRow = csvData[j];
+						for (int k = 0; k < (int)csvRow.size(); k++) {
+							__gc.g_recScanStream << csvRow[k];
+							if (k < csvRow.size() - 1) {
 								__gc.g_recScanStream << ',';
 							}
 							else 
@@ -180,7 +191,7 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 					}
 				}
 				else {
-					// to do //
+
 					std::vector<std::string> csvRow = { to_string(__gc.g_optiRecordFrame), timePack, i == 1? "AP" : "LL" };
 
 					// Write CSV data to the file
@@ -193,15 +204,15 @@ auto saveAndChangeViewState = [](const track_info& trackInfo, const int keyParam
 							__gc.g_recScanStream << '\n';
 					}
 				}
-			}
+			} // if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD)
 			else {
 				if (__gc.g_recScanStream.is_open()) {
 					std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
 					__gc.g_recScanStream.close();
 				}
 			}
-		}
-		else {
+		} // if (pcolored_img)
+		else { // // if (pcolored_img == NULL)
 			// load case
 			using std::filesystem::directory_iterator;
 
@@ -337,6 +348,7 @@ CRITICAL_SECTION lock;
 // (thread safe 관계)
 void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 {
+	using namespace std;
 	//::EnterCriticalSection(&lock);
 	// DOJO: concurrent queue 에서 가장 최신에 저장된 tracking frame 정보 pop out
 	track_info trackInfo;
@@ -344,56 +356,110 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	if (__gc.g_optiRecordFrame > 0)
 		__gc.g_optiRecordFrame++;
 
-	if (__gc.g_track_que.empty()) return;
+	if (!__gc.g_track_que.empty()) {
+		__gc.g_track_que.wait_and_pop(trackInfo);
+	}
 
-	//for smaller overhead
-	__gc.g_track_que.wait_and_pop(trackInfo);
+	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
+	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
+	int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
 
-	if (__gc.g_renderEvent == RENDER_THREAD::DOWNLOAD_IMG_PROCESS) {
-		//__gc.g_renderEvent = RENDER_THREAD::BUSY;
-		memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
+	static int recRowCount = -1;
+	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+		if (__gc.g_recScanStream.is_open()) {
+			std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
+			__gc.g_recScanStream.close();
+		}
 
+		static rapidcsv::Document csvTrkData;
+		if (recRowCount < 0) {
+			csvTrkData.Load(__gc.g_recScanName, rapidcsv::LabelParams(0, 0));
+			recRowCount = 0;
+		}
 
-		int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
-		int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
-		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
-
-		cv::Mat downloadColorImg;
-		cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
-		cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
-
-		using namespace std;
-		if (__gc.g_calribmodeToggle) {
-			if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
-
-				cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
-				saveAndChangeViewState(trackInfo, char('3'), sidScene, cidCam1, 0, processColorImg);
-				//__gc.g_calribmodeToggle = false;
-			}
+		int recordFrame = 100000000;
+		if (recRowCount >= (int)csvTrkData.GetRowCount()) {
+			if (__gc.g_optiRecordFrame <= 2)
+				recRowCount = 0;
 		}
 		else {
-
-			// test //
-			// __gc.g_CArmRB2SourceCS
-			glm::fmat4x4 matCArmRB2WS;
-			trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
-			glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
-			//glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
-			glm::fvec3 dirCArm = vzmutils::transformVec(glm::fvec3(0, 0, -1), matSourceCS2WS);
-			dirCArm = glm::normalize(dirCArm);
-
-			glm::fmat4x4 matCam2WS;
-			trackInfo.GetTrackingCamPose(0, matCam2WS);
-			glm::fvec3 camRight = vzmutils::transformVec(glm::fvec3(1, 0, 0), matCam2WS);
-			camRight = glm::normalize(camRight);
-
-			float horizonAngle = fabs(glm::dot(camRight, dirCArm));
-			if (horizonAngle < 0.3f)
-				saveAndChangeViewState(trackInfo, char('1'), sidScene, cidCam1, 0, downloadColorImg);
-			else
-				saveAndChangeViewState(trackInfo, char('2'), sidScene, cidCam2, 1, downloadColorImg);
+			std::string frameStr = csvTrkData.GetRowName(recRowCount);
+			recordFrame = std::stoi(frameStr);
 		}
-		__gc.g_renderEvent = RENDER_THREAD::FREE;
+		if (__gc.g_optiRecordFrame > recordFrame) {
+			std::vector<std::string> rowData = csvTrkData.GetRow<std::string>(recRowCount);
+			recRowCount++;
+
+			bool isAP = rowData[1] == "AP";
+			unsigned long long timePack = stoull(rowData[0]);
+
+			string scanImgNamePrefix = __gc.g_folder_trackingInfo + "test" + to_string(isAP ? 1 : 2) + "_" + rowData[0];
+			if (scanImgNamePrefix.back() == ' ') scanImgNamePrefix.pop_back();
+			cv::FileStorage fs(scanImgNamePrefix + ".txt", cv::FileStorage::Mode::READ);
+			if (fs.isOpened()) {
+				cv::Mat rb2wsMat;
+				fs["rb2wsMat"] >> rb2wsMat; // memory storage ordering in opengl
+				std::string imgFileName;
+				fs["imgFile"] >> imgFileName;
+				fs.release();
+
+				glm::fmat4x4 matCArmRB2WS = *(glm::fmat4x4*)rb2wsMat.ptr();
+				cv::Mat downloadColorImg = cv::imread(imgFileName);
+
+				if (isAP) {
+					saveAndChangeViewState(char('1'), sidScene, cidCam1, 0, &matCArmRB2WS, &downloadColorImg);
+				}
+				else {
+					saveAndChangeViewState(char('2'), sidScene, cidCam2, 1, &matCArmRB2WS, &downloadColorImg);
+				}
+			}
+
+		}
+	}
+	else {
+		recRowCount = -1;
+		if (__gc.g_renderEvent == RENDER_THREAD::DOWNLOAD_IMG_PROCESS) {
+			//__gc.g_renderEvent = RENDER_THREAD::BUSY;
+			memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
+
+			cv::Mat downloadColorImg;
+			cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
+			cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+
+			glm::fmat4x4 matCArmRB2WS;
+			if (trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL)) {
+				if (__gc.g_calribmodeToggle) {
+					if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trackInfo, __gc.g_useGlobalPairs)) {
+
+						cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
+						saveAndChangeViewState(char('3'), sidScene, cidCam1, 0, &matCArmRB2WS, &processColorImg);
+					}
+				}
+				else {
+					// trackInfo.matCArmRB2WS, trackInfo.matCam2WS, downloadColorImg
+					glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
+					//glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
+					glm::fvec3 dirCArm = vzmutils::transformVec(glm::fvec3(0, 0, -1), matSourceCS2WS);
+					dirCArm = glm::normalize(dirCArm);
+
+					glm::fmat4x4 matCam2WS;
+					trackInfo.GetTrackingCamPose(0, matCam2WS);
+					glm::fvec3 camRight = vzmutils::transformVec(glm::fvec3(1, 0, 0), matCam2WS);
+					camRight = glm::normalize(camRight);
+
+					float horizonAngle = fabs(glm::dot(camRight, dirCArm));
+					if (horizonAngle < 0.3f)
+						saveAndChangeViewState(char('1'), sidScene, cidCam1, 0, &matCArmRB2WS, &downloadColorImg);
+					else
+						saveAndChangeViewState(char('2'), sidScene, cidCam2, 1, &matCArmRB2WS, &downloadColorImg);
+				}
+			}
+			else {
+				__gc.SetErrorCode("C-Arm is Not Detected!\nCheck the C-Arm Markers and Retry!");
+			}
+
+			__gc.g_renderEvent = RENDER_THREAD::FREE;
+		}
 	}
 
 	//track_info* ptrackInfo = NULL;
@@ -402,13 +468,11 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	//	ptrackInfo = &trackInfo;
 	//}
 
-	rendertask::RenderTrackingScene(&trackInfo);
+	if (trackInfo.IsValidTracking())
+		rendertask::RenderTrackingScene(&trackInfo);
 
 	// DOJO : windows SDK 에서 화면 업데이트 (QT 방식은 UpdateBMP 참조)
 	// USE_WHND 가 false 로 되어 있어야 함
-	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
-	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
-	int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
 	if (USE_WHND) {
 		vzm::PresentHWND(g_hWnd);
 		vzm::PresentHWND(g_hWndDialog1);
@@ -636,12 +700,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	std::thread tracker_processing_thread(trackingtask::OptiTrackingProcess);
 	std::thread network_processing_thread(nettask::NetworkProcess);
-
 	SetTimer(g_hWnd, NULL, 10, TimerProc);
 
-    MSG msg;
+	MSG msg;
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAVIWIN));
-
     // 기본 메시지 루프입니다:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
@@ -1058,7 +1120,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 					if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trk, __gc.g_useGlobalPairs)) {
 						cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
 						//download_completed = false; 
-						saveAndChangeViewState(trk, char('3'), sidScene, cidCam1, 0, processColorImg);
+
+
+						glm::fmat4x4 matCArmRB2WS;
+						if (!trk.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL)) {
+							__gc.SetErrorCode("C-Arm is Not Detected!\nCheck the C-Arm Markers and Retry!");
+							break;
+						}
+
+						saveAndChangeViewState(char('3'), sidScene, cidCam1, 0, &matCArmRB2WS, &processColorImg);
 						__gc.g_ui_banishing_count = 100;
 					}
 				}
@@ -1070,12 +1140,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 						__gc.SetErrorCode("Not Allowed during Rec Processing!");
 						break;
 					}
-
-					track_info trk = __gc.g_track_que.front(); //__gc.g_track_que.wait_and_pop(trk);
-					if (trk.IsValidTracking()) {
-						cv::Mat emptyImg;
-						saveAndChangeViewState(trk, wParam, sidScene, cidCam1, 0, emptyImg);
-					}
+					saveAndChangeViewState(wParam, sidScene, cidCam1, 0, NULL, NULL);
 				}
 				break;
 			}
@@ -1266,10 +1331,15 @@ LRESULT CALLBACK DiagProc1(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	{
 	case WM_KEYDOWN:
 	{
-		track_info trk;
-		__gc.g_track_que.wait_and_pop(trk);
-		cv::Mat emptyImg;
-		saveAndChangeViewState(trk, wParam, sidScene, cidCam2, 1, emptyImg);
+		if (__gc.g_calribmodeToggle) {
+			__gc.SetErrorCode("Not Allowed during the Marker Selection!");
+			break;
+		}
+		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+			__gc.SetErrorCode("Not Allowed during Rec Processing!");
+			break;
+		}
+		saveAndChangeViewState(wParam, sidScene, cidCam2, 1, NULL, NULL);
 		break;
 	}
 	case WM_SIZE:

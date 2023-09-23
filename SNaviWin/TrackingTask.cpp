@@ -85,7 +85,7 @@ namespace trackingtask {
 			if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
 
 				recFinished();
-				static int frameCount = 0;
+				static int recDataRowCount = 0;
 
 				if (__gc->g_optiRecordFrame == 0) {
 					csvTrkData.Load(__gc->g_recFileName, rapidcsv::LabelParams(0, 0));
@@ -112,23 +112,23 @@ namespace trackingtask {
 					}
 
 					__gc->g_optiRecordFrame = 1;
-					frameCount = 0;
+					recDataRowCount = 0;
 				}
 
 				const int frameRowIdx = 4;
 				const int numTotalFrames = numRows - 4;
 
-				if (frameCount >= numTotalFrames) {
-					frameCount = 0;
+				if (recDataRowCount >= numTotalFrames) {
+					recDataRowCount = 0;
 					__gc->g_optiRecordFrame = 1;
 				}
 
-				std::string frameStr = csvTrkData.GetRowName((int)frameRowIdx + (int)frameCount);
+				std::string frameStr = csvTrkData.GetRowName((int)frameRowIdx + (int)recDataRowCount);
 				int recordFrame = std::stoi(frameStr);
 				if (__gc->g_optiRecordFrame > recordFrame) {
 
-					std::vector<std::string> rowData = csvTrkData.GetRow<std::string>((int)frameRowIdx + (int)frameCount);
-					frameCount++;
+					std::vector<std::string> rowData = csvTrkData.GetRow<std::string>((int)frameRowIdx + (int)recDataRowCount);
+					recDataRowCount++;
 
 					glm::fmat4x4 matData;
 					float* pmat = glm::value_ptr(matData);
@@ -396,7 +396,7 @@ namespace trackingtask {
 								if (progress == 100.f) {
 									pivotState = 0;
 									__gc->g_optiEvent = OPTTRK_THREAD::FREE;
-									__gc->SetErrorCode("Pivot (InitErr: " + std::to_string(initErr) + ", RetErr: " + std::to_string(returnErr) + ")");
+									__gc->SetErrorCode("Pivoting Completed \nInitErr: " + std::to_string(initErr) + "mm, RetErr: " + std::to_string(returnErr) + "mm");
 								}
 							}
 							break;
@@ -407,6 +407,7 @@ namespace trackingtask {
 					optitrk::ResetPivot();
 					pivotState = 0;
 					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+					__gc->SetErrorCode("Pivoting Canceled");
 				} break;
 				case OPTTRK_THREAD::FREE:
 				default: break;
