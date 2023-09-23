@@ -379,8 +379,46 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 
 		int recordFrame = 100000000;
 		if (recRowCount >= (int)csvTrkData.GetRowCount()) {
-			if (__gc.g_optiRecordFrame <= 2)
+			if (__gc.g_optiRecordFrame <= 2) {
 				recRowCount = 0;
+
+				glm::fvec3 posInit, viewInit, upInit;
+				cv::FileStorage fs(__gc.g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
+				if (fs.isOpened()) {
+					cv::Mat ocvVec3;
+					fs["POS"] >> ocvVec3;
+					memcpy(&posInit, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["VIEW"] >> ocvVec3;
+					memcpy(&viewInit, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["UP"] >> ocvVec3;
+					memcpy(&upInit, ocvVec3.ptr(), sizeof(float) * 3);
+					fs.release();
+				}
+
+				float vFov = 3.141592654f / 4.f;
+				int cidCams[2] = { cidCam1 , cidCam2 };
+				for (int i = 0; i < 2; i++) {
+					vzm::CameraParameters cpCam;
+					vzm::GetCameraParams(cidCams[i], cpCam);
+
+					float aspect_ratio = (float)cpCam.w / (float)cpCam.h;
+					float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
+					cpCam.fx = cpCam.w / (2.f * tan(hFov / 2.f));
+					cpCam.fy = cpCam.h / (2.f * tan(vFov / 2.f));
+					cpCam.sc = 0;
+					cpCam.cx = cpCam.w / 2.f;
+					cpCam.cy = cpCam.h / 2.f;
+					cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+					*(glm::fvec3*)cpCam.pos = posInit;
+					*(glm::fvec3*)cpCam.view = viewInit;
+					*(glm::fvec3*)cpCam.up = upInit;
+					vzm::SetCameraParams(cidCams[i], cpCam);
+				}
+
+				for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
+					vzm::RemoveSceneItem(it->second, true);
+				}
+			}
 		}
 		else {
 			std::string frameStr = csvTrkData.GetRowName(recRowCount);

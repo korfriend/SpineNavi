@@ -706,6 +706,12 @@ namespace rendertask {
 		if ((sidScene & cidCam1 & cidCam2) == 0)
 			return;
 
+		if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD && __gc->g_optiRecordFrame <= 2) {
+			for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
+				g_arAnimationKeyFrame[i] = -1;
+			}
+		}
+
 		// DOJO : Animation effect
 		// cpInterCams 는 매 스캔 시 업데이트되며, 
 		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
