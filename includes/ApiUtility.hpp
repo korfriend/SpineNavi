@@ -646,10 +646,11 @@ namespace vzmutils {
 		// now compute the intersection points from pos_plane_os and vec_plane_os with aabb
 		std::vector<glm::fvec3> unordered_points;
 		glm::fvec3 uvec_plane = glm::normalize(vec_plane);
-		double d = -uvec_plane.x * pos_plane.x - uvec_plane.y * pos_plane.y - uvec_plane.z * pos_plane.z;
+		float d = -uvec_plane.x * pos_plane.x - uvec_plane.y * pos_plane.y - uvec_plane.z * pos_plane.z;
 
+		const float min_error = 0.000001f;
 		// Compute Max 6 Points //
-		if (uvec_plane.x != 0)
+		if (uvec_plane.x * uvec_plane.x > min_error)
 		{
 			// 4 Cases //
 			glm::fvec2 pos_ortho[4];
@@ -660,8 +661,8 @@ namespace vzmutils {
 
 			for (int i = 0; i < 4; i++)
 			{
-				double _x = (-d - uvec_plane.y * pos_ortho[i].x - uvec_plane.z * pos_ortho[i].y) / uvec_plane.x;
-				if (aabb_min.x <= _x && aabb_max.x >= _x)
+				float _x = (-d - uvec_plane.y * pos_ortho[i].x - uvec_plane.z * pos_ortho[i].y) / uvec_plane.x;
+				if (aabb_min.x - _x <= min_error && aabb_max.x - _x >= -min_error)
 				{
 					glm::fvec3 pos_cross = glm::fvec3(_x, pos_ortho[i].x, pos_ortho[i].y);
 					unordered_points.push_back(pos_cross);
@@ -669,7 +670,7 @@ namespace vzmutils {
 			}
 		}
 
-		if (uvec_plane.y != 0)
+		if (uvec_plane.y * uvec_plane.y > min_error)
 		{
 			// 4 Cases //
 			glm::fvec2 pos_ortho[4];
@@ -680,8 +681,9 @@ namespace vzmutils {
 
 			for (int i = 0; i < 4; i++)
 			{
-				double _y = (-d - uvec_plane.x * pos_ortho[i].x - uvec_plane.z * pos_ortho[i].y) / uvec_plane.y;
-				if (aabb_min.y <= _y && aabb_max.y >= _y)
+				float _y = (-d - uvec_plane.x * pos_ortho[i].x - uvec_plane.z * pos_ortho[i].y) / uvec_plane.y;
+
+				if (aabb_min.y - _y <= min_error && aabb_max.y - _y >= -min_error)
 				{
 					glm::fvec3 pos_cross = glm::fvec3(pos_ortho[i].x, _y, pos_ortho[i].y);
 					if (std::find(unordered_points.begin(), unordered_points.end(), pos_cross) == unordered_points.end())
@@ -690,7 +692,7 @@ namespace vzmutils {
 			}
 		}
 
-		if (uvec_plane.z != 0)
+		if ((double)uvec_plane.z * (double)uvec_plane.z > min_error)
 		{
 			// 4 Cases //
 			glm::fvec2 pos_ortho[4];
@@ -701,10 +703,11 @@ namespace vzmutils {
 
 			for (int i = 0; i < 4; i++)
 			{
-				double dZ = (-d - uvec_plane.x * pos_ortho[i].x - uvec_plane.y * pos_ortho[i].y) / uvec_plane.z;
-				if (aabb_min.z <= dZ && aabb_max.z >= dZ)
+				float _z = (-d - uvec_plane.x * pos_ortho[i].x - uvec_plane.y * pos_ortho[i].y) / uvec_plane.z;
+
+				if (aabb_min.z - _z <= min_error && aabb_max.z - _z >= -min_error)
 				{
-					glm::fvec3 pos_cross = glm::fvec3(pos_ortho[i].x, pos_ortho[i].y, dZ);
+					glm::fvec3 pos_cross = glm::fvec3(pos_ortho[i].x, pos_ortho[i].y, _z);
 					if (std::find(unordered_points.begin(), unordered_points.end(), pos_cross) == unordered_points.end())
 						unordered_points.push_back(pos_cross);
 				}

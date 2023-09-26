@@ -10,6 +10,6 @@ namespace rendertask {
 		const float fx, const float fy, const float s, const float cx, const float cy, 
 		const glm::fmat4x4& matCS2WS);
 	
-	void RenderTrackingScene(const track_info* trackInfo);
+	void RenderTrackingScene(track_info* trackInfo);
 
 }

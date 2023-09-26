@@ -43,8 +43,8 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 #include "CArmCalibration.h"
 
-#define DESIRED_SCREEN_W 950
-#define DESIRED_SCREEN_H 950
+#define DESIRED_SCREEN_W 550
+#define DESIRED_SCREEN_H 550
 #define USE_WHND true
 #define RECODE_MODE
 
@@ -347,7 +347,7 @@ void UpdateBMP(int cidCam, HWND hWnd) {
 	}
 };
 
-CRITICAL_SECTION lock;
+//CRITICAL_SECTION lock;
 // DOJO: windows SDK 에서 호출되는 SetTimer 의 callback 함수
 // 여기에서 UpdateTrackInfo2Scene() 과 Render() 이 호출된다.
 // timer 가 main thread 에서 활성화되므로 rendering thread (timer)는 main thread 에 종속
@@ -362,9 +362,9 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 	if (__gc.g_optiRecordFrame > 0)
 		__gc.g_optiRecordFrame++;
 
-	if (!__gc.g_track_que.empty()) {
-		__gc.g_track_que.wait_and_pop(trackInfo);
-	}
+	if (__gc.g_track_que.empty())
+		return;
+	__gc.g_track_que.wait_and_pop(trackInfo);
 
 	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
 	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
@@ -730,11 +730,13 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	std::thread tracker_processing_thread(trackingtask::OptiTrackingProcess);
 	std::thread network_processing_thread(nettask::NetworkProcess);
-	SetTimer(g_hWnd, NULL, 10, TimerProc);
-
+	
 	MSG msg;
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_SNAVIWIN));
-    // 기본 메시지 루프입니다:
+	//::InitializeCriticalSection(&lock);
+	SetTimer(g_hWnd, NULL, 10, TimerProc);
+	//::DeleteCriticalSection(&lock);
+	// 기본 메시지 루프입니다:
     while (GetMessage(&msg, nullptr, 0, 0))
     {
         if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
@@ -742,7 +744,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			if (IsDialogMessage(g_hWndDialog1, &msg) && msg.message == WM_KEYDOWN) {
 				DiagProc1(g_hWndDialog1, msg.message, msg.wParam, msg.lParam);
 			}
-			else {
+			else 
+			{
 				TranslateMessage(&msg);
 				DispatchMessage(&msg);
 			}
@@ -812,7 +815,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	   -1915, 5, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr); //-1915
+	   17, 5, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr); //-1915
    //HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)

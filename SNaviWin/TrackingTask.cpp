@@ -192,9 +192,9 @@ namespace trackingtask {
 						} // else if (rowTypes[i] == "Rigid Body")
 						else if (rowTypes[i] == "Marker") {
 							int mkIdx = 1;
+							int mk_count = 0;
 							for (int j = 0; j < (int)rbMkSets.size(); j++) {
 								std::map<std::string, std::map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[j];
-								int mk_count = 0;
 								for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
 									std::bitset<128> cid = j << 8 | mk_count++;
 									std::string mkName = any_cast<std::string>(it->second[track_info::MKINFO::MK_NAME]);

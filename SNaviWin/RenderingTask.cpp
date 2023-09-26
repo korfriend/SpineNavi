@@ -447,7 +447,6 @@ namespace rendertask {
 				vzm::SetActorParams(aidToolTip, apToolTip);
 			}
 
-			/**/
 			// Rb markers //
 			
 			int aidGroupRbMks = vzmutils::GetSceneItemIdByName(rbName + ":Markers");
@@ -500,7 +499,7 @@ namespace rendertask {
 
 				vzm::SetActorParams(aidRbMk, apRbMk);
 			}
-			/**/
+
 			vzm::SetActorParams(aidRb, apRb);
 		} // for (int i = 0; i < numRBs; i++)
 
@@ -566,13 +565,14 @@ namespace rendertask {
 		for (int i = 0; i < (int)trackInfo.NumMarkers(); i++) {
 			std::map<track_info::MKINFO, std::any> mkInfo;
 			// "Marker[i+1]"
-			assert(trackInfo.GetMarkerByIdx(i, mkInfo));
+			bool isTracked = trackInfo.GetMarkerByIdx(i, mkInfo);
+			assert(isTracked);
 			optiMarkers[std::any_cast<std::string>(mkInfo[track_info::MKINFO::MK_NAME])] 
 				= std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
 		}
 		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.5f), 0.007f, true);
 
-
+		
 		map<string, fvec3> testMarkers;
 		for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
 			testMarkers["testMK" + to_string(i + 1)] = __gc->g_testMKs[i];
@@ -588,6 +588,8 @@ namespace rendertask {
 			calibMarkers["calibMK" + to_string(mkIndex++)] = it.first;
 		}
 		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 1.f), 0.003f, false, __gc->g_showCalibMarkers);
+		
+		/**/
 	}
 
 	// DOJO: Scene 에 Text GUI 생성
@@ -691,7 +693,7 @@ namespace rendertask {
 	}
 	// DOJO : 현재 Scene (__gc->g_sceneName) 에서 등록된 camera (__gc->g_camName, __gc->g_camName2) 들에 대해 렌더링하는 함수
 	// Timer 에 등록된 CALLBACK TimerProc 에서 호출됨 (note: Timer 가 본 어플리케이션에서 rendering thread 로 사용됨)
-	void RenderTrackingScene(const track_info* trackInfo)
+	void RenderTrackingScene(track_info* trackInfo)
 	{
 		if (__gc == NULL) return;
 
