@@ -47,6 +47,7 @@ namespace rendertask {
 		// color 의 경우, 해당 actor 에 대해 global 로 적용됨 
 		// geometry resource 가 vertex 단위로 color 가 정의되어 있다면, 여기선 alpha 값만 사용됨
 		*(glm::fvec4*)apAxis.color = glm::fvec4(1, 1, 1, 1);
+		apAxis.phong_coeffs[1] = 1.f;
 		// DOJO : 새로운 액터 생성
 		// actor name parameter 와 actor parameter 필요
 		// actor name parameter 로 actor 의 ID 를 가져올 수 있음
@@ -386,6 +387,7 @@ namespace rendertask {
 				else {
 					apRb.SetResourceID(vzm::ActorParameters::GEOMETRY, oidAxis);
 					apRb.line_thickness = 3;
+					apRb.phong_coeffs[1] = 1.f;
 				}
 
 				vzm::NewActor(apRb, rbName, aidRb);
@@ -411,6 +413,8 @@ namespace rendertask {
 				if (aidToolBody == 0) {
 					vzm::NewActor(apToolBody, rbName + ":Body", aidToolBody);
 					apToolTip.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
+					*(glm::fvec4*)apToolTip.color = glm::fvec4(1, 0.3, 0.7, 1.f);
+					apToolTip.phong_coeffs[1] = 0.7f;
 					vzm::NewActor(apToolTip, rbName + ":Tip", aidToolTip);
 					vzm::AppendSceneItemToSceneTree(aidToolBody, aidRb);
 					vzm::AppendSceneItemToSceneTree(aidToolTip, aidRb);
@@ -432,6 +436,7 @@ namespace rendertask {
 
 						apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
 						apToolBody.line_thickness = 3;
+						apToolBody.phong_coeffs[1] = 1.f;
 						*(glm::fvec4*)apToolBody.color = glm::fvec4(1, 1, 1, 1);
 					}
 
