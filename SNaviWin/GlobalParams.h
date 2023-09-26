@@ -338,8 +338,15 @@ public:
 		v[MKINFO::MK_CID] = cid;
 		v[MKINFO::POSITION] = mkPos;
 		v[MKINFO::MK_NAME] = mkName;
-		v[MKINFO::MK_QUALITY] = 1.f;
-		v[MKINFO::TRACKED] = true;
+		if (mkPos.x > 9999.f && mkPos.y > 9999.f && mkPos.z > 9999.f) {
+			v[MKINFO::MK_QUALITY] = 0;
+			v[MKINFO::TRACKED] = false;
+		}
+		else {
+			v[MKINFO::MK_QUALITY] = 1.f;
+			v[MKINFO::TRACKED] = true;
+
+		}
 
 		__mksByName[mkName] = cid;
 	}

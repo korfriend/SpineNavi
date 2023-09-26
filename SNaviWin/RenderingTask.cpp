@@ -564,10 +564,11 @@ namespace rendertask {
 		map<string, fvec3> optiMarkers;
 		for (int i = 0; i < (int)trackInfo.NumMarkers(); i++) {
 			std::map<track_info::MKINFO, std::any> mkInfo;
+			trackInfo.GetMarkerByIdx(i, mkInfo);
 			// "Marker[i+1]"
-			bool isTracked = trackInfo.GetMarkerByIdx(i, mkInfo);
-			assert(isTracked);
-			optiMarkers[std::any_cast<std::string>(mkInfo[track_info::MKINFO::MK_NAME])] 
+			bool isTracked = std::any_cast<bool>(mkInfo[track_info::MKINFO::TRACKED]);
+			if (isTracked)
+				optiMarkers[std::any_cast<std::string>(mkInfo[track_info::MKINFO::MK_NAME])]
 				= std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
 		}
 		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.5f), 0.007f, true);

@@ -197,9 +197,15 @@ namespace trackingtask {
 								std::map<std::string, std::map<track_info::MKINFO, std::any>>& rbmkSet = rbMkSets[j];
 								for (auto it = rbmkSet.begin(); it != rbmkSet.end(); it++) {
 									std::bitset<128> cid = j << 8 | mk_count++;
+
 									std::string mkName = any_cast<std::string>(it->second[track_info::MKINFO::MK_NAME]);
-									glm::fvec3 mkPos = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION]);
-									trk_info.AddMarker(cid, mkPos, "Marker" + to_string(mk_count));
+									//glm::fvec3 mkPos = any_cast<glm::fvec3>(it->second[track_info::MKINFO::POSITION_RBPC]);
+									glm::fvec3 mkPos;
+									mkPos.x = std::stof(rowData[i++]);
+									mkPos.y = std::stof(rowData[i++]);
+									mkPos.z = std::stof(rowData[i++]);
+									//trk_info.AddMarker(cid, mkPos, "Marker" + to_string(mk_count));
+									trk_info.AddMarker(cid, mkPos, mkName + " PC");
 								}
 							}
 							i = numCols + 1;
