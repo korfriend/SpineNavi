@@ -20,6 +20,7 @@
 #include <regex>
 #include <vector>
 #include <windowsx.h>
+#include <playsoundapi.h>
 #include <iostream>
 #include <stdio.h>
 #include <ctime>
@@ -485,7 +486,8 @@ void CALLBACK TimerProc(HWND, UINT, UINT_PTR pcsvData, DWORD)
 				}
 			}
 			else {
-				__gc.SetErrorCode("C-Arm is Not Detected!\nCheck the C-Arm Markers and Retry!");
+				PlaySound((LPCTSTR)SND_ALIAS_SYSTEMWELCOME, NULL, SND_ALIAS_ID | SND_ASYNC);
+				__gc.SetErrorCode("C-Arm is Not Detected!\nCheck the C-Arm Markers and Retry!", 300);
 			}
 
 			__gc.g_renderEvent = RENDER_THREAD::FREE;

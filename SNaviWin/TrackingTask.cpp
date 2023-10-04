@@ -88,6 +88,22 @@ namespace trackingtask {
 				static int recDataRowCount = 0;
 
 				if (__gc->g_optiRecordFrame == 0) {
+
+					cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltipRecord.txt", cv::FileStorage::Mode::READ);
+					if (fs.isOpened()) {
+						std::vector<glm::fvec3> toolUserData(2);
+
+						cv::Mat ocv3(1, 3, CV_32FC1);
+						fs["ToolPos"] >> ocv3;
+						memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
+						fs["ToolVec"] >> ocv3;
+						memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
+
+						__gc->g_rbLocalUserPoints["tool"] = toolUserData;
+					}
+					fs.release();
+
+
 					csvTrkData.Load(__gc->g_recFileName, rapidcsv::LabelParams(0, 0));
 
 					rowTypes = csvTrkData.GetRow<std::string>(-1);
@@ -428,6 +444,21 @@ namespace trackingtask {
 				if (__gc->g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
 
 					if (__gc->g_optiRecordFrame == 0) {
+
+						std::vector<glm::fvec3>& toolUserData = __gc->g_rbLocalUserPoints["tool"];
+						if (toolUserData.size() == 2) {
+							cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltipRecord.txt", cv::FileStorage::Mode::WRITE);
+							cv::Mat ocv3(1, 3, CV_32FC1);
+							memcpy(ocv3.ptr(), &toolUserData[0], sizeof(glm::fvec3));
+							fs << "ToolPos" << ocv3;
+							memcpy(ocv3.ptr(), &toolUserData[1], sizeof(glm::fvec3));
+							fs << "ToolVec" << ocv3;
+							fs.release();
+						}
+						else {
+							__gc->SetErrorCode("No Tool is Registered!");
+							__gc->g_optiRecordMode = OPTTRK_RECMODE::NONE;
+						}
 
 						__gc->g_recFileStream.open(__gc->g_recFileName);
 						if (!__gc->g_recFileStream.is_open()) {
