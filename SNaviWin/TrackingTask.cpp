@@ -45,6 +45,13 @@ namespace trackingtask {
 		std::vector<std::string> rowTypes, rowNames, rowIds, rowDataType;
 		int numCols, numRows;
 
+		{
+			optitrk::SetRigidBodyPropertyByName("c-arm", 0.1f, 0);
+			optitrk::SetRigidBodyPropertyByName("tool", 0, 0);
+			optitrk::SetRigidBodyPropertyByName("probe", 0, 0);
+		}
+
+
 		while (__gc->g_tracker_alive)
 		{
 			track_info trk_info;

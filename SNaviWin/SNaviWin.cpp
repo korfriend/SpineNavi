@@ -44,8 +44,8 @@ using namespace Gdiplus;
 #include "rapidcsv/rapidcsv.h"
 #include "CArmCalibration.h"
 
-#define DESIRED_SCREEN_W 550
-#define DESIRED_SCREEN_H 550
+#define DESIRED_SCREEN_W 950
+#define DESIRED_SCREEN_H 950
 #define USE_WHND true
 #define RECODE_MODE
 
@@ -548,7 +548,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	__gc.Init();
 	__gc.g_folder_data = getdatapath();
-	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-09-25/";
+	__gc.g_folder_trackingInfo = getdatapath() + "Tracking 2023-10-05/";
 	__gc.g_profileFileName = __gc.g_folder_data + "Motive Profile - 2023-09-15.motive";
 	__gc.g_recFileName = __gc.g_folder_trackingInfo + "TrackingRecord.csv";
 	__gc.g_recScanName = __gc.g_folder_trackingInfo + "ScanRecord.csv";
@@ -566,6 +566,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		config_fs["RecordMode"] >> configLoad;
 		config_fs["RecordPeriod"] >> __gc.g_optiRecordPeriod;
 		config_fs["PivotSamples"] >> __gc.g_optiPivotSamples;
+		std::cout << (int)__gc.g_optiPivotSamples << std::endl;
 		config_fs.release();
 
 		if (configLoad == "LOAD") {
@@ -817,7 +818,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    //WND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
    HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-	   17, 5, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr); //-1915
+	   -1915, 5, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr); //-1915
    //HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
 	//   CW_USEDEFAULT, 0, DESIRED_SCREEN_W, DESIRED_SCREEN_H, nullptr, nullptr, hInstance, nullptr);
    if (!hWnd)

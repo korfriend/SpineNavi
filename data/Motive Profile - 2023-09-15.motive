@@ -238,6 +238,12 @@
                 <property>
                     <name>MinimumMarkerCount</name>
                     <value>6</value>
+                    <defaultValue>6</defaultValue>
+                </property>
+                <property>
+                    <name>Smoothing</name>
+                    <value>0.100000</value>
+                    <defaultValue>0.100000</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation0</name>
@@ -338,6 +344,7 @@
                 <property>
                     <name>ModelName</name>
                     <value>C:/ProgramData/OptiTrack/Motive/ObjectFiles/Probe/Probe.obj</value>
+                    <defaultValue>C:/ProgramData/OptiTrack/Motive/ObjectFiles/Probe/Probe.obj</defaultValue>
                 </property>
                 <property>
                     <name>ModelYaw</name>
@@ -350,15 +357,17 @@
                 <property>
                     <name>UserData</name>
                     <value>999</value>
-                    <defaultValue>1001</defaultValue>
+                    <defaultValue>999</defaultValue>
                 </property>
                 <property>
                     <name>MinimumMarkerCount</name>
                     <value>4</value>
+                    <defaultValue>4</defaultValue>
                 </property>
                 <property>
                     <name>AcquisitionFrames</name>
                     <value>1</value>
+                    <defaultValue>1</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation0</name>
@@ -407,25 +416,25 @@
         <rigid_body version="1.1" id="2e37eef81c58c19c:e54b34fb53ac11ee">
             <markers>
                 <marker id="0:0">
-                    <position>0.258736,0.0861354,-0.0166063</position>
+                    <position>0.263511,0.0851187,-0.0250114</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>1</label_id>
                 </marker>
                 <marker id="0:0">
-                    <position>0.298749,0.037508,-0.0254709</position>
+                    <position>0.303524,0.0364913,-0.033876</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>2</label_id>
                 </marker>
                 <marker id="0:0">
-                    <position>0.263845,-0.0192676,-0.0449405</position>
+                    <position>0.26862,-0.0202843,-0.0533456</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>3</label_id>
                 </marker>
                 <marker id="0:0">
-                    <position>0.216033,0.00657846,-0.0440387</position>
+                    <position>0.220808,0.00556172,-0.0524438</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>4</label_id>
@@ -454,23 +463,23 @@
                 </property>
                 <property>
                     <name>MarkerLocation0</name>
-                    <value>0.258736,0.0861354,-0.0166063</value>
-                    <defaultValue>0.258736,0.0861354,-0.0166063</defaultValue>
+                    <value>0.263511,0.0851187,-0.0250114</value>
+                    <defaultValue>0.263511,0.0851187,-0.0250114</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation1</name>
-                    <value>0.298749,0.037508,-0.0254709</value>
-                    <defaultValue>0.298749,0.037508,-0.0254709</defaultValue>
+                    <value>0.303524,0.0364913,-0.033876</value>
+                    <defaultValue>0.303524,0.0364913,-0.033876</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation2</name>
-                    <value>0.263845,-0.0192676,-0.0449405</value>
-                    <defaultValue>0.263845,-0.0192676,-0.0449405</defaultValue>
+                    <value>0.26862,-0.0202843,-0.0533456</value>
+                    <defaultValue>0.26862,-0.0202843,-0.0533456</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation3</name>
-                    <value>0.216033,0.00657846,-0.0440387</value>
-                    <defaultValue>0.216033,0.00657846,-0.0440387</defaultValue>
+                    <value>0.220808,0.00556172,-0.0524438</value>
+                    <defaultValue>0.220808,0.00556172,-0.0524438</defaultValue>
                 </property>
             </properties>
             <MarkerNames ReorderMarkers="true">
@@ -498,7 +507,7 @@
         </rigid_body>
     </NodeAssets>
     <DeviceAssets>
-        <sync_device version="1.0" id="2e37eef81c58c49c:b66ab1785b5311ee">
+        <sync_device version="1.0" id="2e37eef81c58c69c:b899fe3e632f11ee">
             <properties>
                 <property>
                     <name>NodeName</name>
