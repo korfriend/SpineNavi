@@ -26,7 +26,7 @@ namespace rendertask {
 		__gc = gcp;
 	}
 
-	void SceneInit(const HWND view1Hwnd, const RECT rcWorldView1, const HWND view2Hwnd, const RECT rcWorldView2) {
+	void SceneInit(int initBufW, int initBufH) {
 		if (__gc == NULL) return;
 
 		// DOJO : Axis 를 위한 actor resource 를 생성
@@ -108,8 +108,9 @@ namespace rendertask {
 		}
 
 		// 렌더링될 buffer 사이즈
-		cpCam.w = rcWorldView1.right - rcWorldView1.left;
-		cpCam.h = rcWorldView1.bottom - rcWorldView1.top;
+		cpCam.w = initBufW;
+		cpCam.h = initBufH;
+		cpCam.skip_sys_fb_update = true;
 
 		// 렌더링 파이프라인의 View Frustum 에서의 near plane, far plane distances
 		cpCam.np = 0.15f;
@@ -138,14 +139,9 @@ namespace rendertask {
 		}
 
 		//cpCam1.SetOrthogonalProjection(true);
-		cpCam.hWnd = view1Hwnd;
 		// DOJO : scene 에 등록될 카메라 생성, 여기선 두 개 생성 (AP, Lateral 용)
 		int cidCam1 = 0, cidCam2 = 0;
 		vzm::NewCamera(cpCam, __gc->g_camName, cidCam1);
-
-		cpCam.h = rcWorldView2.bottom - rcWorldView1.top;
-		cpCam.w = rcWorldView2.right - rcWorldView1.left;
-		cpCam.hWnd = view2Hwnd;
 		vzm::NewCamera(cpCam, __gc->g_camName2, cidCam2);
 
 		// DOJO : Light 를 정의하기 위한 파라미터
@@ -340,7 +336,6 @@ namespace rendertask {
 		static int oidAxis = 0;
 		static int oidMarker = 0;
 		static int oidProbe = 0;
-		static float probeCorrection = 0;
 		// axis 를 그리는 resource object 생성
 		if (vzm::GetResObjType(oidAxis) == vzm::ResObjType::UNDEFINED) {
 			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
@@ -351,13 +346,9 @@ namespace rendertask {
 			vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
 		}
 		// probe 를 그리는 resource object 생성
-		if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED ||
-			probeCorrection != __gc->g_probeTipCorrection) {
-			probeCorrection = __gc->g_probeTipCorrection;
-			//vzm::LoadModelFile(folder_data + "probe.obj", oidProbe);
-
+		if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED) {
 			glm::fvec3 posS(0, 0, 0.25f);
-			glm::fvec3 posE(0, 0, -probeCorrection);
+			glm::fvec3 posE(0, 0, 0);
 			//vzm::GenerateArrowObject(__FP posS, __FP posE, 0.0025f, 0.0025f, oidProbe);
 			glm::fvec3 pp[2] = { posE , posS };
 			float rr[2] = { 0.001, 0.001 };
@@ -372,7 +363,7 @@ namespace rendertask {
 			string rbName;
 			float rb_error = 0;
 			bitset<128> rb_cid = 0;
-			fmat4x4 matRbLS2WS;
+			fmat4x4 matRbLS2WS(1);
 			map<string, map<track_info::MKINFO, std::any>> rbmkSet;
 
 			// 여기에서 index 는 optitrack lib 에서 사용하는 index 와 다르다! track_info 구조체에서 사용하는 index 임!
@@ -404,7 +395,6 @@ namespace rendertask {
 				apRb.is_visible = false;
 			}
 
-			
 			if (rbName == "tool") {
 
 				int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
@@ -451,7 +441,7 @@ namespace rendertask {
 				vzm::SetActorParams(aidToolBody, apToolBody);
 				vzm::SetActorParams(aidToolTip, apToolTip);
 			}
-
+			
 			// Rb markers //
 			
 			int aidGroupRbMks = vzmutils::GetSceneItemIdByName(rbName + ":Markers");
@@ -508,6 +498,7 @@ namespace rendertask {
 			vzm::SetActorParams(aidRb, apRb);
 		} // for (int i = 0; i < numRBs; i++)
 
+		/**/
 		auto displayMarkers = [&sidScene](const map<string, fvec3>& mks, const string& groupName
 			, const fvec4& mkColor, const float r, const bool isPickable = false, const bool isVisible = true) {
 			int numCurMKs = (int)mks.size();
@@ -545,10 +536,10 @@ namespace rendertask {
 
 				float targetR = __gc->g_calribmodeToggle ? 2.f * r : r;
 				*(glm::fvec4*)apMarker.color = mkColor; // rgba
-				apMarker.color[3] = __gc->g_calribmodeToggle ? 0.8f : 0.5f;
+				//apMarker.color[3] = __gc->g_calribmodeToggle ? 0.3f : 0.3f;
 				auto it = __gc->g_selectedMkNames.find(mk.first);
 				if (it != __gc->g_selectedMkNames.end()) {
-					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 0.5);
+					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 0.3);
 					apMarker.label.textStr = "p:" + std::to_string(it->second);
 					apMarker.label.fontSize = 15.f;
 				}
@@ -565,7 +556,6 @@ namespace rendertask {
 			}
 		};
 
-
 		map<string, fvec3> optiMarkers;
 		for (int i = 0; i < (int)trackInfo.NumMarkers(); i++) {
 			std::map<track_info::MKINFO, std::any> mkInfo;
@@ -576,14 +566,14 @@ namespace rendertask {
 				optiMarkers[std::any_cast<std::string>(mkInfo[track_info::MKINFO::MK_NAME])]
 				= std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
 		}
-		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.5f), 0.007f, true);
+		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.3f), 0.007f, true);
 
 		
 		map<string, fvec3> testMarkers;
 		for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
 			testMarkers["testMK" + to_string(i + 1)] = __gc->g_testMKs[i];
 		}
-		displayMarkers(testMarkers, "TestMarkers", glm::fvec4(0, 0, 1.f, 0.5f), 0.007f);
+		displayMarkers(testMarkers, "TestMarkers", glm::fvec4(0, 0, 1.f, 0.3f), 0.007f);
 
 
 		map<string, fvec3> calibMarkers;
@@ -593,7 +583,7 @@ namespace rendertask {
 		for (auto it : __gc->g_homographyPairs) {
 			calibMarkers["calibMK" + to_string(mkIndex++)] = it.first;
 		}
-		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 1.f), 0.003f, false, __gc->g_showCalibMarkers);
+		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 0.3f), 0.003f, false, __gc->g_showCalibMarkers);
 		
 		/**/
 	}
@@ -623,20 +613,6 @@ namespace rendertask {
 		textItem.posScreenX = 0;
 		textItem.posScreenY = cpCam1.h - 40;
 		cpCam1.text_items.SetParam("FRAME", textItem);
-
-		textItem.textStr = __gc->g_useGlobalPairs ? "Global Pairs (" + std::to_string(__gc->g_homographyPairs.size()) + ")" : "Local Pairs";
-		textItem.fontSize = 30.f;
-		textItem.iColor = 0xFFFFFF;
-		textItem.posScreenX = 0;
-		textItem.posScreenY = cpCam1.h - 80;
-		cpCam1.text_items.SetParam("PAIRMODE", textItem);
-
-		textItem.textStr = "Probe Tip Correction : " + std::to_string(__gc->g_probeTipCorrection * 0.001f) + " mm";
-		textItem.fontSize = 20.f;
-		textItem.iColor = 0xFFFFFF;
-		textItem.posScreenX = 0;
-		textItem.posScreenY = cpCam1.h - 120;
-		cpCam1.text_items.SetParam("PROBETIP_CORRECTION", textItem);
 
 		textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
 		textItem.fontSize = 30.f;

@@ -719,7 +719,7 @@ namespace vzmutils {
 		if (num_points < 3)
 			return 0;
 
-		glm::fvec3 pos_center;
+		glm::fvec3 pos_center(0);
 		for (int i = 0; i < num_points; i++)
 		{
 			pos_center.x += unordered_points[i].x;
@@ -1022,6 +1022,80 @@ namespace vzmutils {
 		vzm::AppendSceneItemToSceneTree(aidNormalLinesActor, aidSrcActor);
 
 		return true;
+	}
+
+	inline bool ComputeVolumeDistance(float& distance, const glm::fvec2& pos_ss, const int aidSrcMesh, const int aidDstMesh, const int aidVolume, const int cidRender) {
+		glm::fvec2 curMPos = pos_ss;
+		std::vector<int> pickedList;
+		std::vector<float> pickedPosList;
+		std::vector<int> pickedPrimitiveIDs;
+		vzm::PickActorList(pickedList, pickedPosList, (int)curMPos.x, (int)curMPos.y, cidRender, NULL, &pickedPrimitiveIDs);
+
+		bool isTargetPicked = false;
+		int primitiveID = -1;
+		glm::fvec3 posPickedWS;
+		for (int i = 0; i < (int)pickedList.size(); i++) {
+			if (pickedList[i] == aidSrcMesh) {
+				isTargetPicked = true;
+				primitiveID = pickedPrimitiveIDs[i];
+				posPickedWS = *(glm::fvec3*)&pickedPosList[3 * i];
+			}
+		}
+		if (!isTargetPicked) return false;
+
+		vzm::ActorParameters apSource;
+		vzm::GetActorParams(aidSrcMesh, apSource);
+
+		glm::fvec3* posBuffer = NULL;
+		glm::fvec3* nrlBuffer = NULL;
+		unsigned int* idxBuffer = NULL;
+		int numPts, numPrims, stride;
+		int oidMesh = apSource.GetResourceID(vzm::ActorParameters::RES_USAGE::GEOMETRY);
+		vzm::GetPModelData(oidMesh, (float**)&posBuffer, (float**)&nrlBuffer, NULL, NULL, numPts, &idxBuffer, numPrims, stride);
+		if (nrlBuffer == NULL || stride != 3) return false;
+
+		glm::fmat4x4 matWS2OS = *(glm::fmat4x4*)apSource.GetWorldTransform();
+		matWS2OS = glm::inverse(matWS2OS);
+		glm::fvec3 posPickedOS = vzmutils::transformPos(posPickedWS, matWS2OS);
+		int idx0 = idxBuffer[3 * primitiveID + 0];
+		int idx1 = idxBuffer[3 * primitiveID + 1];
+		int idx2 = idxBuffer[3 * primitiveID + 2];
+		glm::fvec3 pos0 = posBuffer[idx0];
+		glm::fvec3 pos1 = posBuffer[idx1];
+		glm::fvec3 pos2 = posBuffer[idx2];
+		glm::fvec3 nrl0 = nrlBuffer[idx0];
+		glm::fvec3 nrl1 = nrlBuffer[idx1];
+		glm::fvec3 nrl2 = nrlBuffer[idx2];
+
+		// https://gamedev.stackexchange.com/questions/23743/whats-the-most-efficient-way-to-find-barycentric-coordinates
+		auto Barycentric = [](glm::fvec3 p, glm::fvec3 a, glm::fvec3 b, glm::fvec3 c, float& u, float& v, float& w)
+		{
+			glm::fvec3 v0 = b - a, v1 = c - a, v2 = p - a;
+			float d00 = glm::dot(v0, v0);
+			float d01 = glm::dot(v0, v1);
+			float d11 = glm::dot(v1, v1);
+			float d20 = glm::dot(v2, v0);
+			float d21 = glm::dot(v2, v1);
+			float denom = d00 * d11 - d01 * d01;
+			v = (d11 * d20 - d01 * d21) / denom;
+			w = (d00 * d21 - d01 * d20) / denom;
+			u = 1.0f - v - w;
+		};
+
+		float u, v, w;
+		Barycentric(posPickedOS, pos0, pos1, pos2, u, v, w);
+		//g_engineLogger->info("u {}, v {}, w {}", u, v, w);
+
+		glm::fvec3 nrlPickedOS = u * nrl0 + v * nrl1 + w * nrl2;
+
+		vzm::ActorParameters apTarget;
+		vzm::GetActorParams(aidDstMesh, apTarget);
+		glm::fmat4x4 matOS2WS = *(glm::fmat4x4*)apTarget.GetWorldTransform();
+
+		glm::fvec3 dirStartWS = glm::normalize(vzmutils::transformVec(nrlPickedOS, matOS2WS));
+		glm::fvec3 posSatrtWS = vzmutils::transformPos(posPickedOS, matOS2WS);
+
+		return vzm::ComputeDistanceToVolume(aidVolume, __FP posSatrtWS, __FP dirStartWS, distance);
 	}
 
 	struct GeneralMove {

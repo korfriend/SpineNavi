@@ -129,8 +129,7 @@
       <AdditionalLibraryDirectories>../lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>_copy_libsD.bat</Command>
     </PostBuildEvent>
     <PreBuildEvent>
       <Command>
@@ -157,8 +156,7 @@
       <AdditionalLibraryDirectories>../lib</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>
-      </Command>
+      <Command>_copy_libs.bat</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>

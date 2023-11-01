@@ -4,44 +4,44 @@ inter_sphere_0: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 1.60415858e-01, -2.21333712e-01, 1.81535876e+00 ]
+   data: [ 2.80244708e-01, -1.07773624e-01, 1.46858740e+00 ]
 inter_sphere_1: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 2.20760703e-01, -2.26268619e-01, 1.80754733e+00 ]
+   data: [ 3.40346813e-01, -1.08286127e-01, 1.47633278e+00 ]
 inter_sphere_2: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 2.80238271e-01, -2.30079040e-01, 1.79958022e+00 ]
+   data: [ 4.00073707e-01, -1.08487144e-01, 1.48344910e+00 ]
 inter_sphere_3: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 1.52229115e-01, -2.47125715e-01, 1.76403558e+00 ]
+   data: [ 2.85440862e-01, -1.39342561e-01, 1.42115653e+00 ]
 inter_sphere_4: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 2.13298813e-01, -2.50306219e-01, 1.75684202e+00 ]
+   data: [ 3.46782833e-01, -1.38582259e-01, 1.42877662e+00 ]
 inter_sphere_5: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 2.71901518e-01, -2.54428804e-01, 1.74547422e+00 ]
+   data: [ 4.06401545e-01, -1.39656693e-01, 1.43228626e+00 ]
 inter_sphere_6: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 1.43114001e-01, -2.73133576e-01, 1.70813334e+00 ]
+   data: [ 2.90966839e-01, -1.70714840e-01, 1.37090802e+00 ]
 inter_sphere_7: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 2.02183217e-01, -2.76026547e-01, 1.70175004e+00 ]
+   data: [ 3.50486845e-01, -1.71458960e-01, 1.37658739e+00 ]
 inter_sphere_8: !!opencv-matrix
    rows: 1
    cols: 3
    dt: f
-   data: [ 2.60801911e-01, -2.78692901e-01, 1.68758392e+00 ]
+   data: [ 4.11029875e-01, -1.71870559e-01, 1.38367307e+00 ]

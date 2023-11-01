@@ -30,6 +30,7 @@ DAMAGE.
 #include <set>
 #include <any>
 #include <list>
+#include <memory>
 #include <windows.h>
 
 #define SAFE_GET_COPY(DST_PTR, SRC_PTR, TYPE, ELEMENTS) { if(DST_PTR) memcpy(DST_PTR, SRC_PTR, sizeof(TYPE)*ELEMENTS); }
@@ -239,6 +240,7 @@ namespace vzm
 		int w = 0;
 		int h = 0; // resolution. note that the aspect ratio is recomputed w.r.t. w and h during the camera setting.
 		bool is_rgba_write = false; // if false, use BGRA order
+		bool skip_sys_fb_update = false; // if false, skip the copyback process of the final rendertarget to system update buffers
 		HWND hWnd = NULL; // if NULL, offscreen rendering is performed
 
 		ParamMap<std::string> script_params;
@@ -364,8 +366,18 @@ namespace vzm
 		ParamMap<std::string> script_params;
 		ParamMap<std::string> test_params; // direct mapping to VmActor
 
-		void ShowOutline(const bool showOutline) {
+		void ShowOutline(const bool showOutline, const float* colorRGB = NULL, const int thick_pixs = 3, const bool fadeEffect = true) {
 			script_params.SetParam("SHOW_OUTLINE", showOutline);
+			script_params.SetParam("SILHOUETTE_THICKNESS", thick_pixs);
+			if (colorRGB != NULL) {
+				std::vector<float> color = { colorRGB[0], colorRGB[1], colorRGB[2] };
+				script_params.SetParam("SILHOUETTE_COLOR_RGB", color);
+			}
+			script_params.SetParam("SILHOUETTE_FADEEFFECT", fadeEffect);
+		}
+
+		void ShowGroupOutline(const bool showOutline) {
+			script_params.SetParam("SHOW_GROUPOUTLINE", showOutline);
 		}
 		void SetClipBox(const vzm::BoxTr* clipBox) {
 			if (clipBox) script_params.SetParam("CLIPSETTING_BOX", *clipBox);
@@ -389,7 +401,13 @@ namespace vzm
 		void DisableSolidFillingOnSlicer(const bool disableSolidFill) {
 			script_params.SetParam("SLICER_NO_SOLID_FILL", disableSolidFill);
 		}
-
+		void SetDistanceMapper(const float vMin, const float vMax, const bool colorClip, const int aidDistTo) {
+			script_params.SetParam("COLORMAP_VMIN", vMin);
+			script_params.SetParam("COLORMAP_VMAX", vMax);
+			script_params.SetParam("COLORMAP_CLIP", colorClip);
+			script_params.SetParam("COLORMAP_DST_ACTOR", aidDistTo);
+			//script_params.SetParam("VOLUMEACTOR_ISOVALUE", isoValue);
+		}
 		bool GetClipBox(vzm::BoxTr& clipBox) {
 			return script_params.GetParamCheck("CLIPSETTING_BOX", clipBox);
 		}
@@ -425,6 +443,8 @@ namespace vzm
 
 	__dojostatic bool InitEngineLib(const std::string& coreName = "VizMotive", const std::string& logFileName = "EngineApi.log", const std::string& performanceLevel = "DEFAULT");
 	__dojostatic bool DeinitEngineLib();
+
+	__dojostatic void GetLoggerPointer(std::shared_ptr<void>& logger);
 
 	__dojostatic std::string GetEngineAPIsVer();
 	__dojostatic std::string GetEngineCoreVer();
@@ -502,8 +522,15 @@ namespace vzm
 	__dojostatic bool GetRenderBufferPtrs(const int cam_id, unsigned char** ptr_rgba, float** ptr_zdepth, int* fbuf_w, int* fbuf_h, size_t* render_count = nullptr);
 	__dojostatic bool GetSlicerLines(const int cam_id, std::vector<std::vector<float>>& objs_linelist_xy12s, std::vector<std::vector<float>>& objs_rgb_colors, std::vector<int>& objs_ids);
 
+	__dojostatic bool GetDX11SharedRenderTarget(const int cam_id, const void* dx11devPtr, void** resPtr, int* fbuf_w, int* fbuf_h);
+
 	__dojostatic bool RemoveResHWND(const HWND hWnd);
 	__dojostatic bool PresentHWND(const HWND hWnd);
+
+	__dojostatic bool StartProgress();
+	__dojostatic bool GetProgress(int& progress);
+	__dojostatic bool EndProgress();
+
 	// etc
 	__dojostatic bool GetAllScenes(std::vector<int>& scene_ids);
 	__dojostatic bool GetCamerasInScene(const int scene_id, std::vector<int>& cam_ids);
@@ -522,6 +549,7 @@ namespace vzm
 	__dojostatic bool PickActor(int& picked_actor_id, float* pos_pick, const int x, const int y, const int cam_id, int* picked_submask_id = nullptr, int* picked_primitive_id = nullptr);
 	__dojostatic bool PickActorList(std::vector<int>& picked_actor_ids, std::vector<float>& pos_picks, const int x, const int y, const int cam_id, std::vector<int>* picked_submask_ids = nullptr, std::vector<int>* picked_primitive_ids = nullptr);
 	__dojostatic bool CheckCollisionTwoMeshActors(const int actorId0, const int actorId1);
+	__dojostatic bool ComputeDistanceToVolume(const int volActorId, const float* pos_origin_ws, const float* dir_origin_ws, float& distance);
 
 	// only for the contributor's (by DongJoon Kim) test info.
 	__dojostatic void SetRenderTestParam(const std::string& _script, const std::any& value, const int scene_id, const int cam_id);
@@ -535,6 +563,12 @@ namespace vzm
 	// * value of ioActors is (VmActor*)
 	// * value of parameters is std::any
 	__dojostatic bool ExecuteCustomModule(const std::string& module_dll_file, const std::string& dll_function, const ParamMap<std::string>& ioResObjs, const ParamMap<std::string>& ioActors, const ParamMap<std::string>& parameters);
+}
+
+namespace vzmpf
+{
+	// Apis for resource profiling
+	__dojostatic size_t GetRenderCount();
 }
 
 namespace vzmproc

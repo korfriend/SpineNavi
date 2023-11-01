@@ -13,6 +13,8 @@
 #include <mutex>
 #include <thread>
 
+#include <spdlog/spdlog.h>
+
 // math using GLM
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/transform.hpp"
@@ -355,6 +357,7 @@ public:
 enum class OPTTRK_THREAD {
 	FREE = 0,
 	C_ARM_REGISTER,
+	C_ARM_SHOT_MOMENT,
 	TOOL_REGISTER,
 	TOOL_UPDATE,
 	TOOL_PIVOT,
@@ -445,10 +448,8 @@ typedef struct GlobalContainer {
 		}
 	};
 
-	bool g_useGlobalPairs;
 	std::map<glm::fvec3, glm::fvec2, homographyPairCompare> g_homographyPairs;
 	bool g_showCalibMarkers;
-	float g_probeTipCorrection; // forward tip 
 
 	//================ THREAD SAFE GROUP ==================
 	std::atomic<OPTTRK_THREAD> g_optiEvent; // { OPTTRK_THREAD::FREE };
@@ -476,13 +477,18 @@ typedef struct GlobalContainer {
 
 
 	concurrent_queue<track_info> g_track_que;
+	track_info g_track_info_shotmoment;
+	std::atomic_int g_is_ready_for_shotmoment = false;
 
+	std::map<std::string, std::any> g_customParams;
 
 	std::atomic_int g_error_duration; // frames
 	std::string g_error_text;
+	std::shared_ptr<spdlog::logger> g_engineLogger;
 	void SetErrorCode(std::string errorText, int duration = 100) {
 		g_error_text = errorText;
 		g_error_duration = duration;
+		g_engineLogger->error(errorText);
 	}
 	void Init() {
 
@@ -495,9 +501,6 @@ typedef struct GlobalContainer {
 		g_camName = "Cam1"; // World Camera, CArm Camera
 		g_camName2 = "Cam2"; // World Camera, CArm Camera
 
-		g_probeTipCorrection = 0;
-
-		g_useGlobalPairs = true;
 		g_showCalibMarkers = false;
 
 		g_optiEvent = OPTTRK_THREAD::FREE;
@@ -506,7 +509,7 @@ typedef struct GlobalContainer {
 		g_networkEvent = NETWORK_THREAD_FREE;
 		g_optiRecordFrame = 0;
 		g_optiRecordPeriod = 10;
-		g_optiPivotSamples = 100;
+		g_optiPivotSamples = 10000;
 		g_optiPivotProgress = 0;
 
 		g_tracker_alive = true;

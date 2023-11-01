@@ -8,6 +8,7 @@
 
 #include "rapidcsv/rapidcsv.h"
 
+#include <time.h>
 #include <opencv2/opencv.hpp>
 
 namespace trackingtask {
@@ -337,6 +338,8 @@ namespace trackingtask {
 
 				static int pivotState = 0;
 
+				static clock_t prevTime = clock(), curTime;
+
 				switch (__gc->g_optiEvent) {
 				case OPTTRK_THREAD::C_ARM_REGISTER: {
 					std::vector<glm::fvec3> selectedMks;
@@ -412,27 +415,44 @@ namespace trackingtask {
 
 					}
 				} break;
+				case OPTTRK_THREAD::C_ARM_SHOT_MOMENT: {
+					__gc->g_track_info_shotmoment = trk_info;
+					__gc->g_is_ready_for_shotmoment = true;
+					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+
+				} break;
 				case OPTTRK_THREAD::TOOL_PIVOT: {
 					bitset<128> rbCID;
 					if (trk_info.GetRigidBodyByName("tool", NULL, NULL, NULL, &rbCID)) {
 						float progress, initErr, returnErr;
 						switch (pivotState) {
 						case 0:
+						{
+							cv::FileStorage config_fs(__gc->g_configFileName, cv::FileStorage::Mode::READ);
+							std::string configLoad;
+							config_fs["PivotSamples"] >> __gc->g_optiPivotSamples;
+							std::cout << (int)__gc->g_optiPivotSamples << std::endl;
+							config_fs.release();
+						}
 							if (optitrk::StartPivotSample(rbCID, __gc->g_optiPivotSamples)) pivotState = 1;
 							break;
 						case 1:
-							if (optitrk::ProcessPivotSample(&progress, &initErr, &returnErr)) {
-								__gc->g_optiPivotProgress = (int)progress;
+							curTime = time(NULL);
+							if ((double)(curTime - prevTime) / CLOCKS_PER_SEC > 0.03) {
+								prevTime = curTime;
+								if (optitrk::ProcessPivotSample(&progress, &initErr, &returnErr)) {
+									__gc->g_optiPivotProgress = (int)progress;
 
-								if (returnErr >= 0.f) {
-									pivotState = 0;
-									//__gc->g_optiEvent = OPTTRK_THREAD::FREE;
-									__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
-									__gc->SetErrorCode("Pivoting Completed \nInitErr: " + std::to_string(initErr) + "mm, RetErr: " + std::to_string(returnErr) + "mm", 200);
+									if (returnErr >= 0.f) {
+										pivotState = 0;
+										//__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+										__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
+										__gc->SetErrorCode("Pivoting Completed \nInitErr: " + std::to_string(initErr) + "mm, RetErr: " + std::to_string(returnErr) + "mm", 200);
+									}
 								}
-							}
-							else {
-								__gc->SetErrorCode("Pivoting Sample Error!", 30);
+								else {
+									__gc->SetErrorCode("Pivoting Sample Error!", 30);
+								}
 							}
 							break;
 						}

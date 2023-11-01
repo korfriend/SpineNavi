@@ -148,6 +148,7 @@ namespace nettask {
 						fflush(stdout);
 					}
 					if (readBytes > 0) {
+
 						__gc->g_downloadCompleted = 100;
 						__gc->g_downloadImgBuffer.clear();
 						__gc->g_downloadImgBuffer.assign(file_size, 0);

@@ -1,5 +1,0 @@
-%YAML:1.0
----
-RecordMode: NONE
-RecordPeriod: 2
-PivotSamples: 500000

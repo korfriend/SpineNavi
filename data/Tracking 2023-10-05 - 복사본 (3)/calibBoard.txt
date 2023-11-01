@@ -1,6 +1,0 @@
-%YAML:1.0
----
-ROWS: 3
-COLS: 3
-MODE: "FMARKERS"
-DETECTOR: "SimpleBlobDetector"
