@@ -46,8 +46,8 @@ bin/X64_Release/*.lib
 bin/X64_Debug/*.lib
 bin/X64_Release/*.ini
 bin/X64_Debug/*.ini
-bin/X64_Release/*.dll
-bin/X64_Debug/*.dll
+#bin/X64_Release/*.dll
+#bin/X64_Debug/*.dll
 
 #/lib/optitrk.lib
 #/lib/optitrkd.lib

@@ -61,7 +61,7 @@ __GC __gc;
 
 auto ___LoadMyVariable = [](const std::string& pname, const int idx) {
 	cv::Mat ocvVec3(1, 3, CV_32FC1);
-	cv::FileStorage fs(__gc.g_folder_trackingInfo + "my_test_variables.txt", cv::FileStorage::Mode::WRITE);
+	cv::FileStorage fs(__gc.g_folder_trackingInfo + "my_test_variables.txt", cv::FileStorage::Mode::READ);
 	fs[pname] >> ocvVec3;
 	glm::fvec3 p1;
 	memcpy(&p1, ocvVec3.ptr(), sizeof(float) * 3);
@@ -87,6 +87,7 @@ auto ___StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& 
 	cv::Mat distCoeffs;
 	fs["DistCoeffs"] >> distCoeffs;
 	__fs << "DistCoeffs" << distCoeffs;
+	fs.release();
 
 	fs.open(__gc.g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
 	cv::Mat rvec, tvec;
@@ -802,6 +803,21 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
+		auto DrawCircles = [](const std::vector<cv::Point2f>& points2Ds, std::vector<float>& circleRadiis, cv::Mat& img) {
+			for (int i = 0; i < (int)points2Ds.size(); i++) {
+				cv::Point2f center = points2Ds[i];
+				float x = (center.x); // cvRound
+				float y = (center.y);
+				float r = (circleRadiis[i]);
+
+				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), 5);
+				//std::string text = " (" + std::to_string(x) + ", " + std::to_string(y) + ")";
+				//cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
+
+				// index 출력
+				cv::putText(img, std::to_string(i), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 0, 0), 2);
+			}
+		};
 		// intrinsics
 		{
 			static std::vector<cv::Point3f> corners;
@@ -844,19 +860,7 @@ void mygui(ImGuiIO& io) {
 					std::vector<float> circleRadiis;
 					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2Ds, 2000.f, 10000.f, 50.f, &circleRadiis);
 
-					for (int i = 0; i < (int)points2Ds.size(); i++) {
-						cv::Point2f center = points2Ds[i];
-						float x = (center.x); // cvRound
-						float y = (center.y);
-						float r = (circleRadiis[i]);
-
-						cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), 5);
-						//std::string text = " (" + std::to_string(x) + ", " + std::to_string(y) + ")";
-						//cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
-
-						// index 출력
-						cv::putText(img, std::to_string(i), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 0, 0), 2);
-					}
+					DrawCircles(points2Ds, circleRadiis, img);
 					
 					//cv::cvtColor(imgGray, img, cv::COLOR_GRAY2RGBA);
 					//image_data = img.data;
@@ -893,8 +897,21 @@ void mygui(ImGuiIO& io) {
 					calib_points2Ds.push_back(points2Ds);
 					calib_points3Ds.push_back(corners);
 
-					cv::Mat cameraMatrix, distCoeffs, rvec , tvec;
-					cv::calibrateCamera(corners, points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), cameraMatrix, distCoeffs, rvec, tvec);
+					__gc.g_engineLogger->info("# of {}-pair sets : {}", intrinsicWidth* intrinsicHeight, calib_points2Ds.size());
+
+					cv::Mat cameraMatrix, distCoeffs, rvec, tvec;
+					cv::calibrateCamera(calib_points3Ds, calib_points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), cameraMatrix, distCoeffs, rvec, tvec);
+					
+					// to do //
+					//cv::Mat cameraMatrixRO, distCoeffsRO, rvec, tvec;
+					//cv::calibrateCameraRO(corners, points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), 1, cameraMatrix, distCoeffs, rvec, tvec);
+
+					cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics__test.txt", cv::FileStorage::Mode::WRITE);
+					fs << "K" << cameraMatrix;
+					fs << "DistCoeffs" << distCoeffs;
+					//fs << "K_RO" << cameraMatrix;
+					//fs << "DistCoeffs_RO" << distCoeffs;
+					fs.release();
 				}
 			}
 			if (pSRV != NULL) {
