@@ -1,11 +1,14 @@
 #include "TrackingTask.h"
+#include <opencv2/opencv.hpp>
+#include <opencv2/imgcodecs.hpp>
+#include <opencv2/imgcodecs/imgcodecs.hpp>
 
 //#include <winsock2.h> // udp
 #pragma comment(lib,"ws2_32.lib")
 
 #define CFG_LISTEN_PORT 22222
 #define CFG_SIZE_MAX_FD 1000
-#define CFG_SIZE_MAX_RECV_BUFFER 5000
+#define CFG_SIZE_MAX_RECV_BUFFER 20000
 
 
 namespace nettask {
@@ -153,6 +156,7 @@ namespace nettask {
 						__gc->g_downloadImgBuffer.clear();
 						__gc->g_downloadImgBuffer.assign(file_size, 0);
 						memcpy(&__gc->g_downloadImgBuffer[0], &bufferTmp[0], file_size);
+
 
 						// fence ¿ªÇÒ...
 						__gc->g_renderEvent = RENDER_THREAD::DOWNLOAD_IMG_PROCESS;

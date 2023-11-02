@@ -355,10 +355,13 @@ namespace mystudents {
 		cv::bitwise_not(imgGray, imgGray);
 		cv::GaussianBlur(imgGray, imgGray, cv::Size(15, 15), 0);
 
+
+		cv::threshold(imgGray, imgGray, 210, 255, cv::THRESH_TRUNC);
+
 		std::vector<cv::Point3f> circlePoints;
 		cv::HoughCircles(imgGray, circlePoints, cv::HOUGH_GRADIENT, 1,
-			200, // change this value to detect circles with different distances to each other
-			110, 10, 20, 150 // change the last two parameters
+			300, // change this value to detect circles with different distances to each other
+			110, 20, 40, 70 // change the last two parameters
 			// (min_radius & max_radius) to detect larger circles
 		);
 
