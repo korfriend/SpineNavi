@@ -307,8 +307,9 @@ namespace rendertask {
 		else {
 			static int oidCamTris[3]{}, oidCamLines[3]{}, oidCamLabel[3]{};
 			for (int i = 0; i < 3; i++) {
-				fmat4x4 matCam2WS;
-				assert(trackInfo.GetTrackingCamPose(i, matCam2WS));
+				fmat4x4 matCam2WS(1);
+				if (!trackInfo.GetTrackingCamPose(i, matCam2WS))
+					__gc->g_engineLogger->error("camera {} not found!", i);
 
 				int aidCamTris = vzmutils::GetSceneItemIdByName("Cam" + to_string(i) + " Tris");
 				int aidCamLines = vzmutils::GetSceneItemIdByName("Cam" + to_string(i) + " Lines");
@@ -614,10 +615,15 @@ namespace rendertask {
 		textItem.posScreenY = cpCam1.h - 40;
 		cpCam1.text_items.SetParam("FRAME", textItem);
 
-		textItem.textStr = __gc->g_downloadCompleted > 0 ? "Download Completed" : "";
+		if (__gc->g_downloadCompleted == 0)
+			textItem.textStr = "";
+		else if (__gc->g_downloadCompleted > 100)
+			textItem.textStr = fmt::format("Downloading... {} %", __gc->g_downloadCompleted - 100);
+		else 
+			textItem.textStr = "Download Completed";
 		textItem.fontSize = 30.f;
-		textItem.alpha = __gc->g_downloadCompleted * 0.01f;
-		textItem.iColor = 0xFF00FF;
+		textItem.alpha = (float)std::min((int)__gc->g_downloadCompleted, (int)100) * 0.01f;
+		textItem.iColor = 0xFFFF00;
 		textItem.posScreenX = 300;
 		textItem.posScreenY = cpCam1.h - 40;
 		cpCam1.text_items.SetParam("DOWNLOADED", textItem);
@@ -654,7 +660,7 @@ namespace rendertask {
 		textItem.textStr = __gc->g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT ? "PIVOTING MODE " + std::to_string(__gc->g_optiPivotProgress) + "%" : "";
 		cpCam1.text_items.SetParam("PIVOT_PROGRESS", textItem);
 
-		if (__gc->g_downloadCompleted > 0) __gc->g_downloadCompleted--;
+		if (__gc->g_downloadCompleted > 0 && __gc->g_downloadCompleted <= 100) __gc->g_downloadCompleted--;
 
 		// error code display
 		if (__gc->g_error_duration == 0) {
