@@ -508,6 +508,55 @@ void CallBackMouseDown(vmgui::ImGuiVzmWindow* pThis) {
 	}
 }
 
+std::map<std::string, ID3D11ShaderResourceView*> g_mapImgSRVs;
+
+// Simple helper function to load an image into a DX11 texture with common settings
+ID3D11ShaderResourceView* LoadTextureFromFile(const unsigned char* image_data, const char* texture_name, const int width, const int height)
+{
+	// Create texture
+	D3D11_TEXTURE2D_DESC desc;
+	ZeroMemory(&desc, sizeof(desc));
+	desc.Width = width;
+	desc.Height = height;
+	desc.MipLevels = 1;
+	desc.ArraySize = 1;
+	desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	desc.SampleDesc.Count = 1;
+	desc.Usage = D3D11_USAGE_DEFAULT;
+	desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	desc.CPUAccessFlags = 0;
+
+	ID3D11Texture2D* pTexture = NULL;
+	D3D11_SUBRESOURCE_DATA subResource;
+	subResource.pSysMem = image_data;
+	subResource.SysMemPitch = desc.Width * 4;
+	subResource.SysMemSlicePitch = 0;
+	g_pd3dDevice->CreateTexture2D(&desc, &subResource, &pTexture);
+
+	ID3D11ShaderResourceView** ppSRV = NULL;
+	auto it = g_mapImgSRVs.find(texture_name);
+	if (it != g_mapImgSRVs.end()) {
+		ppSRV = &it->second;
+		(*ppSRV)->Release();
+	}
+	else {
+		ppSRV = &g_mapImgSRVs[texture_name];
+	}
+	(*ppSRV) = NULL;
+
+	// Create texture view
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+	ZeroMemory(&srvDesc, sizeof(srvDesc));
+	srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = desc.MipLevels;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+	g_pd3dDevice->CreateShaderResourceView(pTexture, &srvDesc, ppSRV);
+	pTexture->Release();
+
+	return *ppSRV;
+};
+
 void mygui(ImGuiIO& io) {
 
 	static track_info trackInfo;
@@ -753,16 +802,123 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
-		if (ImGui::Button("(TEST)Add Extrinsic", ImVec2(0, buttonHeight)))
+		// intrinsics
 		{
-			// view popup w/ sliders...
-			// apply or not
+			static std::vector<cv::Point3f> corners;
+			static int indexIntrinsic = -1;
+			static std::vector<std::string> files;
+			if (indexIntrinsic == -1) {
+				indexIntrinsic = 0;
+				for (int i = 0; i < 17; i++) {
+					files.push_back(__gc.g_folder_data + "c-arm 2023-04-19/" + std::to_string(7063 + i) + ".png");
+				}
+
+				const float squareSize = 15.9375f; // mm unit
+				for (int i = 0; i < 8; ++i) {
+					for (int j = 0; j < 8; ++j) {
+						corners.push_back(cv::Point3f(j * squareSize, i * squareSize, 0));
+					}
+				}
+			}
+			static ID3D11ShaderResourceView* pSRV = NULL;
+			static std::vector<cv::Point2f> points2Ds;
+			static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
+			static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
+			static const int intrinsicWidth = 8, intrinsicHeight = 8;
+			static int w, h;
+			if (ImGui::Button("(TEST)Add Intrinsic", ImVec2(0, buttonHeight)))
+			{
+				// Load from disk into a raw RGBA buffer
+				cv::Mat img = cv::imread(files[indexIntrinsic]);
+				if (img.data != NULL) {
+					int image_width = img.cols;
+					int image_height = img.rows;
+
+					// optional
+					cv::flip(img, img, 1);
+
+					cv::Mat imgGray;
+					cv::cvtColor(img, imgGray, cv::COLOR_RGB2GRAY);
+					// processing..
+
+					std::vector<float> circleRadiis;
+					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2Ds, 2000.f, 10000.f, 50.f, &circleRadiis);
+
+					for (int i = 0; i < (int)points2Ds.size(); i++) {
+						cv::Point2f center = points2Ds[i];
+						float x = (center.x); // cvRound
+						float y = (center.y);
+						float r = (circleRadiis[i]);
+
+						cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), 5);
+						//std::string text = " (" + std::to_string(x) + ", " + std::to_string(y) + ")";
+						//cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
+
+						// index 출력
+						cv::putText(img, std::to_string(i), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 0, 0), 2);
+					}
+					
+					//cv::cvtColor(imgGray, img, cv::COLOR_GRAY2RGBA);
+					//image_data = img.data;
+
+					if (img.channels() == 3) {
+						// First create the image with alpha channel
+						cv::cvtColor(img, img, cv::COLOR_RGB2RGBA);
+					
+						// # Split the image for access to alpha channel
+						std::vector<cv::Mat> channels(4);
+						cv::split(img, channels);
+						
+						// Assign the mask to the last channel of the image
+						channels[3] = 255;
+						
+						// Finally concat channels for rgba image
+						cv::merge(channels, img);
+					}
+
+					__gc.g_engineLogger->info("image index : {}", indexIntrinsic);
+
+					pSRV = LoadTextureFromFile(img.data, "INTRINSIC_IMG", image_width, image_height);
+					indexIntrinsic++;
+					indexIntrinsic = indexIntrinsic % files.size();
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Apply Intrinsic", ImVec2(0, buttonHeight)))
+			{
+				if (points2Ds.size() != intrinsicWidth * intrinsicHeight) {
+					__gc.SetErrorCode("Failure to detect the entire circles!");
+				}
+				else {
+					calib_points2Ds.push_back(points2Ds);
+					calib_points3Ds.push_back(corners);
+
+					cv::Mat cameraMatrix, distCoeffs, rvec , tvec;
+					cv::calibrateCamera(corners, points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), cameraMatrix, distCoeffs, rvec, tvec);
+				}
+			}
+			if (pSRV != NULL) {
+				ImVec2 pos = ImGui::GetCursorScreenPos();
+				ImGui::Image(pSRV, ImVec2(g_sizeRightPanelW - 60, g_sizeRightPanelW - 60), ImVec2(0, 0), ImVec2(1, 1));
+				//ImVec2 uv_min = ImVec2(0.0f, 0.0f);                 // Top-left
+				//ImVec2 uv_max = ImVec2(1.0f, 1.0f);                 // Lower-right
+				//ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), uv_min, uv_max);
+			}
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("(TEST)Add Intrinsic", ImVec2(0, buttonHeight)))
+
 		{
-			// view popup w/ sliders...
-			// apply or not
+			// Extrinsic
+			if (ImGui::Button("(TEST)Add Extrinsic", ImVec2(0, buttonHeight)))
+			{
+				// view popup w/ sliders...
+				// apply or not
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Apply Extrinsic", ImVec2(0, buttonHeight)))
+			{
+				// view popup w/ sliders...
+				// apply or not
+			}
 		}
 
 		if (ImGui::Button("Shot Pose Capture", ImVec2(g_sizeRightPanelW - 10, buttonHeight)))
@@ -1001,6 +1157,9 @@ int main()
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
 
+	for (auto kv : g_mapImgSRVs)
+		kv.second->Release();
+
 	CleanupDeviceD3D();
 	::DestroyWindow(hwnd);
 	::UnregisterClassW(wc.lpszClassName, wc.hInstance);
@@ -1094,194 +1253,4 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 		return 0;
 	}
 	return ::DefWindowProcW(hWnd, msg, wParam, lParam);
-}
-
-// DOJO IMPORTANT NOTE :
-// key 1 ~ 9 : save and add the scan geometry to the scene (global key event)
-//     1 : AP (left view), 2 : Lateral (right view),  3 : calibration (left view)
-//     TO DO... calibration history...
-// key S : save current camera state (main window only)
-// key L : load the latest-stored camera state (main window only)
-// key C : calibration mode for selecting markers whose position is used to compute c-arm extrinsic calibration
-// key U : update c-arm marker set (rigid body)
-// key T : update tool marker set (rigid body)
-// key X : compute c-arm extrinsics based on the c-arm marker set and the selected marker positions
-// key D : just for UI (clear test marker spheres)
-// key Y : tool tip test for estimated mk position
-
-LRESULT CALLBACK __WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
-	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
-	float scene_stage_scale = 5.f;
-
-	// DOJO : NOTE scene_stage_center must not be the same as camera position
-	glm::fvec3 scene_stage_center = glm::fvec3(0, 0, 2); 
-	vzm::CameraParameters cpCam1;
-	if (sidScene != 0 && cidCam1 != 0) {
-		vzm::GetCameraParams(cidCam1, cpCam1);
-
-		scene_stage_scale = glm::length(scene_stage_center - *(glm::fvec3*)cpCam1.pos) * 1.0f;
-	}
-
-	static vzmutils::GeneralMove general_move;
-
-    switch (message)
-	{
-	case WM_KEYDOWN:
-	{
-		if (__gc.g_renderEvent != RENDER_THREAD::FREE
-			|| __gc.g_networkEvent != NETWORK_THREAD_FREE) break;
-
-		using namespace std;
-		switch (wParam) {
-			//case char('E') : {
-			//	if (!calribmodeToggle) {
-			//		cout << "\n" << "not calibration mode!!" << endl;
-			//		return 0;
-			//	}
-			//	// 툴 끝점 등록하기..
-			//	break;
-			//}
-			case char('M') : {
-				__gc.g_optiEvent = OPTTRK_THREAD::C_ARM_SHOT_MOMENT;
-				break;
-			}
-			default: {
-				if (wParam >= char('0') && wParam <= char('9')) {
-					if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
-						__gc.SetErrorCode("Not Allowed during Rec Processing!");
-						break;
-					}
-					___SaveAndChangeViewState(wParam, sidScene, cidCam1, 0, NULL, NULL);
-				}
-				break;
-			}
-		}
-
-		break;
-	}
-	case WM_SIZE:
-		{
-			if (cidCam1 != 0) {
-				RECT rc;
-				GetClientRect(hWnd, &rc);
-				UINT width = rc.right - rc.left;
-				UINT height = rc.bottom - rc.top;
-
-				cpCam1.w = width;
-				cpCam1.h = height;
-				vzm::SetCameraParams(cidCam1, cpCam1);
-			}
-		}
-		break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-		break;
-	case WM_LBUTTONDOWN:
-	case WM_RBUTTONDOWN:
-	{
-		if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_REGISTER) break;
-		int x = GET_X_LPARAM(lParam);
-		int y = GET_Y_LPARAM(lParam);
-		if (x == 0 && y == 0) break;
-
-		// renderer does not need to be called
-		glm::ivec2 pos_ss = glm::ivec2(x, y);
-
-		if (__gc.g_calribmodeToggle) {
-			if (message == WM_LBUTTONDOWN) {
-				int aidPicked = 0;
-				glm::fvec3 posPick;
-				if (vzm::PickActor(aidPicked, __FP posPick, x, y, cidCam1)) {
-					std::string actorName;
-					vzm::GetSceneItemName(aidPicked, actorName);
-					if (__gc.g_selectedMkNames.find(actorName) == __gc.g_selectedMkNames.end()) {
-						int idx = __gc.g_selectedMkNames.size();
-						__gc.g_selectedMkNames[actorName] = idx;
-						std::cout << "\npicking count : " << __gc.g_selectedMkNames.size() << std::endl;
-					}
-				}
-			}
-			else {
-				__gc.g_selectedMkNames.clear();
-				general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
-			}
-		}
-		else {
-			general_move.Start((int*)&pos_ss, cpCam1, scene_stage_center, scene_stage_scale);
-		}
-		break;
-	}
-	case WM_MOUSEMOVE:
-	{
-		if (__gc.g_calribmodeToggle && !(wParam & MK_RBUTTON)) break;
-
-		int x = GET_X_LPARAM(lParam);
-		int y = GET_Y_LPARAM(lParam);
-
-		if ((wParam & MK_LBUTTON) || (wParam & MK_RBUTTON))
-		{
-			glm::ivec2 pos_ss = glm::ivec2(x, y);
-			if (wParam & MK_LBUTTON)
-				general_move.PanMove((int*)&pos_ss, cpCam1);
-			else if (wParam & MK_RBUTTON)
-				general_move.RotateMove((int*)&pos_ss, cpCam1);
-
-			vzm::SetCameraParams(cidCam1, cpCam1);
-			//Render();
-			//vzm::RenderScene(sidScene, cidCam1);
-			//UpdateWindow(hWnd);
-			//InvalidateRect(hWnd, NULL, FALSE);
-		}
-		else {
-			int aidPickedMK = 0;
-			glm::fvec3 pos_picked;
-			if (vzm::PickActor(aidPickedMK, __FP pos_picked, x, y, cidCam1))
-			{
-				std::string mkName;
-				vzm::GetNameBySceneItemID(aidPickedMK, mkName);
-				vzm::ActorParameters apMK;
-				vzm::GetActorParams(aidPickedMK, apMK);
-				glm::fmat4x4 matWorld = *(glm::fmat4x4*)apMK.GetWorldTransform();
-				glm::fvec3 posOrigin(0, 0, 0);
-				glm::fvec3 posMK = vzmutils::transformPos(posOrigin, matWorld);
-				//std::cout << "\n" <<mkName << "is picked : " << ", Pos : " << posMK.x << ", " << posMK.y << ", " << posMK.z << std::endl;
-
-			}
-			
-		}
-		break;
-	}
-	case WM_LBUTTONUP:
-	case WM_RBUTTONUP:
-		break;
-	case WM_MOUSEWHEEL:
-	{
-		int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
-
-		if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_REGISTER) {
-			if (zDelta > 0)
-				cpCam1.fov_y *= 0.9f;
-			else
-				cpCam1.fov_y *= 1.1f;
-		}
-		else {
-			// by adjusting cam distance
-			if (zDelta > 0)
-				*(glm::fvec3*)cpCam1.pos += scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam1.view);
-			else
-				*(glm::fvec3*)cpCam1.pos -= scene_stage_scale * 0.1f * (*(glm::fvec3*)cpCam1.view);
-		}
-
-		vzm::SetCameraParams(cidCam1, cpCam1);
-		break;
-	}
-	case WM_ERASEBKGND:
-		return TRUE; // tell Windows that we handled it. (but don't actually draw anything)
-    default:
-        return DefWindowProc(hWnd, message, wParam, lParam);
-    }
-
-    return 0;
 }

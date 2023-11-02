@@ -100,6 +100,7 @@ namespace mystudents {
 			// index 출력
 			cv::putText(img, to_string(i), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 0.8, cv::Scalar(0, 0, 255), 1);
 		}
+
 		cv::flip(img, img, 1);
 		cv::imwrite(__gc->g_folder_trackingInfo + "test_circle_sort.png", img); // cv imshow()로 보이기.
 	}
@@ -220,8 +221,12 @@ namespace mystudents {
 		return (int)points2Ds.size();
 	}
 
-	int Get2DPostionsFromFMarkersPhantom(const cv::Mat& inputImg, const int rows, const int cols, std::vector<cv::Point2f>& points2Ds)
+	int Get2DPostionsFromFMarkersPhantom(const cv::Mat& inputImg, const int rows, const int cols, std::vector<cv::Point2f>& points2Ds
+		, const float minArea, const float maxArea, const float minInterval, std::vector<float>* circleRadius)
 	{
+		points2Ds.clear();
+		if (circleRadius) circleRadius->clear();
+
 		cv::Mat imgGray;
 		int chs = inputImg.channels();
 		if (inputImg.channels() == 3)
@@ -250,13 +255,13 @@ namespace mystudents {
 		//params.maxArea = 1000;
 		//params.minCircularity = 0.01; // 1 >> it detects perfect circle.Minimum size of center angle
 
-		params.minArea = 2000; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
-		params.maxArea = 16000;
+		params.minArea = minArea; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
+		params.maxArea = maxArea;
 		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
 
 		params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
 		params.minRepeatability = 2;
-		params.minDistBetweenBlobs = 100;
+		params.minDistBetweenBlobs = minInterval;
 
 		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
 		vector<cv::KeyPoint> keypoints;
@@ -327,6 +332,7 @@ namespace mystudents {
 			}
 		}
 
+		if (circleRadius) *circleRadius = circleRadiis;
 		// 포지션 잘 정렬되었는지 확인.
 		mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
 
