@@ -413,28 +413,28 @@
                 <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
             </MarkerSticks>
         </rigid_body>
-        <rigid_body version="1.1" id="2e37eef81c58cc9c:d1b94ddc72fe11ee">
+        <rigid_body version="1.1" id="2e37eef81c58cc9c:d6f98751797111ee">
             <markers>
-                <marker id="0:c818">
-                    <position>-0.00981801,0.0255411,0.036443</position>
+                <marker id="0:0">
+                    <position>-0.0145723,0.232442,-0.196002</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>1</label_id>
                 </marker>
-                <marker id="0:c825">
-                    <position>0.0270371,0.0105847,0.0111543</position>
+                <marker id="0:0">
+                    <position>-0.0653162,0.210283,-0.164451</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>2</label_id>
                 </marker>
-                <marker id="0:c826">
-                    <position>-0.0352796,-0.0130381,-0.0139949</position>
+                <marker id="0:0">
+                    <position>0.00830485,0.150821,-0.163118</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>3</label_id>
                 </marker>
-                <marker id="0:c872">
-                    <position>0.0180911,-0.0230962,-0.0336841</position>
+                <marker id="0:0">
+                    <position>0.0377299,0.186214,-0.192504</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>4</label_id>
@@ -443,98 +443,8 @@
             <properties>
                 <property>
                     <name>NodeName</name>
-                    <value>test1</value>
-                    <defaultValue>test1</defaultValue>
-                </property>
-                <property>
-                    <name>Color</name>
-                    <value>65407</value>
-                    <defaultValue>65407</defaultValue>
-                </property>
-                <property>
-                    <name>MinimumMarkerCount</name>
-                    <value>4</value>
-                </property>
-                <property>
-                    <name>AcquisitionFrames</name>
-                    <value>1</value>
-                </property>
-                <property>
-                    <name>MarkerLocation0</name>
-                    <value>-0.00981801,0.0255411,0.036443</value>
-                    <defaultValue>-0.00981801,0.0255411,0.036443</defaultValue>
-                </property>
-                <property>
-                    <name>MarkerLocation1</name>
-                    <value>0.0270371,0.0105847,0.0111543</value>
-                    <defaultValue>0.0270371,0.0105847,0.0111543</defaultValue>
-                </property>
-                <property>
-                    <name>MarkerLocation2</name>
-                    <value>-0.0352796,-0.0130381,-0.0139949</value>
-                    <defaultValue>-0.0352796,-0.0130381,-0.0139949</defaultValue>
-                </property>
-                <property>
-                    <name>MarkerLocation3</name>
-                    <value>0.0180911,-0.0230962,-0.0336841</value>
-                    <defaultValue>0.0180911,-0.0230962,-0.0336841</defaultValue>
-                </property>
-            </properties>
-            <MarkerNames ReorderMarkers="true">
-                <!--To rename markers, modify the value in the "name" tag.-->
-                <Marker name="Marker1" oldName="Marker1"/>
-                <Marker name="Marker2" oldName="Marker2"/>
-                <Marker name="Marker3" oldName="Marker3"/>
-                <Marker name="Marker4" oldName="Marker4"/>
-                <!--Renaming markers added to a skeletons: If a fourth marker is added manually to the head of a skeleton, then add a tag such as <Marker name="Head_4" oldName="Head_4" /> where the values in name and oldName are the bone segment (case matters) followed by the marker number.-->
-                <!--Skeleton Bone Segment Names: Head, Neck, Chest, Ab, Hip, LShoulder, LUArm, LFArm, LHand, RShoulder, RUArm, RFArm, RHand, LThigh, LShin, LFoot, LToe, RThigh, RShin, RFoot, RToe.-->
-                <!--If "ReorderMarkers = True" the order here persists into the labeling pane.-->
-            </MarkerNames>
-            <MarkerColors>
-                <!--The "name" tag in this section corresponds with the "name" values in <MarkerNames>.-->
-                <Marker name="Marker1" color="127 255 0" movable="false"/>
-                <Marker name="Marker2" color="127 255 0" movable="false"/>
-                <Marker name="Marker3" color="127 255 0" movable="false"/>
-                <Marker name="Marker4" color="127 255 0" movable="false"/>
-                <!--If nothing appears in this section it is because you need to update or generate colors. You can do this in the asset's context menu.-->
-                <!--The movable="false" tag currently is not functioning.-->
-            </MarkerColors>
-            <MarkerSticks>
-                <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
-            </MarkerSticks>
-        </rigid_body>
-        <rigid_body version="1.1" id="2e37eef81c58c19c:e54b34fb53ac11ee">
-            <markers>
-                <marker id="0:0">
-                    <position>0.0172191,0.153394,-0.108732</position>
-                    <size>0</size>
-                    <residual>0</residual>
-                    <label_id>1</label_id>
-                </marker>
-                <marker id="0:0">
-                    <position>-0.030045,0.136501,-0.103874</position>
-                    <size>0</size>
-                    <residual>0</residual>
-                    <label_id>2</label_id>
-                </marker>
-                <marker id="0:0">
-                    <position>0.0189729,0.092267,-0.0930382</position>
-                    <size>0</size>
-                    <residual>0</residual>
-                    <label_id>3</label_id>
-                </marker>
-                <marker id="0:0">
-                    <position>0.0580357,0.123879,-0.100001</position>
-                    <size>0</size>
-                    <residual>0</residual>
-                    <label_id>4</label_id>
-                </marker>
-            </markers>
-            <properties>
-                <property>
-                    <name>NodeName</name>
-                    <value>tool</value>
-                    <defaultValue>tool</defaultValue>
+                    <value>t-needle</value>
+                    <defaultValue>t-needle</defaultValue>
                 </property>
                 <property>
                     <name>Color</name>
@@ -547,29 +457,24 @@
                     <defaultValue>4</defaultValue>
                 </property>
                 <property>
-                    <name>AcquisitionFrames</name>
-                    <value>1</value>
-                    <defaultValue>1</defaultValue>
-                </property>
-                <property>
                     <name>MarkerLocation0</name>
-                    <value>0.0172191,0.153394,-0.108732</value>
-                    <defaultValue>0.0172191,0.153394,-0.108732</defaultValue>
+                    <value>-0.0145723,0.232442,-0.196002</value>
+                    <defaultValue>-0.0145723,0.232442,-0.196002</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation1</name>
-                    <value>-0.030045,0.136501,-0.103874</value>
-                    <defaultValue>-0.030045,0.136501,-0.103874</defaultValue>
+                    <value>-0.0653162,0.210283,-0.164451</value>
+                    <defaultValue>-0.0653162,0.210283,-0.164451</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation2</name>
-                    <value>0.0189729,0.092267,-0.0930382</value>
-                    <defaultValue>0.0189729,0.092267,-0.0930382</defaultValue>
+                    <value>0.00830485,0.150821,-0.163118</value>
+                    <defaultValue>0.00830485,0.150821,-0.163118</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation3</name>
-                    <value>0.0580357,0.123879,-0.100001</value>
-                    <defaultValue>0.0580357,0.123879,-0.100001</defaultValue>
+                    <value>0.0377299,0.186214,-0.192504</value>
+                    <defaultValue>0.0377299,0.186214,-0.192504</defaultValue>
                 </property>
             </properties>
             <MarkerNames ReorderMarkers="true">
@@ -595,28 +500,28 @@
                 <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
             </MarkerSticks>
         </rigid_body>
-        <rigid_body version="1.1" id="2e37eef81c58cc9c:5b114734797111ee">
+        <rigid_body version="1.1" id="2e37eef81c58cc9c:f7778bc6797111ee">
             <markers>
                 <marker id="0:0">
-                    <position>0.0141505,0.262828,-0.150328</position>
+                    <position>0.0437625,0.148648,-0.110684</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>1</label_id>
                 </marker>
                 <marker id="0:0">
-                    <position>-0.0406085,0.233417,-0.138804</position>
+                    <position>-0.00504862,0.135813,-0.112223</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>2</label_id>
                 </marker>
                 <marker id="0:0">
-                    <position>0.0350572,0.178093,-0.127196</position>
+                    <position>0.0378626,0.0882956,-0.092447</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>3</label_id>
                 </marker>
                 <marker id="0:0">
-                    <position>0.0676273,0.219266,-0.141905</position>
+                    <position>0.0800948,0.116031,-0.0954115</position>
                     <size>0</size>
                     <residual>0</residual>
                     <label_id>4</label_id>
@@ -630,8 +535,8 @@
                 </property>
                 <property>
                     <name>Color</name>
-                    <value>11010194</value>
-                    <defaultValue>11010194</defaultValue>
+                    <value>16771840</value>
+                    <defaultValue>16771840</defaultValue>
                 </property>
                 <property>
                     <name>MinimumMarkerCount</name>
@@ -640,23 +545,23 @@
                 </property>
                 <property>
                     <name>MarkerLocation0</name>
-                    <value>0.0141505,0.262828,-0.150328</value>
-                    <defaultValue>0.0141505,0.262828,-0.150328</defaultValue>
+                    <value>0.0437625,0.148648,-0.110684</value>
+                    <defaultValue>0.0437625,0.148648,-0.110684</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation1</name>
-                    <value>-0.0406085,0.233417,-0.138804</value>
-                    <defaultValue>-0.0406085,0.233417,-0.138804</defaultValue>
+                    <value>-0.00504862,0.135813,-0.112223</value>
+                    <defaultValue>-0.00504862,0.135813,-0.112223</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation2</name>
-                    <value>0.0350572,0.178093,-0.127196</value>
-                    <defaultValue>0.0350572,0.178093,-0.127196</defaultValue>
+                    <value>0.0378626,0.0882956,-0.092447</value>
+                    <defaultValue>0.0378626,0.0882956,-0.092447</defaultValue>
                 </property>
                 <property>
                     <name>MarkerLocation3</name>
-                    <value>0.0676273,0.219266,-0.141905</value>
-                    <defaultValue>0.0676273,0.219266,-0.141905</defaultValue>
+                    <value>0.0800948,0.116031,-0.0954115</value>
+                    <defaultValue>0.0800948,0.116031,-0.0954115</defaultValue>
                 </property>
             </properties>
             <MarkerNames ReorderMarkers="true">
@@ -671,10 +576,10 @@
             </MarkerNames>
             <MarkerColors>
                 <!--The "name" tag in this section corresponds with the "name" values in <MarkerNames>.-->
-                <Marker name="Marker1" color="146 0 168" movable="false"/>
-                <Marker name="Marker2" color="146 0 168" movable="false"/>
-                <Marker name="Marker3" color="146 0 168" movable="false"/>
-                <Marker name="Marker4" color="146 0 168" movable="false"/>
+                <Marker name="Marker1" color="0 235 255" movable="false"/>
+                <Marker name="Marker2" color="0 235 255" movable="false"/>
+                <Marker name="Marker3" color="0 235 255" movable="false"/>
+                <Marker name="Marker4" color="0 235 255" movable="false"/>
                 <!--If nothing appears in this section it is because you need to update or generate colors. You can do this in the asset's context menu.-->
                 <!--The movable="false" tag currently is not functioning.-->
             </MarkerColors>
@@ -684,7 +589,7 @@
         </rigid_body>
     </NodeAssets>
     <DeviceAssets>
-        <sync_device version="1.0" id="2e37eef81c58cc9c:44e143c8797111ee">
+        <sync_device version="1.0" id="2e37eef81c58cc9c:9dc4716e797111ee">
             <properties>
                 <property>
                     <name>NodeName</name>

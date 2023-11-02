@@ -395,7 +395,7 @@ namespace rendertask {
 				apRb.is_visible = false;
 			}
 
-			if (rbName == "tool") {
+			if (rbName == "t-needle" || rbName == "troca") {
 
 				int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
 				int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
@@ -411,14 +411,14 @@ namespace rendertask {
 				}
 				vzm::GetActorParams(aidToolBody, apToolBody);
 				vzm::GetActorParams(aidToolTip, apToolTip);
-				bool isPivoted = __gc->g_rbLocalUserPoints.find("tool") != __gc->g_rbLocalUserPoints.end();
+				bool isPivoted = __gc->g_rbLocalUserPoints.find(rbName) != __gc->g_rbLocalUserPoints.end();
 				if (isRbTracked && isPivoted) {
 
 					apRb.is_visible = false;
 					apToolBody.is_visible = true;
 
 					{
-						vector<fvec3> toolUserData = __gc->g_rbLocalUserPoints["tool"];
+						vector<fvec3> toolUserData = __gc->g_rbLocalUserPoints[rbName];
 						// compute the line geometry in the tool's rigid body
 						fvec3 linePos[2] = { toolUserData[0], fvec3(0) };
 						static int oidToolLine = 0;
@@ -566,14 +566,14 @@ namespace rendertask {
 				optiMarkers[std::any_cast<std::string>(mkInfo[track_info::MKINFO::MK_NAME])]
 				= std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
 		}
-		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.3f), 0.007f, true);
+		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.6f), 0.007f, true);
 
 		
 		map<string, fvec3> testMarkers;
 		for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
 			testMarkers["testMK" + to_string(i + 1)] = __gc->g_testMKs[i];
 		}
-		displayMarkers(testMarkers, "TestMarkers", glm::fvec4(0, 0, 1.f, 0.3f), 0.007f);
+		displayMarkers(testMarkers, "TestMarkers", glm::fvec4(0, 0, 1.f, 0.6f), 0.007f);
 
 
 		map<string, fvec3> calibMarkers;
@@ -583,7 +583,7 @@ namespace rendertask {
 		for (auto it : __gc->g_homographyPairs) {
 			calibMarkers["calibMK" + to_string(mkIndex++)] = it.first;
 		}
-		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 0.3f), 0.003f, false, __gc->g_showCalibMarkers);
+		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 0.6f), 0.003f, false, __gc->g_showCalibMarkers);
 		
 		/**/
 	}

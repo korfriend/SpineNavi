@@ -627,15 +627,19 @@ void mygui(ImGuiIO& io) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
 			else {
+
 				__gc.g_calribmodeToggle = !__gc.g_calribmodeToggle;
 
 				if (!__gc.g_calribmodeToggle) {
+					view1.EnableCustomDown(false);
 					__gc.g_testMKs.clear();
 					__gc.g_selectedMkNames.clear();
 					int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
 					if (aidTestGroup != 0)
 						vzm::RemoveSceneItem(aidTestGroup);
 				}
+				else 
+					view1.EnableCustomDown(true);
 
 				__gc.g_engineLogger->info("calibration mode " + __gc.g_calribmodeToggle ? "ON" : "OFF");
 
@@ -685,7 +689,7 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Register Tool", ImVec2(0, buttonHeight)))
+		if (ImGui::Button("Register T-Niddle", ImVec2(0, buttonHeight)))
 		{
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
@@ -699,11 +703,33 @@ void mygui(ImGuiIO& io) {
 			else {
 				// 툴 등록하기..
 				__gc.g_optiEvent = OPTTRK_THREAD::TOOL_REGISTER;
+				__gc.g_optiToolId = 1;
 				while (__gc.g_optiEvent != OPTTRK_THREAD::FREE) { Sleep(2); }
+				__gc.g_optiToolId = 0;
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Tool Pivoting", ImVec2(0, buttonHeight)))
+		if (ImGui::Button("Register Troca", ImVec2(0, buttonHeight)))
+		{
+			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+				__gc.SetErrorCode("Not Allowed during Rec Processing!");
+			}
+			else if (!__gc.g_calribmodeToggle) {
+				__gc.SetErrorCode("No Marker Selection!");
+			}
+			else if (__gc.g_selectedMkNames.size() < 4) {
+				__gc.SetErrorCode("At least 3 Points are Needed!");
+			}
+			else {
+				// 툴 등록하기..
+				__gc.g_optiEvent = OPTTRK_THREAD::TOOL_REGISTER;
+				__gc.g_optiToolId = 2;
+				while (__gc.g_optiEvent != OPTTRK_THREAD::FREE) { Sleep(2); }
+				__gc.g_optiToolId = 0;
+			}
+		}
+
+		if (ImGui::Button("T-Needle Pivoting", ImVec2(0, buttonHeight)))
 		{
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
@@ -716,16 +742,42 @@ void mygui(ImGuiIO& io) {
 			}
 			else {
 				track_info trk = __gc.g_track_que.front(); // __gc.g_track_que.wait_and_pop(trk);
-				if (!trk.GetRigidBodyQuatTVecByName("tool", NULL, NULL)) {
+				if (!trk.GetRigidBodyQuatTVecByName("t-needle", NULL, NULL)) {
 					__gc.SetErrorCode("No Tool is Registered!");
 				}
 				else {
-					if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT) __gc.g_optiEvent = OPTTRK_THREAD::TOOL_RESET_PIVOT;
-					else __gc.g_optiEvent = OPTTRK_THREAD::TOOL_PIVOT;
+					__gc.g_optiToolId = 1;
+					if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT) 
+						__gc.g_optiEvent = OPTTRK_THREAD::TOOL_RESET_PIVOT;
+					else __gc.g_optiEvent = OPTTRK_THREAD::TOOL_PIVOT;;
 				}
 			}
 		}
-
+		ImGui::SameLine();
+		if (ImGui::Button("Troca Pivoting", ImVec2(0, buttonHeight)))
+		{
+			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+				__gc.SetErrorCode("Not Allowed during Rec Processing!");
+			}
+			else if (__gc.g_calribmodeToggle) {
+				__gc.SetErrorCode("Pivoting is Not Allowed during Marker Selection!");
+			}
+			else if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_RESET_PIVOT) {
+				__gc.SetErrorCode("Wait for Canceling Pivot Process!");
+			}
+			else {
+				track_info trk = __gc.g_track_que.front(); // __gc.g_track_que.wait_and_pop(trk);
+				if (!trk.GetRigidBodyQuatTVecByName("troca", NULL, NULL)) {
+					__gc.SetErrorCode("No Tool is Registered!");
+				}
+				else {
+					__gc.g_optiToolId = 2;
+					if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT)
+						__gc.g_optiEvent = OPTTRK_THREAD::TOOL_RESET_PIVOT;
+					else __gc.g_optiEvent = OPTTRK_THREAD::TOOL_PIVOT;;
+				}
+			}
+		}
 
 		if (ImGui::Button("Record", ImVec2(0, buttonHeight)))
 		{
@@ -958,6 +1010,7 @@ void mygui(ImGuiIO& io) {
 			static int w, h;
 			static bool isCalibratedExtrinsic = false;
 			static glm::fmat4x4 matRB2WS, matWS2RB;
+			static cv::Mat imgProcessing;
 
 			if (ImGui::Button("Add Extrinsic", ImVec2(0, buttonHeight)))
 			{
@@ -1043,7 +1096,7 @@ void mygui(ImGuiIO& io) {
 					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD)
 						img = cv::imread(files[indexExtrinsics]);
 					else if (g_curScanGrayImg.data != NULL) {
-						cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGBA);
+						cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGB);
 					}
 					else {
 						__gc.SetErrorCode("No Image!!");
@@ -1088,6 +1141,8 @@ void mygui(ImGuiIO& io) {
 						indexExtrinsics++;
 						if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) indexExtrinsics = indexExtrinsics % files.size();
 						isCalibratedExtrinsic = false;
+
+						cv::flip(img, imgProcessing, 1);
 					}
 				}
 			}
@@ -1101,6 +1156,10 @@ void mygui(ImGuiIO& io) {
 					__gc.SetErrorCode("The same scan image is already applied!");
 				}
 				else {
+					for (int i = 0; i < points3D.size(); i++) {
+						*(glm::fvec3*)&points3D[i] = vzmutils::transformPos(*(glm::fvec3*)&points3D[i], matWS2RB);
+					}
+
 					isCalibratedExtrinsic = true;
 					calib_points2Ds.push_back(points2D);
 					calib_points3Ds.push_back(points3D);
@@ -1113,9 +1172,19 @@ void mygui(ImGuiIO& io) {
 						fs["K"] >> cameraMatrix;
 						fs["DistCoeffs"] >> distCoeffs;
 						fs.release();
+						
+						for (int i = 0; i < points2D.size(); i++) {
+							__gc.g_homographyPairs[__cv3__ & points3D[i]] = __cv2__ & points2D[i];
+						}
 
+						std::vector<cv::Point2f> global_points2d;
+						std::vector<cv::Point3f> global_points3d;
+						for (auto& _pair : __gc.g_homographyPairs) {
+							global_points2d.push_back(*(cv::Point2f*)&(_pair.second));
+							global_points3d.push_back(*(cv::Point3f*)&(_pair.first));
+						}
 						cv::Mat rvec, tvec;
-						cv::solvePnP(calib_points3Ds, calib_points2Ds, cameraMatrix, distCoeffs, rvec, tvec);
+						cv::solvePnP(global_points3d, global_points2d, cameraMatrix, distCoeffs, rvec, tvec);
 
 						auto ComputeReprojErr = [](const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
 							float avrDiff = 0;
@@ -1130,21 +1199,21 @@ void mygui(ImGuiIO& io) {
 
 						// Reproject the 3D points onto the image plane using the camera calibration
 						std::vector<cv::Point2f> imagePointsReprojected;
-						cv::projectPoints(points3D, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+						cv::projectPoints(global_points3d, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
 
 						// Compute the reprojection error
 						float maxErr = 0;
-						float reprojectionError = ComputeReprojErr(points2D, imagePointsReprojected, maxErr);
+						float reprojectionError = ComputeReprojErr(global_points2d, imagePointsReprojected, maxErr);
 
-						__gc.g_engineLogger->info("single set ==> reprojectionError : {}, max error : {}", reprojectionError, maxErr);
+						__gc.g_engineLogger->info("reprojectionError of {} pairs : {}, max error : {}", global_points2d.size(), reprojectionError, maxErr);
 
-						maxErr = 0;
-						reprojectionError = 0;
-						for (int i = 0; i < (int)calib_points2Ds.size(); i++) {
-							reprojectionError += ComputeReprojErr(points2D, imagePointsReprojected, maxErr);
-						}
-						reprojectionError /= (float)calib_points2Ds.size();
-						__gc.g_engineLogger->info("entire set ==> reprojectionError : {}, max error : {}", reprojectionError, maxErr);
+						//maxErr = 0;
+						//reprojectionError = 0;
+						//for (int i = 0; i < (int)calib_points2Ds.size(); i++) {
+						//	reprojectionError += ComputeReprojErr(points2D, imagePointsReprojected, maxErr);
+						//}
+						//reprojectionError /= (float)calib_points2Ds.size();
+						//__gc.g_engineLogger->info("entire set ==> reprojectionError : {}, max error : {}", reprojectionError, maxErr);
 
 
 						//matCArmRB2SourceCS
@@ -1171,6 +1240,8 @@ void mygui(ImGuiIO& io) {
 						fs.write("rvec", rvec);
 						fs.write("tvec", tvec);
 						fs.release();
+
+						___SaveAndChangeViewState(char('1'), sidScene, cidRender1, 0, &matRB2WS, &imgProcessing);
 					}
 					else {
 						__gc.SetErrorCode("Cannot load the Intrinsics!!");

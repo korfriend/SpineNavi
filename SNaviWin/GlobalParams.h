@@ -454,6 +454,7 @@ typedef struct GlobalContainer {
 	//================ THREAD SAFE GROUP ==================
 	std::atomic<OPTTRK_THREAD> g_optiEvent; // { OPTTRK_THREAD::FREE };
 	std::atomic<OPTTRK_RECMODE> g_optiRecordMode;
+	std::atomic_int g_optiToolId = 0;
 	std::atomic_int g_optiRecordFrame; // count in main thread (same as render thread)
 	int g_optiRecordPeriod;
 	int g_optiPivotSamples;

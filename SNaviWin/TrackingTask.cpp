@@ -25,19 +25,22 @@ namespace trackingtask {
 		using namespace std;
 		using namespace glm;
 
-		cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::READ);
-		if (fs.isOpened()) {
-			std::vector<glm::fvec3> toolUserData(2);
+		std::vector<std::string> toolNames = {"t-needle", "troca"};
+		for (int i = 0; i < 2; i++) {
+			cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip_" + toolNames[i] + ".txt", cv::FileStorage::Mode::READ);
+			if (fs.isOpened()) {
+				std::vector<glm::fvec3> toolUserData(2);
 
-			cv::Mat ocv3(1, 3, CV_32FC1);
-			fs["ToolPos"] >> ocv3;
-			memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
-			fs["ToolVec"] >> ocv3;
-			memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
+				cv::Mat ocv3(1, 3, CV_32FC1);
+				fs["ToolPos"] >> ocv3;
+				memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
+				fs["ToolVec"] >> ocv3;
+				memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
 
-			__gc->g_rbLocalUserPoints["tool"] = toolUserData;
+				__gc->g_rbLocalUserPoints[toolNames[i]] = toolUserData;
+			}
+			fs.release();
 		}
-		fs.release();
 
 		std::time_t timeBegin;
 		std::vector<std::string> rbNames;
@@ -48,7 +51,8 @@ namespace trackingtask {
 
 		{
 			optitrk::SetRigidBodyPropertyByName("c-arm", 0.1f, 0);
-			optitrk::SetRigidBodyPropertyByName("tool", 0, 0);
+			optitrk::SetRigidBodyPropertyByName("t-needle", 0, 0);
+			optitrk::SetRigidBodyPropertyByName("troca", 0, 0);
 			optitrk::SetRigidBodyPropertyByName("probe", 0, 0);
 		}
 
@@ -101,13 +105,15 @@ namespace trackingtask {
 					if (fs.isOpened()) {
 						std::vector<glm::fvec3> toolUserData(2);
 
-						cv::Mat ocv3(1, 3, CV_32FC1);
-						fs["ToolPos"] >> ocv3;
-						memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
-						fs["ToolVec"] >> ocv3;
-						memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
-
-						__gc->g_rbLocalUserPoints["tool"] = toolUserData;
+						std::vector<std::string> toolNames = { "t-needle", "troca" };
+						for (int i = 0; i < 2; i++) {
+							cv::Mat ocv3(1, 3, CV_32FC1);
+							fs["ToolPos_" + to_string(i)] >> ocv3;
+							memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
+							fs["ToolVec_" + to_string(i)] >> ocv3;
+							memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
+							__gc->g_rbLocalUserPoints[toolNames[i]] = toolUserData;
+						}
 					}
 					fs.release();
 
@@ -347,14 +353,24 @@ namespace trackingtask {
 					optitrk::SetRigidBody("c-arm", selectedMks.size(), (float*)&selectedMks[0]);
 					UpdateRigidBodiesInThread();
 					optitrk::StoreProfile(__gc->g_profileFileName);
+					__gc->g_engineLogger->info("C-Arm is successfully registered!");
 					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 				} break;
 				case OPTTRK_THREAD::TOOL_REGISTER: {
 					std::vector<glm::fvec3> selectedMks;
 					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
-					cout << "\nregister tool success!" << endl;
+
 					int numSelectedMKs = (int)selectedMks.size();
-					optitrk::SetRigidBody("tool", numSelectedMKs, (float*)&selectedMks[0]);
+					if (__gc->g_optiToolId == 1) {
+						__gc->g_engineLogger->info("T-Needle is successfully registered!");
+						optitrk::SetRigidBody("t-needle", numSelectedMKs, (float*)&selectedMks[0]);
+					}
+					else if (__gc->g_optiToolId == 2) {
+						__gc->g_engineLogger->info("Troca is successfully registered!");
+						optitrk::SetRigidBody("troca", numSelectedMKs, (float*)&selectedMks[0]);
+					}
+					UpdateRigidBodiesInThread();
+					optitrk::StoreProfile(__gc->g_profileFileName);
 					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 				} break;
 				case OPTTRK_THREAD::TOOL_UPDATE: {
@@ -363,7 +379,8 @@ namespace trackingtask {
 					int rbIdx = -1;
 					std::vector<float> buf_rb_mks;
 					//std::vector<float> ws_mks;
-					if (optitrk::GetRigidBodyLocationByName("tool", __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks)) {
+					std::string rbName = __gc->g_optiToolId == 1 ? "t-needle" : "troca";
+					if (optitrk::GetRigidBodyLocationByName(rbName, __FP rbLS2WS, &rbIdx, NULL, NULL, &buf_rb_mks)) {
 
 						std::vector<glm::fvec3> pos_rb_mks(buf_rb_mks.size() / 3);
 						memcpy(&pos_rb_mks[0], &buf_rb_mks[0], sizeof(float) * buf_rb_mks.size());
@@ -390,9 +407,9 @@ namespace trackingtask {
 						glm::fvec3 p_line1 = p1234 - nrl1234 * (float)(65.36 * 0.001); // meter
 
 						std::vector<glm::fvec3> toolUserData = { p_line1, faceDir };
-						__gc->g_rbLocalUserPoints["tool"] = toolUserData;
+						__gc->g_rbLocalUserPoints[rbName] = toolUserData;
 
-						cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip.txt", cv::FileStorage::Mode::WRITE);
+						cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip_" + rbName + ".txt", cv::FileStorage::Mode::WRITE);
 						cv::Mat ocv3(1, 3, CV_32FC1);
 						memcpy(ocv3.ptr(), &p_line1, sizeof(glm::fvec3));
 						fs << "ToolPos" << ocv3;
@@ -422,8 +439,9 @@ namespace trackingtask {
 
 				} break;
 				case OPTTRK_THREAD::TOOL_PIVOT: {
+					std::string rbName = __gc->g_optiToolId == 1 ? "t-needle" : "troca";
 					bitset<128> rbCID;
-					if (trk_info.GetRigidBodyByName("tool", NULL, NULL, NULL, &rbCID)) {
+					if (trk_info.GetRigidBodyByName(rbName, NULL, NULL, NULL, &rbCID)) {
 						float progress, initErr, returnErr;
 						switch (pivotState) {
 						case 0:
@@ -437,8 +455,8 @@ namespace trackingtask {
 							if (optitrk::StartPivotSample(rbCID, __gc->g_optiPivotSamples)) pivotState = 1;
 							break;
 						case 1:
-							curTime = time(NULL);
-							if ((double)(curTime - prevTime) / CLOCKS_PER_SEC > 0.03) {
+							curTime = clock();
+							if ((double)(curTime - prevTime) / CLOCKS_PER_SEC > 0.01) {
 								prevTime = curTime;
 								if (optitrk::ProcessPivotSample(&progress, &initErr, &returnErr)) {
 									__gc->g_optiPivotProgress = (int)progress;
@@ -447,11 +465,11 @@ namespace trackingtask {
 										pivotState = 0;
 										//__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 										__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
-										__gc->SetErrorCode("Pivoting Completed \nInitErr: " + std::to_string(initErr) + "mm, RetErr: " + std::to_string(returnErr) + "mm", 200);
+										__gc->g_engineLogger->info("Pivoting Completed! InitErr: {} mm, RetErr: {}mm", initErr, returnErr);
 									}
 								}
 								else {
-									__gc->SetErrorCode("Pivoting Sample Error!", 30);
+									__gc->SetErrorCode("Pivoting Sample Error!");
 								}
 							}
 							break;
@@ -462,6 +480,7 @@ namespace trackingtask {
 					optitrk::ResetPivot();
 					pivotState = 0;
 					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+					__gc->g_optiToolId = 0;
 					__gc->SetErrorCode("Pivoting Canceled");
 				} break;
 				case OPTTRK_THREAD::FREE:
@@ -471,20 +490,22 @@ namespace trackingtask {
 				if (__gc->g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
 
 					if (__gc->g_optiRecordFrame == 0) {
-
-						std::vector<glm::fvec3>& toolUserData = __gc->g_rbLocalUserPoints["tool"];
-						if (toolUserData.size() == 2) {
-							cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltipRecord.txt", cv::FileStorage::Mode::WRITE);
-							cv::Mat ocv3(1, 3, CV_32FC1);
-							memcpy(ocv3.ptr(), &toolUserData[0], sizeof(glm::fvec3));
-							fs << "ToolPos" << ocv3;
-							memcpy(ocv3.ptr(), &toolUserData[1], sizeof(glm::fvec3));
-							fs << "ToolVec" << ocv3;
-							fs.release();
-						}
-						else {
-							__gc->SetErrorCode("No Tool is Registered!");
-							__gc->g_optiRecordMode = OPTTRK_RECMODE::NONE;
+						std::vector<std::string> toolNames = { "t-needle", "troca" };
+						for (int i = 0; i < 2; i++) {
+							std::vector<glm::fvec3>& toolUserData = __gc->g_rbLocalUserPoints[toolNames[i]];
+							if (toolUserData.size() == 2) {
+								cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltipRecord.txt", cv::FileStorage::Mode::WRITE);
+								cv::Mat ocv3(1, 3, CV_32FC1);
+								memcpy(ocv3.ptr(), &toolUserData[0], sizeof(glm::fvec3));
+								fs << "ToolPos_" + to_string(i) << ocv3;
+								memcpy(ocv3.ptr(), &toolUserData[1], sizeof(glm::fvec3));
+								fs << "ToolVec_" + to_string(i) << ocv3;
+								fs.release();
+							}
+							//else {
+							//	__gc->SetErrorCode("No Tool is Registered!");
+							//	__gc->g_optiRecordMode = OPTTRK_RECMODE::NONE;
+							//}
 						}
 
 						__gc->g_recFileStream.open(__gc->g_recFileName);

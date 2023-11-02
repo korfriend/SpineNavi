@@ -1,0 +1,47 @@
+%YAML:1.0
+---
+inter_sphere_0: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -8.50222260e-02, -2.95665115e-02, 1.60276914e+00 ]
+inter_sphere_1: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -2.63015479e-02, -2.87746750e-02, 1.61072516e+00 ]
+inter_sphere_2: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 3.25968564e-02, -2.87173335e-02, 1.62292242e+00 ]
+inter_sphere_3: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -7.48978183e-02, -6.80337176e-02, 1.55709839e+00 ]
+inter_sphere_4: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -1.74621549e-02, -6.72939941e-02, 1.56759715e+00 ]
+inter_sphere_5: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.04266194e-02, -6.57826588e-02, 1.57899356e+00 ]
+inter_sphere_6: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -6.65082708e-02, -1.07032903e-01, 1.51027894e+00 ]
+inter_sphere_7: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -9.82986670e-03, -1.06509827e-01, 1.52265406e+00 ]
+inter_sphere_8: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 4.99274395e-02, -1.05262682e-01, 1.53436577e+00 ]
