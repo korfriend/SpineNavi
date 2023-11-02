@@ -195,7 +195,8 @@ public:
 	}
 
 	bool GetTrackingCamPose(const int camIdx, glm::fmat4x4& matCam2WS) {
-		if (camIdx >= __matrice_Cam2WS.size()) return false;
+		if (camIdx >= __matrice_Cam2WS.size()) 
+			return false;
 		matCam2WS = __matrice_Cam2WS[camIdx];
 		return true;
 	}
