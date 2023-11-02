@@ -1262,6 +1262,7 @@ void mygui(ImGuiIO& io) {
 
 		ImGui::Text("Render Count = %d", vzmpf::GetRenderCount());
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+		ImGui::Text((std::string("Network task : ") + __gc.g_networkState).c_str());
 		ImGui::End();
 	}
 

@@ -477,13 +477,13 @@ typedef struct GlobalContainer {
 	std::atomic_int g_downloadCompleted;// { 0 };
 	std::atomic_int g_ui_banishing_count;// { 0 };
 
-
 	concurrent_queue<track_info> g_track_que;
 	track_info g_track_info_shotmoment;
 	std::atomic_int g_is_ready_for_shotmoment = false;
 
 	std::map<std::string, std::any> g_customParams;
 
+	std::string  g_networkState = ""; // frames
 	std::atomic_int g_error_duration; // frames
 	std::string g_error_text;
 	std::shared_ptr<spdlog::logger> g_engineLogger;

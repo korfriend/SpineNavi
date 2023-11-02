@@ -92,21 +92,25 @@ namespace nettask {
 				/* fd_set 복사 */
 				copy_reads = reads;
 
+				__gc->g_networkState = fmt::format("waiting for sender... {} trial(s)", numTimeOut);
 				/* select */
 				int result = select(maxFd + 1, &copy_reads, NULL, NULL, &timeout);
 
 				/* select 결과 예외처리 */
 				if (result < 0) {
 					__gc->g_engineLogger->error("select error");
-					fflush(stdout);
+					//fflush(stdout);
 					break;
 				}
 
 				if (result == 0) {
-					__gc->g_engineLogger->error("time out...{}", ++numTimeOut);
-					fflush(stdout);
+					//__gc->g_engineLogger->error("time out...{}", ++numTimeOut);
+					__gc->g_networkState = fmt::format("time out...{}", ++numTimeOut);
+					//fflush(stdout);
 					break;
 				}
+
+				__gc->g_networkState = "downloading image...";
 
 				/* server listen socket에 input event가 있는지 확인 */
 				if (FD_ISSET(serverSocket, &copy_reads)) {
@@ -146,6 +150,7 @@ namespace nettask {
 
 						totalReadBytes += readBytes;
 						__gc->g_downloadCompleted = 100 + (int)(((double)totalReadBytes / (double)file_size) * 100.0);
+						__gc->g_networkState = fmt::format("downloading image... {}%", __gc->g_downloadCompleted - 100);
 						//printf("\rIn progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
 						//fflush(stdout);
 					}
