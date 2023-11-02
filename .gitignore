@@ -12,6 +12,8 @@
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
+*.ini
+config.txt
 
 # Qt6WebEngineCore*
 # opencv_world330*

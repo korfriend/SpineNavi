@@ -2,6 +2,6 @@
 ---
 TrackDataFolder: Tracking 2023-11-02
 MotiveProfile: Motive Profile - 2023-11-02.motive
-RecordMode: NONE
+RecordMode: LOAD
 RecordPeriod: 2
 PivotSamples: 1000
