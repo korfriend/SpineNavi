@@ -483,6 +483,8 @@ typedef struct GlobalContainer {
 
 	std::map<std::string, std::any> g_customParams;
 
+	std::string g_lastStoredImageName = "";
+
 	std::string  g_networkState = ""; // frames
 	std::atomic_int g_error_duration; // frames
 	std::string g_error_text;

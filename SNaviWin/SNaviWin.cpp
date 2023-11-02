@@ -146,6 +146,7 @@ auto ___SaveAndChangeViewState = [](const int keyParam, const int sidScene, cons
 			timePack = to_string(navihelpers::GetCurrentTimePack());
 
 			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + "_" + timePack + ".png";
+			__gc.g_lastStoredImageName = "test" + to_string(i) + "_" + timePack;
 			cv::imwrite(downloadImgFileName, colored_img);
 
 			___StoreParams("test" + to_string(i) + "_" + timePack + ".txt", matCArmRB2WS, downloadImgFileName);
@@ -872,22 +873,16 @@ void mygui(ImGuiIO& io) {
 			static std::vector<std::string> files;
 			if (indexIntrinsic == -1) {
 				indexIntrinsic = 0;
-				for (int i = 0; i < 17; i++) {
-					files.push_back(__gc.g_folder_data + "c-arm 2023-04-19/" + std::to_string(7063 + i) + ".png");
-				}
-
-				const float squareSize = 15.9375f; // mm unit
-				for (int i = 0; i < 8; ++i) {
-					for (int j = 0; j < 8; ++j) {
-						corners.push_back(cv::Point3f(j * squareSize, i * squareSize, 0));
-					}
+				for (const auto& entry : std::filesystem::directory_iterator(__gc.g_folder_trackingInfo + "int_images")) {
+					if (entry.path().extension().string() == ".png")
+						files.push_back(entry.path().string());
 				}
 			}
 			static ID3D11ShaderResourceView* pSRV = NULL;
 			static std::vector<cv::Point2f> points2D;
 			static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
 			static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
-			static const int intrinsicWidth = 8, intrinsicHeight = 8;
+			static int intrinsicWidth = 8, intrinsicHeight = 8;
 			static int w, h;
 			static bool isCalibratedIntrinsic = false;
 			if (ImGui::Button("Add Intrinsic", ImVec2(0, buttonHeight)))
@@ -897,9 +892,21 @@ void mygui(ImGuiIO& io) {
 					img = cv::imread(files[indexIntrinsic]);
 				else if (g_curScanGrayImg.data != NULL) {
 					cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGBA);
+					cv::imwrite(__gc.g_folder_trackingInfo + "int_images/" + __gc.g_lastStoredImageName + ".png", img);
 				}
 				else {
 					__gc.SetErrorCode("No Image!!");
+				}
+
+				cv::FileStorage fs(__gc.g_folder_trackingInfo + "calib_settings.txt", cv::FileStorage::Mode::READ);
+				std::string calib_mode = "FMARKERS";
+				std::string det_mode = "SimpleBlobDetector";
+				if (fs.isOpened()) {
+					fs["INT_ROWS"] >> intrinsicHeight;
+					fs["INT_COLS"] >> intrinsicWidth;
+					fs["INT_MODE"] >> calib_mode;
+					fs["INT_DETECTOR"] >> det_mode;
+					fs.release();
 				}
 
 				// Load from disk into a raw RGBA buffer
@@ -956,6 +963,16 @@ void mygui(ImGuiIO& io) {
 				}
 				else {
 					isCalibratedIntrinsic = true;
+
+					if (corners.size() == 0) {
+						const float squareSize = 15.9375f; // mm unit
+						for (int i = 0; i < intrinsicHeight; ++i) {
+							for (int j = 0; j < intrinsicWidth; ++j) {
+								corners.push_back(cv::Point3f(j * squareSize, i * squareSize, 0));
+							}
+						}
+					}
+
 					calib_points2Ds.push_back(points2D);
 					calib_points3Ds.push_back(corners);
 
@@ -996,17 +1013,18 @@ void mygui(ImGuiIO& io) {
 			static int indexExtrinsics = -1;
 			static std::vector<std::string> files;
 			if (indexExtrinsics == -1) {
-				indexExtrinsics = 0;
-				for (int i = 0; i < 2; i++) {
-					files.push_back(__gc.g_folder_data + "Tracking 2023-09-25/test_ex" + std::to_string(i + 1) + ".png");
+				for (const auto& entry : std::filesystem::directory_iterator(__gc.g_folder_trackingInfo + "ext_images")) {
+					if (entry.path().extension().string() == ".png")
+						files.push_back(entry.path().string());
 				}
+				indexExtrinsics = 0;
 			}
 			static ID3D11ShaderResourceView* pSRV = NULL;
 			static std::vector<cv::Point3f> points3D;
 			static std::vector<cv::Point2f> points2D;
 			static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
 			static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
-			static const int extrinsicWidth = 3, extrinsicHeight = 3;
+			static int extrinsicWidth = 3, extrinsicHeight = 3;
 			static int w, h;
 			static bool isCalibratedExtrinsic = false;
 			static glm::fmat4x4 matRB2WS, matWS2RB;
@@ -1040,15 +1058,16 @@ void mygui(ImGuiIO& io) {
 
 				if (!errResult)
 				{
-					cv::FileStorage fs(__gc.g_folder_trackingInfo + "calibBoard.txt", cv::FileStorage::Mode::READ);
-					std::string calib_mode;
-					std::string det_mode;
-					int extrinsicWidth, extrinsicHeight;
-					fs["ROWS"] >> extrinsicHeight;
-					fs["COLS"] >> extrinsicWidth;
-					fs["MODE"] >> calib_mode;
-					fs["DETECTOR"] >> det_mode;
-					fs.release();
+					cv::FileStorage fs(__gc.g_folder_trackingInfo + "calib_settings.txt", cv::FileStorage::Mode::READ);
+					std::string calib_mode = "FMARKERS";
+					std::string det_mode = "SimpleBlobDetector";
+					if (fs.isOpened()) {
+						fs["EXT_ROWS"] >> extrinsicHeight;
+						fs["EXT_COLS"] >> extrinsicWidth;
+						fs["EXT_MODE"] >> calib_mode;
+						fs["EXT_DETECTOR"] >> det_mode;
+						fs.release();
+					}
 
 					// gather 3D points 
 					std::vector<cv::Point3f> posWsMarkers(__gc.g_selectedMkNames.size());
@@ -1088,6 +1107,10 @@ void mygui(ImGuiIO& io) {
 						__gc.g_testMKs.clear();
 						__gc.g_testMKs.assign(points3D.size(), glm::fvec3(0));
 						memcpy(&__gc.g_testMKs[0], &points3D[0], sizeof(glm::fvec3) * points3D.size());
+
+						for (int i = 0; i < points3D.size(); i++) {
+							*(glm::fvec3*)&points3D[i] = vzmutils::transformPos(*(glm::fvec3*)&points3D[i], matWS2RB);
+						}
 					}
 				}
 				
@@ -1097,6 +1120,11 @@ void mygui(ImGuiIO& io) {
 						img = cv::imread(files[indexExtrinsics]);
 					else if (g_curScanGrayImg.data != NULL) {
 						cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGB);
+						cv::imwrite(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + ".png", img);
+
+						cv::FileStorage fs(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + "_RBPts.txt", cv::FileStorage::Mode::WRITE);
+						fs << "RB_POSITIONS" << cv::Mat(points3D);
+						fs.release();
 					}
 					else {
 						__gc.SetErrorCode("No Image!!");
@@ -1156,10 +1184,6 @@ void mygui(ImGuiIO& io) {
 					__gc.SetErrorCode("The same scan image is already applied!");
 				}
 				else {
-					for (int i = 0; i < points3D.size(); i++) {
-						*(glm::fvec3*)&points3D[i] = vzmutils::transformPos(*(glm::fvec3*)&points3D[i], matWS2RB);
-					}
-
 					isCalibratedExtrinsic = true;
 					calib_points2Ds.push_back(points2D);
 					calib_points3Ds.push_back(points3D);
