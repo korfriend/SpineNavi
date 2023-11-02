@@ -15,3 +15,18 @@ UP: !!opencv-matrix
    cols: 3
    dt: f
    data: [ -1.62327334e-01, 8.19864988e-01, -5.49063981e-01 ]
+POS2: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 1.49399066e+00, 2.31537175e+00, 3.96568251e+00 ]
+VIEW2: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -4.39684480e-01, -5.58248043e-01, -7.03588486e-01 ]
+UP2: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -1.62327334e-01, 8.19864988e-01, -5.49063981e-01 ]
