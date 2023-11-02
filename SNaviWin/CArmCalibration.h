@@ -14,6 +14,9 @@ namespace calibtask {
 namespace mystudents {
 	int Get2DPostionsFromFMarkersPhantom(const cv::Mat& inputImg, const int rows, const int cols, std::vector<cv::Point2f>& points2Ds
 		, const float minArea = 2000, const float maxArea = 16000, const float minInterval = 100, std::vector<float>* circleRadius =NULL);
+	int Get3DPostionsFromFMarkersPhantom(const glm::fvec3& marker0, const glm::fvec3& marker1, const glm::fvec3& marker2, const glm::fvec3& marker3,
+		const track_info* trk, const int rows, const int cols,
+		std::vector<cv::Point3f>& points3Ds);
 }
 
 //bool CalibrateIntrinsics(const std::vector<std::string>& imgFileNames, float& fx, float& fy, float& cx, float& cy, float& s, std::vector<float>& distCoeffs);

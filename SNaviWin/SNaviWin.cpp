@@ -279,182 +279,6 @@ auto ___SaveAndChangeViewState = [](const int keyParam, const int sidScene, cons
 	return true;
 };
 
-
-//CRITICAL_SECTION lock;
-// DOJO: windows SDK 에서 호출되는 SetTimer 의 callback 함수
-// 여기에서 UpdateTrackInfo2Scene() 과 Render() 이 호출된다.
-// timer 가 main thread 에서 활성화되므로 rendering thread (timer)는 main thread 에 종속
-// (thread safe 관계)
-void SceneUpdate(track_info& trackInfo)
-{
-	using namespace std;
-	if (!trackInfo.IsValidTracking())
-		return;
-
-	//::EnterCriticalSection(&lock);
-	// DOJO: concurrent queue 에서 가장 최신에 저장된 tracking frame 정보 pop out
-	if (__gc.g_optiRecordFrame > 0)
-		__gc.g_optiRecordFrame++;
-
-	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
-	int cidCam1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
-	int cidCam2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
-
-	static int recRowCount = -1;
-	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
-		if (__gc.g_recScanStream.is_open()) {
-			std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
-			__gc.g_recScanStream.close();
-		}
-
-		static rapidcsv::Document csvTrkData;
-		if (recRowCount < 0) {
-			csvTrkData.Load(__gc.g_recScanName, rapidcsv::LabelParams(0, 0));
-			recRowCount = 0;
-		}
-
-		int recordFrame = 100000000;
-		if (recRowCount >= (int)csvTrkData.GetRowCount()) {
-			if (__gc.g_optiRecordFrame <= 2) {
-				recRowCount = 0;
-
-				glm::fvec3 posInit, viewInit, upInit;
-				cv::FileStorage fs(__gc.g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
-				if (fs.isOpened()) {
-					cv::Mat ocvVec3;
-					fs["POS"] >> ocvVec3;
-					memcpy(&posInit, ocvVec3.ptr(), sizeof(float) * 3);
-					fs["VIEW"] >> ocvVec3;
-					memcpy(&viewInit, ocvVec3.ptr(), sizeof(float) * 3);
-					fs["UP"] >> ocvVec3;
-					memcpy(&upInit, ocvVec3.ptr(), sizeof(float) * 3);
-					fs.release();
-				}
-
-				float vFov = 3.141592654f / 4.f;
-				int cidCams[2] = { cidCam1 , cidCam2 };
-				for (int i = 0; i < 2; i++) {
-					vzm::CameraParameters cpCam;
-					vzm::GetCameraParams(cidCams[i], cpCam);
-
-					float aspect_ratio = (float)cpCam.w / (float)cpCam.h;
-					float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
-					cpCam.fx = cpCam.w / (2.f * tan(hFov / 2.f));
-					cpCam.fy = cpCam.h / (2.f * tan(vFov / 2.f));
-					cpCam.sc = 0;
-					cpCam.cx = cpCam.w / 2.f;
-					cpCam.cy = cpCam.h / 2.f;
-					cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
-					*(glm::fvec3*)cpCam.pos = posInit;
-					*(glm::fvec3*)cpCam.view = viewInit;
-					*(glm::fvec3*)cpCam.up = upInit;
-					vzm::SetCameraParams(cidCams[i], cpCam);
-				}
-
-				for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
-					vzm::RemoveSceneItem(it->second, true);
-				}
-			}
-		}
-		else {
-			std::string frameStr = csvTrkData.GetRowName(recRowCount);
-			recordFrame = std::stoi(frameStr);
-		}
-		if (__gc.g_optiRecordFrame > recordFrame) {
-			std::vector<std::string> rowData = csvTrkData.GetRow<std::string>(recRowCount);
-			recRowCount++;
-
-			bool isAP = rowData[1] == "AP";
-
-			string timePack = rowData[0];
-			if (timePack.back() == ' ') timePack.pop_back();
-			if (isAP) {
-				___SaveAndChangeViewState(char('1'), sidScene, cidCam1, 0, NULL, NULL, &timePack);
-			}
-			else {
-				___SaveAndChangeViewState(char('2'), sidScene, cidCam2, 1, NULL, NULL, &timePack);
-			}
-		}
-	}
-	else {
-		recRowCount = -1;
-		if (__gc.g_renderEvent == RENDER_THREAD::DOWNLOAD_IMG_PROCESS) {
-			//__gc.g_renderEvent = RENDER_THREAD::BUSY;
-			memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
-
-			cv::Mat downloadColorImg;
-			cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
-			cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
-
-			glm::fmat4x4 matCArmRB2WS;
-			if (trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL)) {
-
-				if (__gc.g_is_ready_for_shotmoment)
-				{
-					glm::fquat q_cur, q_prev;
-					glm::fvec3 t_cur, t_prev;
-					trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q_cur, &t_cur);
-					__gc.g_track_info_shotmoment.GetRigidBodyQuatTVecByName("c-arm", &q_prev, &t_prev);
-
-					glm::fmat4x4 matCArmRB2WS_prev;
-					__gc.g_track_info_shotmoment.GetRigidBodyByName("c-arm", &matCArmRB2WS_prev, NULL, NULL, NULL);
-
-					glm::fvec3 o_cur, o_prev;
-					o_cur = vzmutils::transformPos(glm::fvec3(0), matCArmRB2WS);
-					o_prev = vzmutils::transformPos(glm::fvec3(0), matCArmRB2WS_prev);
-					glm::fquat q_diff = q_cur * glm::inverse(q_prev);
-					float angle = glm::degrees(2.0f * acos(q_diff.w));
-					float err_t_dist = glm::length(o_cur - o_prev);
-					float err_t = glm::length(t_cur - t_prev);
-					//__gc.g_is_ready_for_shotmoment = false;
-
-					__gc.SetErrorCode("angle:" + std::to_string(angle) + "\n"
-						+ "err_t_dist:" + std::to_string(err_t_dist) + "\n"
-						+ "err_t:" + std::to_string(err_t), 1000);
-				}
-
-
-				if (__gc.g_calribmodeToggle) {
-					if (calibtask::CalibrationWithPhantom(__gc.g_CArmRB2SourceCS, g_curScanGrayImg, &trackInfo, true)) {
-
-						cv::Mat processColorImg = cv::imread(__gc.g_folder_trackingInfo + "test_circle_sort.png");
-						___SaveAndChangeViewState(char('3'), sidScene, cidCam1, 0, &matCArmRB2WS, &processColorImg);
-					}
-				}
-				else {
-					// trackInfo.matCArmRB2WS, trackInfo.matCam2WS, downloadColorImg
-					glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
-					//glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
-					glm::fvec3 dirCArm = vzmutils::transformVec(glm::fvec3(0, 0, -1), matSourceCS2WS);
-					dirCArm = glm::normalize(dirCArm);
-
-					glm::fmat4x4 matCam2WS;
-					trackInfo.GetTrackingCamPose(0, matCam2WS);
-					glm::fvec3 camRight = vzmutils::transformVec(glm::fvec3(1, 0, 0), matCam2WS);
-					camRight = glm::normalize(camRight);
-
-					float horizonAngle = fabs(glm::dot(camRight, dirCArm));
-					if (horizonAngle < 0.3f)
-						___SaveAndChangeViewState(char('1'), sidScene, cidCam1, 0, &matCArmRB2WS, &downloadColorImg);
-					else
-						___SaveAndChangeViewState(char('2'), sidScene, cidCam2, 1, &matCArmRB2WS, &downloadColorImg);
-				}
-			}
-			else {
-				PlaySound((LPCTSTR)SND_ALIAS_SYSTEMWELCOME, NULL, SND_ALIAS_ID | SND_ASYNC);
-				__gc.SetErrorCode("C-Arm is Not Detected!\nCheck the C-Arm Markers and Retry!", 300);
-			}
-
-			__gc.g_renderEvent = RENDER_THREAD::FREE;
-		}
-	}
-
-	rendertask::RenderTrackingScene(&trackInfo);
-
-	//::LeaveCriticalSection(&lock);
-}
-
-
 int g_posWinX = 0, g_posWinY = 0;
 int g_sizeWinX = 1280, g_sizeWinY = 800;
 int g_sizeRightPanelW = 400, g_sizeConsolePanelH = 290;
@@ -567,11 +391,158 @@ void mygui(ImGuiIO& io) {
 		__gc.g_track_que.wait_and_pop(trackInfo);
 	}
 
-	SceneUpdate(trackInfo); // call rendering
-
 	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
 	int cidRender1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
 	int cidRender2 = vzmutils::GetSceneItemIdByName(__gc.g_camName2);
+
+	if (trackInfo.IsValidTracking()) {
+
+		//::EnterCriticalSection(&lock);
+		// DOJO: concurrent queue 에서 가장 최신에 저장된 tracking frame 정보 pop out
+		if (__gc.g_optiRecordFrame > 0)
+			__gc.g_optiRecordFrame++;
+
+		static int recRowCount = -1;
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+			if (__gc.g_recScanStream.is_open()) {
+				std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
+				__gc.g_recScanStream.close();
+			}
+
+			static rapidcsv::Document csvTrkData;
+			if (recRowCount < 0) {
+				csvTrkData.Load(__gc.g_recScanName, rapidcsv::LabelParams(0, 0));
+				recRowCount = 0;
+			}
+
+			int recordFrame = 100000000;
+			if (recRowCount >= (int)csvTrkData.GetRowCount()) {
+				if (__gc.g_optiRecordFrame <= 2) {
+					recRowCount = 0;
+
+					glm::fvec3 posInit, viewInit, upInit;
+					cv::FileStorage fs(__gc.g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
+					if (fs.isOpened()) {
+						cv::Mat ocvVec3;
+						fs["POS"] >> ocvVec3;
+						memcpy(&posInit, ocvVec3.ptr(), sizeof(float) * 3);
+						fs["VIEW"] >> ocvVec3;
+						memcpy(&viewInit, ocvVec3.ptr(), sizeof(float) * 3);
+						fs["UP"] >> ocvVec3;
+						memcpy(&upInit, ocvVec3.ptr(), sizeof(float) * 3);
+						fs.release();
+					}
+
+					float vFov = 3.141592654f / 4.f;
+					int cidCams[2] = { cidRender1 , cidRender2 };
+					for (int i = 0; i < 2; i++) {
+						vzm::CameraParameters cpCam;
+						vzm::GetCameraParams(cidCams[i], cpCam);
+
+						float aspect_ratio = (float)cpCam.w / (float)cpCam.h;
+						float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
+						cpCam.fx = cpCam.w / (2.f * tan(hFov / 2.f));
+						cpCam.fy = cpCam.h / (2.f * tan(vFov / 2.f));
+						cpCam.sc = 0;
+						cpCam.cx = cpCam.w / 2.f;
+						cpCam.cy = cpCam.h / 2.f;
+						cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+						*(glm::fvec3*)cpCam.pos = posInit;
+						*(glm::fvec3*)cpCam.view = viewInit;
+						*(glm::fvec3*)cpCam.up = upInit;
+						vzm::SetCameraParams(cidCams[i], cpCam);
+					}
+
+					for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
+						vzm::RemoveSceneItem(it->second, true);
+					}
+				}
+			}
+			else {
+				std::string frameStr = csvTrkData.GetRowName(recRowCount);
+				recordFrame = std::stoi(frameStr);
+			}
+			if (__gc.g_optiRecordFrame > recordFrame) {
+				std::vector<std::string> rowData = csvTrkData.GetRow<std::string>(recRowCount);
+				recRowCount++;
+
+				bool isAP = rowData[1] == "AP";
+
+				std::string timePack = rowData[0];
+				if (timePack.back() == ' ') timePack.pop_back();
+				if (isAP) {
+					___SaveAndChangeViewState(char('1'), sidScene, cidRender1, 0, NULL, NULL, &timePack);
+				}
+				else {
+					___SaveAndChangeViewState(char('2'), sidScene, cidRender2, 1, NULL, NULL, &timePack);
+				}
+			}
+		}
+		else {
+			recRowCount = -1;
+			if (__gc.g_renderEvent == RENDER_THREAD::DOWNLOAD_IMG_PROCESS) {
+				//__gc.g_renderEvent = RENDER_THREAD::BUSY;
+				memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
+
+				cv::Mat downloadColorImg;
+				cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
+				cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+
+				glm::fmat4x4 matCArmRB2WS;
+				if (trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL)) {
+
+					if (__gc.g_is_ready_for_shotmoment)
+					{
+						glm::fquat q_cur, q_prev;
+						glm::fvec3 t_cur, t_prev;
+						trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q_cur, &t_cur);
+						__gc.g_track_info_shotmoment.GetRigidBodyQuatTVecByName("c-arm", &q_prev, &t_prev);
+
+						glm::fmat4x4 matCArmRB2WS_prev;
+						__gc.g_track_info_shotmoment.GetRigidBodyByName("c-arm", &matCArmRB2WS_prev, NULL, NULL, NULL);
+
+						glm::fvec3 o_cur, o_prev;
+						o_cur = vzmutils::transformPos(glm::fvec3(0), matCArmRB2WS);
+						o_prev = vzmutils::transformPos(glm::fvec3(0), matCArmRB2WS_prev);
+						glm::fquat q_diff = q_cur * glm::inverse(q_prev);
+						float angle = glm::degrees(2.0f * acos(q_diff.w));
+						float err_t_dist = glm::length(o_cur - o_prev);
+						float err_t = glm::length(t_cur - t_prev);
+						//__gc.g_is_ready_for_shotmoment = false;
+
+						__gc.SetErrorCode("angle:" + std::to_string(angle) + "\n"
+							+ "err_t_dist:" + std::to_string(err_t_dist) + "\n"
+							+ "err_t:" + std::to_string(err_t), 1000);
+					}
+
+					// trackInfo.matCArmRB2WS, trackInfo.matCam2WS, downloadColorImg
+					glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
+					//glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
+					glm::fvec3 dirCArm = vzmutils::transformVec(glm::fvec3(0, 0, -1), matSourceCS2WS);
+					dirCArm = glm::normalize(dirCArm);
+
+					glm::fmat4x4 matCam2WS;
+					trackInfo.GetTrackingCamPose(0, matCam2WS);
+					glm::fvec3 camRight = vzmutils::transformVec(glm::fvec3(1, 0, 0), matCam2WS);
+					camRight = glm::normalize(camRight);
+
+					float horizonAngle = fabs(glm::dot(camRight, dirCArm));
+					if (horizonAngle < 0.3f)
+						___SaveAndChangeViewState(char('1'), sidScene, cidRender1, 0, &matCArmRB2WS, &downloadColorImg);
+					else
+						___SaveAndChangeViewState(char('2'), sidScene, cidRender2, 1, &matCArmRB2WS, &downloadColorImg);
+				}
+				else {
+					PlaySound((LPCTSTR)SND_ALIAS_SYSTEMWELCOME, NULL, SND_ALIAS_ID | SND_ASYNC);
+					__gc.SetErrorCode("C-Arm is Not Detected!\nCheck the C-Arm Markers and Retry!", 300);
+				}
+
+				__gc.g_renderEvent = RENDER_THREAD::FREE;
+			}
+		}
+
+		rendertask::RenderTrackingScene(&trackInfo);
+	}
 
 	vzm::CameraParameters cpCam1, cpCam2;
 	vzm::GetCameraParams(cidRender1, cpCam1);
@@ -818,7 +789,31 @@ void mygui(ImGuiIO& io) {
 				cv::putText(img, std::to_string(i), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 0, 0), 2);
 			}
 		};
+		auto ComputeReprojectionErrors = [](const std::vector<std::vector<cv::Point3f>>& objectPoints,
+			const std::vector<std::vector<cv::Point2f> >& imagePoints,
+			const std::vector<cv::Mat>& rvecs, const std::vector<cv::Mat>& tvecs,
+			const cv::Mat& cameraMatrix, const cv::Mat& distCoeffs)
+		{
+			// https://docs.opencv.org/4.x/d4/d94/tutorial_camera_calibration.html
+			std::vector<cv::Point2f> imagePoints2;
+			size_t totalPoints = 0;
+			double totalErr = 0, err;
+			//perViewErrors.resize(objectPoints.size());
+			for (size_t i = 0; i < objectPoints.size(); ++i)
+			{
+				projectPoints(objectPoints[i], rvecs[i], tvecs[i], cameraMatrix, distCoeffs, imagePoints2);
+				err = norm(imagePoints[i], imagePoints2, cv::NORM_L2);
+				size_t n = objectPoints[i].size();
+				//perViewErrors[i] = (float)std::sqrt(err * err / n);
+				totalErr += err * err;
+				totalPoints += n;
+			}
+			return std::sqrt(totalErr / totalPoints);
+		};
+
+		///////////////////////
 		// intrinsics
+		///////////////////////
 		{
 			static std::vector<cv::Point3f> corners;
 			static int indexIntrinsic = -1;
@@ -837,15 +832,25 @@ void mygui(ImGuiIO& io) {
 				}
 			}
 			static ID3D11ShaderResourceView* pSRV = NULL;
-			static std::vector<cv::Point2f> points2Ds;
+			static std::vector<cv::Point2f> points2D;
 			static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
 			static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
 			static const int intrinsicWidth = 8, intrinsicHeight = 8;
 			static int w, h;
-			if (ImGui::Button("(TEST)Add Intrinsic", ImVec2(0, buttonHeight)))
+			static bool isCalibratedIntrinsic = false;
+			if (ImGui::Button("Add Intrinsic", ImVec2(0, buttonHeight)))
 			{
+				cv::Mat img;
+				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD)
+					img = cv::imread(files[indexIntrinsic]);
+				else if (g_curScanGrayImg.data != NULL) {
+					cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGBA);
+				}
+				else {
+					__gc.SetErrorCode("No Image!!");
+				}
+
 				// Load from disk into a raw RGBA buffer
-				cv::Mat img = cv::imread(files[indexIntrinsic]);
 				if (img.data != NULL) {
 					int image_width = img.cols;
 					int image_height = img.rows;
@@ -858,9 +863,9 @@ void mygui(ImGuiIO& io) {
 					// processing..
 
 					std::vector<float> circleRadiis;
-					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2Ds, 2000.f, 10000.f, 50.f, &circleRadiis);
+					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2D, 2000.f, 10000.f, 50.f, &circleRadiis);
 
-					DrawCircles(points2Ds, circleRadiis, img);
+					DrawCircles(points2D, circleRadiis, img);
 					
 					//cv::cvtColor(imgGray, img, cv::COLOR_GRAY2RGBA);
 					//image_data = img.data;
@@ -884,29 +889,38 @@ void mygui(ImGuiIO& io) {
 
 					pSRV = LoadTextureFromFile(img.data, "INTRINSIC_IMG", image_width, image_height);
 					indexIntrinsic++;
-					indexIntrinsic = indexIntrinsic % files.size();
+					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) indexIntrinsic = indexIntrinsic % files.size();
+					isCalibratedIntrinsic = false;
 				}
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Apply Intrinsic", ImVec2(0, buttonHeight)))
 			{
-				if (points2Ds.size() != intrinsicWidth * intrinsicHeight) {
+				if (points2D.size() != intrinsicWidth * intrinsicHeight) {
 					__gc.SetErrorCode("Failure to detect the entire circles!");
 				}
+				if (isCalibratedIntrinsic) {
+					__gc.SetErrorCode("The same scan image is already applied!");
+				}
 				else {
-					calib_points2Ds.push_back(points2Ds);
+					isCalibratedIntrinsic = true;
+					calib_points2Ds.push_back(points2D);
 					calib_points3Ds.push_back(corners);
 
 					__gc.g_engineLogger->info("# of {}-pair sets : {}", intrinsicWidth* intrinsicHeight, calib_points2Ds.size());
 
-					cv::Mat cameraMatrix, distCoeffs, rvec, tvec;
-					cv::calibrateCamera(calib_points3Ds, calib_points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), cameraMatrix, distCoeffs, rvec, tvec);
-					
+					cv::Mat cameraMatrix, distCoeffs;
+					std::vector<cv::Mat> rvecs, tvecs;
+					float err = (float)cv::calibrateCamera(calib_points3Ds, calib_points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), cameraMatrix, distCoeffs, rvecs, tvecs);
+
+					float err1 = ComputeReprojectionErrors(calib_points3Ds, calib_points2Ds, rvecs, tvecs, cameraMatrix, distCoeffs);
+					__gc.g_engineLogger->info("Calibtation Error : {}, Reprojection Error : {}", err, err1);
+
 					// to do //
 					//cv::Mat cameraMatrixRO, distCoeffsRO, rvec, tvec;
 					//cv::calibrateCameraRO(corners, points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), 1, cameraMatrix, distCoeffs, rvec, tvec);
 
-					cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics__test.txt", cv::FileStorage::Mode::WRITE);
+					cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::WRITE);
 					fs << "K" << cameraMatrix;
 					fs << "DistCoeffs" << distCoeffs;
 					//fs << "K_RO" << cameraMatrix;
@@ -923,18 +937,249 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
+		///////////////////////
+		// extrinsics
+		///////////////////////
 		{
-			// Extrinsic
-			if (ImGui::Button("(TEST)Add Extrinsic", ImVec2(0, buttonHeight)))
+			static int indexExtrinsics = -1;
+			static std::vector<std::string> files;
+			if (indexExtrinsics == -1) {
+				indexExtrinsics = 0;
+				for (int i = 0; i < 2; i++) {
+					files.push_back(__gc.g_folder_data + "Tracking 2023-09-25/test_ex" + std::to_string(i + 1) + ".png");
+				}
+			}
+			static ID3D11ShaderResourceView* pSRV = NULL;
+			static std::vector<cv::Point3f> points3D;
+			static std::vector<cv::Point2f> points2D;
+			static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
+			static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
+			static const int extrinsicWidth = 3, extrinsicHeight = 3;
+			static int w, h;
+			static bool isCalibratedExtrinsic = false;
+			static glm::fmat4x4 matRB2WS, matWS2RB;
+
+			if (ImGui::Button("Add Extrinsic", ImVec2(0, buttonHeight)))
 			{
-				// view popup w/ sliders...
-				// apply or not
+				bool errResult = false;
+
+				glm::fquat q;
+				glm::fvec3 t;
+				if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+					glm::fmat4x4 mat_r = glm::toMat4(q);
+					glm::fmat4x4 mat_t = glm::translate(t);
+					matRB2WS = mat_t * mat_r;
+					matWS2RB = glm::inverse(matRB2WS);
+				}
+				else {
+					__gc.SetErrorCode("Failure to Detect C-Arm Rigidbody!");
+					errResult = true;
+				}
+
+				if (!__gc.g_calribmodeToggle) {
+					__gc.SetErrorCode("Must be Marker Selection Mode!");
+					errResult = true;
+				}
+				else if (__gc.g_selectedMkNames.size() != 4) {
+					__gc.SetErrorCode("4 markers must be selected!! Current Selection Markers {}", __gc.g_selectedMkNames.size());
+					errResult = true;
+				}
+
+				if (!errResult)
+				{
+					cv::FileStorage fs(__gc.g_folder_trackingInfo + "calibBoard.txt", cv::FileStorage::Mode::READ);
+					std::string calib_mode;
+					std::string det_mode;
+					int extrinsicWidth, extrinsicHeight;
+					fs["ROWS"] >> extrinsicHeight;
+					fs["COLS"] >> extrinsicWidth;
+					fs["MODE"] >> calib_mode;
+					fs["DETECTOR"] >> det_mode;
+					fs.release();
+
+					// gather 3D points 
+					std::vector<cv::Point3f> posWsMarkers(__gc.g_selectedMkNames.size());
+					for (auto it = __gc.g_selectedMkNames.begin(); it != __gc.g_selectedMkNames.end(); it++) {
+						std::map<track_info::MKINFO, std::any> mkInfo;
+						trackInfo.GetMarkerByName(it->first, mkInfo);
+						glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[track_info::MKINFO::POSITION]);
+						posWsMarkers[it->second] = *(cv::Point3f*)&pos;
+					}
+
+					glm::fvec3 v01 = *(glm::fvec3*)&posWsMarkers[1] - *(glm::fvec3*)&posWsMarkers[0];
+					glm::fvec3 v03 = *(glm::fvec3*)&posWsMarkers[3] - *(glm::fvec3*)&posWsMarkers[0];
+					glm::fvec3 selDir = glm::cross(v01, v03);
+					glm::fvec3 posCenterCArmRB = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
+					glm::fvec3 cal2DetDir = posCenterCArmRB - *(glm::fvec3*)&posWsMarkers[0];
+					//if (glm::dot(selDir, cal2DetDir) < 0)
+					{
+						//std::cout << "\ncorrecting the selecting direction!" << std::endl;
+						// 이상함... 아래것으로 해야 하는데... 이렇게 하면 카메라 위치가 반대로 감...
+						// 일단은 데모를 위해 주석 처리...
+						// 0123 to 1032
+						std::vector<cv::Point3f> posWsMarkersTmp = posWsMarkers;
+						posWsMarkers[0] = posWsMarkersTmp[1];
+						posWsMarkers[1] = posWsMarkersTmp[0];
+						posWsMarkers[2] = posWsMarkersTmp[3];
+						posWsMarkers[3] = posWsMarkersTmp[2];
+					}
+
+					mystudents::Get3DPostionsFromFMarkersPhantom(__cv3__ & posWsMarkers[0], __cv3__ & posWsMarkers[1], __cv3__ & posWsMarkers[2], __cv3__ & posWsMarkers[3],
+							&trackInfo, extrinsicHeight, extrinsicWidth, points3D);
+
+					if (points3D.size() != extrinsicHeight * extrinsicWidth) {
+						__gc.SetErrorCode("4 markers must be selected!! Current Selection Markers {}", __gc.g_selectedMkNames.size());
+						errResult = true;
+					}
+					else {
+						__gc.g_testMKs.clear();
+						__gc.g_testMKs.assign(points3D.size(), glm::fvec3(0));
+						memcpy(&__gc.g_testMKs[0], &points3D[0], sizeof(glm::fvec3) * points3D.size());
+					}
+				}
+				
+				if (!errResult) {
+					cv::Mat img;
+					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD)
+						img = cv::imread(files[indexExtrinsics]);
+					else if (g_curScanGrayImg.data != NULL) {
+						cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGBA);
+					}
+					else {
+						__gc.SetErrorCode("No Image!!");
+						errResult = true;
+					}
+
+					// Load into a raw RGBA buffer
+					if (img.data != NULL) {
+						int image_width = img.cols;
+						int image_height = img.rows;
+
+						// optional
+						cv::flip(img, img, 1);
+
+						cv::Mat imgGray;
+						cv::cvtColor(img, imgGray, cv::COLOR_RGB2GRAY);
+						// processing..
+
+						std::vector<float> circleRadiis;
+						mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, extrinsicWidth, extrinsicHeight, points2D, 2000.f, 16000.f, 100.f, &circleRadiis);
+
+						DrawCircles(points2D, circleRadiis, img);
+
+						if (img.channels() == 3) {
+							// First create the image with alpha channel
+							cv::cvtColor(img, img, cv::COLOR_RGB2RGBA);
+					
+							// # Split the image for access to alpha channel
+							std::vector<cv::Mat> channels(4);
+							cv::split(img, channels);
+						
+							// Assign the mask to the last channel of the image
+							channels[3] = 255;
+						
+							// Finally concat channels for rgba image
+							cv::merge(channels, img);
+						}
+
+						__gc.g_engineLogger->info("image index : {}", indexExtrinsics);
+
+						pSRV = LoadTextureFromFile(img.data, "EXTRINSIC_IMG", image_width, image_height);
+						indexExtrinsics++;
+						if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) indexExtrinsics = indexExtrinsics % files.size();
+						isCalibratedExtrinsic = false;
+					}
+				}
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Apply Extrinsic", ImVec2(0, buttonHeight)))
 			{
-				// view popup w/ sliders...
-				// apply or not
+				if (points2D.size() != extrinsicWidth * extrinsicHeight) {
+					__gc.SetErrorCode("Failure to detect the entire circles!");
+				}
+				if (isCalibratedExtrinsic) {
+					__gc.SetErrorCode("The same scan image is already applied!");
+				}
+				else {
+					isCalibratedExtrinsic = true;
+					calib_points2Ds.push_back(points2D);
+					calib_points3Ds.push_back(points3D);
+
+					__gc.g_engineLogger->info("# of {}-pair sets : {}", extrinsicWidth * extrinsicHeight, calib_points2Ds.size());
+
+					cv::Mat cameraMatrix, distCoeffs;
+					cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+					if (fs.isOpened()) {
+						fs["K"] >> cameraMatrix;
+						fs["DistCoeffs"] >> distCoeffs;
+						fs.release();
+
+						cv::Mat rvec, tvec;
+						cv::solvePnP(calib_points3Ds, calib_points2Ds, cameraMatrix, distCoeffs, rvec, tvec);
+
+						auto ComputeReprojErr = [](const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
+							float avrDiff = 0;
+							int numPts = (int)pts2d.size();
+							for (int i = 0; i < (int)pts2d.size(); i++) {
+								float diff = glm::distance(*(glm::fvec2*)&pts2d[i], *(glm::fvec2*)&pts2d_reproj[i]);
+								maxErr = std::max(maxErr, diff);
+								avrDiff += diff / (float)numPts;
+							}
+							return avrDiff;
+						};
+
+						// Reproject the 3D points onto the image plane using the camera calibration
+						std::vector<cv::Point2f> imagePointsReprojected;
+						cv::projectPoints(points3D, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+
+						// Compute the reprojection error
+						float maxErr = 0;
+						float reprojectionError = ComputeReprojErr(points2D, imagePointsReprojected, maxErr);
+
+						__gc.g_engineLogger->info("single set ==> reprojectionError : {}, max error : {}", reprojectionError, maxErr);
+
+						maxErr = 0;
+						reprojectionError = 0;
+						for (int i = 0; i < (int)calib_points2Ds.size(); i++) {
+							reprojectionError += ComputeReprojErr(points2D, imagePointsReprojected, maxErr);
+						}
+						reprojectionError /= (float)calib_points2Ds.size();
+						__gc.g_engineLogger->info("entire set ==> reprojectionError : {}, max error : {}", reprojectionError, maxErr);
+
+
+						//matCArmRB2SourceCS
+						cv::Mat matR;
+						cv::Rodrigues(rvec, matR);
+						// note, here camera frame (notation 'CA', opencv convention) is defined with
+						// z axis as viewing direction
+						// -y axis as up vector
+						__gc.g_CArmRB2SourceCS = glm::fmat4x4(1);
+						__gc.g_CArmRB2SourceCS[0][0] = (float)matR.at<double>(0, 0);
+						__gc.g_CArmRB2SourceCS[0][1] = (float)matR.at<double>(1, 0);
+						__gc.g_CArmRB2SourceCS[0][2] = (float)matR.at<double>(2, 0);
+						__gc.g_CArmRB2SourceCS[1][0] = (float)matR.at<double>(0, 1);
+						__gc.g_CArmRB2SourceCS[1][1] = (float)matR.at<double>(1, 1);
+						__gc.g_CArmRB2SourceCS[1][2] = (float)matR.at<double>(2, 1);
+						__gc.g_CArmRB2SourceCS[2][0] = (float)matR.at<double>(0, 2);
+						__gc.g_CArmRB2SourceCS[2][1] = (float)matR.at<double>(1, 2);
+						__gc.g_CArmRB2SourceCS[2][2] = (float)matR.at<double>(2, 2);
+						__gc.g_CArmRB2SourceCS[3][0] = (float)((double*)tvec.data)[0];
+						__gc.g_CArmRB2SourceCS[3][1] = (float)((double*)tvec.data)[1];
+						__gc.g_CArmRB2SourceCS[3][2] = (float)((double*)tvec.data)[2];
+
+						cv::FileStorage fs(__gc.g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::WRITE);
+						fs.write("rvec", rvec);
+						fs.write("tvec", tvec);
+						fs.release();
+					}
+					else {
+						__gc.SetErrorCode("Cannot load the Intrinsics!!");
+					}
+				}
+			}
+			if (pSRV != NULL) {
+				ImVec2 pos = ImGui::GetCursorScreenPos();
+				ImGui::Image(pSRV, ImVec2(g_sizeRightPanelW - 60, g_sizeRightPanelW - 60), ImVec2(0, 0), ImVec2(1, 1));
 			}
 		}
 
