@@ -31,7 +31,7 @@ namespace nettask {
 		SOCKET serverSocket;
 		serverSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (serverSocket < 0) {
-			printf("can not create socket\n");
+			__gc->g_engineLogger->error("can not create socket");
 			return -1;
 		}
 
@@ -44,17 +44,17 @@ namespace nettask {
 
 		if (bind(serverSocket, (SOCKADDR*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR)
 		{
-			printf("bind error\n");
+			__gc->g_engineLogger->error("bind error");
 			return -1;
 		}
 
 		/* listen */
 		if (listen(serverSocket, CFG_SIZE_MAX_FD) == SOCKET_ERROR) {
-			printf("listen error\n");
+			__gc->g_engineLogger->error("listen error");
 			return -1;
 		}
 
-		printf("listen %d port...\n", CFG_LISTEN_PORT);
+		__gc->g_engineLogger->info("listen {} port...", CFG_LISTEN_PORT);
 
 		/* fd_set에 서버 소켓 설정 */
 		fd_set reads;
@@ -97,13 +97,13 @@ namespace nettask {
 
 				/* select 결과 예외처리 */
 				if (result < 0) {
-					printf("\rselect error");
+					__gc->g_engineLogger->error("select error");
 					fflush(stdout);
 					break;
 				}
 
 				if (result == 0) {
-					printf("\rtime out...%d", ++numTimeOut);
+					__gc->g_engineLogger->error("time out...{}", ++numTimeOut);
 					fflush(stdout);
 					break;
 				}
@@ -116,13 +116,11 @@ namespace nettask {
 						(int*)&clientAddrSize);
 
 					if (clientSocket < 0) {
-						printf("\ninvalid client socket. [clientSocket:%d]\n",
-							clientSocket);
+						__gc->g_engineLogger->error("invalid client socket. [clientSocket:{}]", clientSocket);
 						break;
 					}
 
-					printf("\naccept new client. [clientSocket:%d]\n",
-						clientSocket);
+					__gc->g_engineLogger->info("accept new client. [clientSocket:{}]", clientSocket);
 
 					//int safeTmpBytes = 5000;
 					//readBytes = recv(clientSocket, buffer, bufferSize, 0);
@@ -147,10 +145,12 @@ namespace nettask {
 						memcpy(&bufferTmp[totalReadBytes], buffer, readBytes);
 
 						totalReadBytes += readBytes;
-						printf("\rIn progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
-						fflush(stdout);
+						__gc->g_downloadCompleted = 100 + (int)(((double)totalReadBytes / (double)file_size) * 100.0);
+						//printf("\rIn progress: %d/%d byte(s) [%d]", totalReadBytes, file_size, (int)std::min((totalReadBytes * 100.f) / file_size, 100.f));
+						//fflush(stdout);
 					}
 					if (readBytes > 0) {
+						__gc->g_engineLogger->info("download completed");
 
 						__gc->g_downloadCompleted = 100;
 						__gc->g_downloadImgBuffer.clear();
@@ -170,7 +170,7 @@ namespace nettask {
 					//fclose(fp);
 					/* client socket 종료 */
 					closesocket(clientSocket);
-					printf("close [clientSocket:%d]\n", clientSocket);
+					__gc->g_engineLogger->info("close [clientSocket:{}]", clientSocket);
 				}
 			}
 
