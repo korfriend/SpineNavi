@@ -8,7 +8,7 @@
 namespace calibtask {
 	void InitializeTask(__GC* gcp);
 	int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName);
-	bool CalibrationWithPhantom(glm::fmat4x4& matCArmRB2SourceCS, const cv::Mat& downloadedGrayImg, const track_info* trk, const bool useGlobal);
+	//bool CalibrationWithPhantom(glm::fmat4x4& matCArmRB2SourceCS, const cv::Mat& downloadedGrayImg, const track_info* trk, const bool useGlobal);
 }
 
 namespace mystudents {

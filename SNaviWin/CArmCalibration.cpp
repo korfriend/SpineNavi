@@ -593,6 +593,8 @@ namespace mystudents {
 		const track_info* trk, const int rows, const int cols,
 		std::vector<cv::Point3f>& points3Ds) {
 
+		points3Ds.clear();
+
 		// note we are using meter metric
 		using namespace std;
 		using namespace glm;

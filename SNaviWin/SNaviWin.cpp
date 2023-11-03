@@ -565,8 +565,8 @@ void mygui(ImGuiIO& io) {
 	static ImVec4 clear_color = ImVec4(0.f, 0.2f, 0.3f, 0.95f);
 
 	{
-		static ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
-			| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground;
+		static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+			| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground; // ImGuiWindowFlags_NoDecoration | 
 		// tree view 넣기
 
 		static int counter = 0;
@@ -922,24 +922,25 @@ void mygui(ImGuiIO& io) {
 					// processing..
 
 					std::vector<float> circleRadiis;
+					points2D.clear();
 					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2D, 2000.f, 10000.f, 50.f, &circleRadiis);
 
 					DrawCircles(points2D, circleRadiis, img);
-					
+
 					//cv::cvtColor(imgGray, img, cv::COLOR_GRAY2RGBA);
 					//image_data = img.data;
 
 					if (img.channels() == 3) {
 						// First create the image with alpha channel
 						cv::cvtColor(img, img, cv::COLOR_RGB2RGBA);
-					
+
 						// # Split the image for access to alpha channel
 						std::vector<cv::Mat> channels(4);
 						cv::split(img, channels);
-						
+
 						// Assign the mask to the last channel of the image
 						channels[3] = 255;
-						
+
 						// Finally concat channels for rgba image
 						cv::merge(channels, img);
 					}
@@ -976,7 +977,7 @@ void mygui(ImGuiIO& io) {
 					calib_points2Ds.push_back(points2D);
 					calib_points3Ds.push_back(corners);
 
-					__gc.g_engineLogger->info("# of {}-pair sets : {}", intrinsicWidth* intrinsicHeight, calib_points2Ds.size());
+					__gc.g_engineLogger->info("# of {}-pair sets : {}", intrinsicWidth * intrinsicHeight, calib_points2Ds.size());
 
 					cv::Mat cameraMatrix, distCoeffs;
 					std::vector<cv::Mat> rvecs, tvecs;
@@ -1006,6 +1007,7 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
+
 		///////////////////////
 		// extrinsics
 		///////////////////////
@@ -1020,7 +1022,8 @@ void mygui(ImGuiIO& io) {
 				indexExtrinsics = 0;
 			}
 			static ID3D11ShaderResourceView* pSRV = NULL;
-			static std::vector<cv::Point3f> points3D;
+			static std::vector<cv::Point3f> pointsWS3D;
+			static std::vector<cv::Point3f> pointsRB3D;
 			static std::vector<cv::Point2f> points2D;
 			static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
 			static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
@@ -1096,20 +1099,23 @@ void mygui(ImGuiIO& io) {
 						posWsMarkers[3] = posWsMarkersTmp[2];
 					}
 
+					pointsWS3D.clear();
 					mystudents::Get3DPostionsFromFMarkersPhantom(__cv3__ & posWsMarkers[0], __cv3__ & posWsMarkers[1], __cv3__ & posWsMarkers[2], __cv3__ & posWsMarkers[3],
-							&trackInfo, extrinsicHeight, extrinsicWidth, points3D);
+							&trackInfo, extrinsicHeight, extrinsicWidth, pointsWS3D);
 
-					if (points3D.size() != extrinsicHeight * extrinsicWidth) {
-						__gc.SetErrorCode("4 markers must be selected!! Current Selection Markers {}", __gc.g_selectedMkNames.size());
+					if (pointsWS3D.size() != extrinsicHeight * extrinsicWidth) {
+						__gc.SetErrorCode("Failure to Sort {} Markers!!", extrinsicHeight* extrinsicWidth);
 						errResult = true;
 					}
 					else {
 						__gc.g_testMKs.clear();
-						__gc.g_testMKs.assign(points3D.size(), glm::fvec3(0));
-						memcpy(&__gc.g_testMKs[0], &points3D[0], sizeof(glm::fvec3) * points3D.size());
+						__gc.g_testMKs.assign(pointsWS3D.size(), glm::fvec3(0));
+						pointsRB3D.clear();
+						pointsRB3D.assign(pointsWS3D.size(), cv::Point3f(0));
+						memcpy(&__gc.g_testMKs[0], &pointsWS3D[0], sizeof(glm::fvec3) * pointsWS3D.size());
 
-						for (int i = 0; i < points3D.size(); i++) {
-							*(glm::fvec3*)&points3D[i] = vzmutils::transformPos(*(glm::fvec3*)&points3D[i], matWS2RB);
+						for (int i = 0; i < (int)pointsWS3D.size(); i++) {
+							*(glm::fvec3*)&pointsRB3D[i] = vzmutils::transformPos(*(glm::fvec3*)&pointsWS3D[i], matWS2RB);
 						}
 					}
 				}
@@ -1123,7 +1129,13 @@ void mygui(ImGuiIO& io) {
 						cv::imwrite(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + ".png", img);
 
 						cv::FileStorage fs(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + "_RBPts.txt", cv::FileStorage::Mode::WRITE);
-						fs << "RB_POSITIONS" << cv::Mat(points3D);
+						fs << "RB_POSITIONS" << cv::Mat(pointsRB3D);
+						fs << "WS_POSITIONS" << cv::Mat(pointsWS3D);
+						cv::Mat ocvMat(4, 4, CV_32FC1);
+						memcpy(ocvMat.ptr(), glm::value_ptr(matWS2RB), sizeof(float) * 16);
+						fs << "MAT_WS2RB" << ocvMat;
+						memcpy(ocvMat.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
+						fs << "MAT_RB2WS" << ocvMat;
 						fs.release();
 					}
 					else {
@@ -1144,6 +1156,7 @@ void mygui(ImGuiIO& io) {
 						// processing..
 
 						std::vector<float> circleRadiis;
+						points2D.clear();
 						mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, extrinsicWidth, extrinsicHeight, points2D, 2000.f, 16000.f, 100.f, &circleRadiis);
 
 						DrawCircles(points2D, circleRadiis, img);
@@ -1186,7 +1199,7 @@ void mygui(ImGuiIO& io) {
 				else {
 					isCalibratedExtrinsic = true;
 					calib_points2Ds.push_back(points2D);
-					calib_points3Ds.push_back(points3D);
+					calib_points3Ds.push_back(pointsRB3D);
 
 					__gc.g_engineLogger->info("# of {}-pair sets : {}", extrinsicWidth * extrinsicHeight, calib_points2Ds.size());
 
@@ -1198,7 +1211,7 @@ void mygui(ImGuiIO& io) {
 						fs.release();
 						
 						for (int i = 0; i < points2D.size(); i++) {
-							__gc.g_homographyPairs[__cv3__ & points3D[i]] = __cv2__ & points2D[i];
+							__gc.g_homographyPairs[__cv3__ & pointsRB3D[i]] = __cv2__ & points2D[i];
 						}
 
 						std::vector<cv::Point2f> global_points2d;
