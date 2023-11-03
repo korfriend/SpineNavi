@@ -282,7 +282,7 @@ auto ___SaveAndChangeViewState = [](const int keyParam, const int sidScene, cons
 
 int g_posWinX = 0, g_posWinY = 0;
 int g_sizeWinX = 1280, g_sizeWinY = 800;
-int g_sizeRightPanelW = 400, g_sizeConsolePanelH = 290;
+int g_sizeRightPanelW = 500, g_sizeConsolePanelH = 290;
 BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM dwData) {
 	static int monitor_idx = 0;
 	MONITORINFOEX monitorInfo;
@@ -572,6 +572,7 @@ void mygui(ImGuiIO& io) {
 		static int counter = 0;
 
 		ImGui::SetNextWindowPos(ImVec2(g_sizeWinX - g_sizeRightPanelW + 20, 5), ImGuiCond_Once);
+		ImGui::SetNextWindowSize(ImVec2(g_sizeRightPanelW - 40, g_sizeWinY - 100), ImGuiCond_Once);
 		ImGui::Begin("Control Widgets");                          // Create a window called "Hello, world!" and append into it.
 		ImGui::ColorEdit4("background color", (float*)&clear_color); // Edit 4 floats representing a color
 
@@ -959,7 +960,7 @@ void mygui(ImGuiIO& io) {
 				if (points2D.size() != intrinsicWidth * intrinsicHeight) {
 					__gc.SetErrorCode("Failure to detect the entire circles!");
 				}
-				if (isCalibratedIntrinsic) {
+				else if (isCalibratedIntrinsic) {
 					__gc.SetErrorCode("The same scan image is already applied!");
 				}
 				else {
@@ -999,8 +1000,9 @@ void mygui(ImGuiIO& io) {
 				}
 			}
 			if (pSRV != NULL) {
-				ImVec2 pos = ImGui::GetCursorScreenPos();
-				ImGui::Image(pSRV, ImVec2(g_sizeRightPanelW - 60, g_sizeRightPanelW - 60), ImVec2(0, 0), ImVec2(1, 1));
+				//ImVec2 pos = ImGui::GetCursorScreenPos();
+				ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+				ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x), ImVec2(0, 0), ImVec2(1, 1));
 				//ImVec2 uv_min = ImVec2(0.0f, 0.0f);                 // Top-left
 				//ImVec2 uv_max = ImVec2(1.0f, 1.0f);                 // Lower-right
 				//ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), uv_min, uv_max);
@@ -1193,7 +1195,7 @@ void mygui(ImGuiIO& io) {
 				if (points2D.size() != extrinsicWidth * extrinsicHeight) {
 					__gc.SetErrorCode("Failure to detect the entire circles!");
 				}
-				if (isCalibratedExtrinsic) {
+				else if (isCalibratedExtrinsic) {
 					__gc.SetErrorCode("The same scan image is already applied!");
 				}
 				else {
@@ -1286,8 +1288,9 @@ void mygui(ImGuiIO& io) {
 				}
 			}
 			if (pSRV != NULL) {
-				ImVec2 pos = ImGui::GetCursorScreenPos();
-				ImGui::Image(pSRV, ImVec2(g_sizeRightPanelW - 60, g_sizeRightPanelW - 60), ImVec2(0, 0), ImVec2(1, 1));
+				//ImVec2 pos = ImGui::GetCursorScreenPos();
+				ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+				ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x), ImVec2(0, 0), ImVec2(1, 1));
 			}
 		}
 

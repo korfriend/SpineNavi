@@ -82,7 +82,7 @@ namespace rendertask {
 
 		int aidGrid = 0, aidLines = 0, aidTextX = 0, aidTextZ = 0;// , aidTextFrame;
 		vzm::NewActor(apGrid, "World Grid", aidGrid);
-		vzm::NewActor(apLines, "World Lines", aidLines);
+		//vzm::NewActor(apLines, "World Lines", aidLines);
 		vzm::NewActor(apTextX, "World Text X", aidTextX);
 		vzm::NewActor(apTextZ, "World Text Y", aidTextZ);
 		//vzm::NewActor(apTextFrame, "Frame Text", aidTextFrame);
@@ -170,7 +170,7 @@ namespace rendertask {
 		// DOJO : scene 에 ground grid actor (aidGrid) 을 연결 
 		vzm::AppendSceneItemToSceneTree(aidGrid, sidScene);
 		// DOJO : scene 에 ground grid 에서의 진한 라인 actor (aidLines) 을 연결 
-		vzm::AppendSceneItemToSceneTree(aidLines, sidScene);
+		//vzm::AppendSceneItemToSceneTree(aidLines, sidScene);
 		// DOJO : scene 에 ground grid 위에 있는 "X" 글자 actor (aidTextX) 을 연결 
 		vzm::AppendSceneItemToSceneTree(aidTextX, sidScene);
 		// DOJO : scene 에 ground grid 위에 있는 "Z" 글자 actor (aidTextZ) 을 연결 
