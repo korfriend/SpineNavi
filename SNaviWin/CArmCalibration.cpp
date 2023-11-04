@@ -297,18 +297,24 @@ namespace mystudents {
 				});
 
 			// 2. 가장 위의 점 두개 뽑기
-			cv::Point3f first = circlePoints[0];
-			cv::Point3f second = circlePoints[1];
+			glm::fvec2 p0 = glm::fvec2(circlePoints[0].x, circlePoints[0].y);
+			glm::fvec2 p1 = glm::fvec2(circlePoints[1].x, circlePoints[1].y);
 
-			// 3. 두점을 잇는 선
-			float m = (second.y - first.y) / (second.x - first.x); // 기울기.
-			float n = first.y - (m * first.x); // y절편.
+			glm::fvec2 v = glm::normalize(p0 - p1); // note p0 != p1
 
 			// 4. 직선의 방정식 : y = mx + n, y-mx-n =0;
 			// 직선과 가까운 점 정렬.
 			std::sort(circlePoints.begin(), circlePoints.end(),
 				[&](const cv::Point3f& a, const cv::Point3f& b) {
-					return mystudents::sortByDistance(cv::Point2f(a.x, a.y), cv::Point2f(b.x, b.y), m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
+
+					auto computeDist = [&v, &p0](const glm::fvec2 q) {
+						float t = glm::dot(q - p0, v);
+						glm::fvec2 p = v * t + p0;
+						return glm::length2(p - q);
+					};
+
+					return computeDist(glm::fvec2(a.x, a.y)) < computeDist(glm::fvec2(b.x, b.y));
+					//return mystudents::sortByDistance(cv::Point2f(a.x, a.y), cv::Point2f(b.x, b.y), m, n); // sortByDistance에서 직선과 점의 거리 계산 후 정렬.
 				});
 
 			// 6개 or 8개 빼기			
