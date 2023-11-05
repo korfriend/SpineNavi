@@ -594,7 +594,7 @@ void mygui(ImGuiIO& io) {
 		ImGui::SetNextWindowPos(ImVec2(g_sizeWinX - g_sizeRightPanelW + 20, 5), ImGuiCond_Once);
 		ImGui::SetNextWindowSize(ImVec2(g_sizeRightPanelW - 40, g_sizeWinY - 100), ImGuiCond_Once);
 		ImGui::Begin("Control Widgets");                          // Create a window called "Hello, world!" and append into it.
-
+		ImGui::Spacing();
 		static int buttonHeight = 30;
 		if (ImGui::CollapsingHeader("Render Option", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::ColorEdit4("background color", (float*)&clear_color); // Edit 4 floats representing a color
@@ -714,7 +714,7 @@ void mygui(ImGuiIO& io) {
 			}
 			return false;
 		};
-
+		ImGui::Spacing();
 		if (ImGui::CollapsingHeader("Tracker Operation", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::SeparatorText("Marker Selection:");
 			if (ImGui::Button(__gc.g_markerSelectionMode? "Selection OFF" : "Selection ON", ImVec2(0, buttonHeight)))
@@ -1016,7 +1016,7 @@ void mygui(ImGuiIO& io) {
 			}
 			return std::sqrt(totalErr / totalPoints);
 		};
-
+		ImGui::Spacing();
 		if (ImGui::CollapsingHeader("Calibration (Intrinsics)", ImGuiTreeNodeFlags_DefaultOpen)) {
 			static std::vector<cv::Point3f> corners;
 			static int indexIntrinsic = -1;
@@ -1181,7 +1181,8 @@ void mygui(ImGuiIO& io) {
 				//ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), uv_min, uv_max);
 			}
 		}
-
+		
+		ImGui::Spacing();
 		if (ImGui::CollapsingHeader("Calibration (Extrinsics)", ImGuiTreeNodeFlags_DefaultOpen)) {
 			static int indexExtrinsics = -1;
 			static std::vector<std::string> img_files;
