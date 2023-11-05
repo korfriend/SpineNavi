@@ -489,7 +489,11 @@ namespace vzm
 	__dojostatic bool GenerateMappingTable(const int table_size, const int num_alpha_ctrs, const float* ctr_alpha_idx_list, const int num_rgb_ctrs, const float* ctr_rgb_idx_list, int& tmap_id);
 	__dojostatic bool GenerateMultiMappingTable(const int table_size, const int num_tables, const int target_table_idx, const int num_alpha_ctrs, const float* ctr_alpha_idx_list, const int num_rgb_ctrs, const float* ctr_rgb_idx_list, int& tmap_id);
 	__dojostatic bool GenerateCopiedObject(const int obj_src_id, int& obj_id);
+	__dojostatic bool SetResObjectName(const int obj_id, const std::string& name);
+	__dojostatic bool GetResObjectName(const int obj_id, std::string& name);
+	__dojostatic bool GetResObjectByName(const std::string& name, int& obj_id);
 	__dojostatic bool DeleteResObject(const int obj_id); // the obj is deleted in memory
+	__dojostatic bool DeleteResObjectByName(const std::string& name); // the obj is deleted in memory
 	__dojostatic bool GetPModelData(const int obj_id, float** pos_vtx, float** nrl_vtx, float** rgb_vtx, float** tex_vtx, int& num_vtx, unsigned int** idx_prims, int& num_prims, int& stride_prim_idx);
 	__dojostatic bool GetVolumeInfo(const int obj_id, void*** vol_slices_2darray_pointer, int* size_xyz, float* pitch_xyz, int* stride_bytes, float* stored_minmax_values, float* original_minmax_values, float* mat_vs2os, bool* safe_bnd, std::vector<unsigned long long>* histogram);
 

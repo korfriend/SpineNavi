@@ -1,0 +1,22 @@
+%YAML:1.0
+---
+ToolPos_0: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.53733546e-01, 3.92181426e-03, 1.71471834e-02 ]
+ToolVec_0: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -9.92077470e-01, -1.45429689e-02, -1.24783106e-01 ]
+ToolPos_1: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ 2.53733546e-01, 3.92181426e-03, 1.71471834e-02 ]
+ToolVec_1: !!opencv-matrix
+   rows: 1
+   cols: 3
+   dt: f
+   data: [ -9.92077470e-01, -1.45429689e-02, -1.24783106e-01 ]

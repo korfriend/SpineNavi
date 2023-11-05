@@ -130,8 +130,6 @@ auto ___SaveAndChangeViewState = [](const int keyParam, const int sidScene, cons
 		//glm::fmat4x4 mat_t = glm::translate(t);
 		//glm::fmat4x4 matCArmRB2WS = mat_t * mat_r;
 
-		__gc.g_showCalibMarkers = keyParam == '3';
-
 		string timePack;
 
 		if (pcolored_img)
@@ -306,9 +304,28 @@ BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMoni
 	return TRUE;
 }
 
+void CallBackMouseWheel(vmgui::ImGuiVzmWindow* pThis) {
+
+	int sid, cid;
+	pThis->GetSceneAndCamera(sid, cid);
+
+	glm::fvec3 scene_stage_center;
+	float scene_stage_scale;
+	pThis->GetStageCenterScale(scene_stage_center, scene_stage_scale);
+	vzm::CameraParameters cp;
+	vzm::GetCameraParams(cid, cp);
+
+	ImGuiIO& io = ImGui::GetIO();
+	if (io.MouseWheel > 0)
+		*(glm::fvec3*)cp.pos += scene_stage_scale * 0.05f * (*(glm::fvec3*)cp.view);
+	else
+		*(glm::fvec3*)cp.pos -= scene_stage_scale * 0.05f * (*(glm::fvec3*)cp.view);
+	vzm::SetCameraParams(cid, cp);
+
+}
 void CallBackMouseDown(vmgui::ImGuiVzmWindow* pThis) {
 	
-	if (!__gc.g_calribmodeToggle)
+	if (!__gc.g_markerSelectionMode)
 		return;
 
 	ImGuiIO& io = ImGui::GetIO();
@@ -487,7 +504,7 @@ void mygui(ImGuiIO& io) {
 
 				cv::Mat downloadColorImg;
 				cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
-				cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
+				//cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
 
 				glm::fmat4x4 matCArmRB2WS;
 				if (trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL)) {
@@ -558,6 +575,12 @@ void mygui(ImGuiIO& io) {
 		view1.SetStageCenterScale(glm::fvec3(0, 0, 1.2f), 1.f);
 		view2.SetStageCenterScale(glm::fvec3(0, 0, 1.2f), 1.f);
 		view1.AddCallback(vmgui::ImGuiVzmWindow::OnEvents::CUSTOM_DOWN, CallBackMouseDown);
+		view1.AddCallback(vmgui::ImGuiVzmWindow::OnEvents::CUSTOM_WHEEL, CallBackMouseWheel);
+		view2.AddCallback(vmgui::ImGuiVzmWindow::OnEvents::CUSTOM_WHEEL, CallBackMouseWheel);
+		view1.EnableCustomWHEEL(true);
+		view2.EnableCustomWHEEL(true);
+		view1.EnableMouseZoom(false);
+		view2.EnableMouseZoom(false);
 		view1.SkipRender(true);
 		view2.SkipRender(true);
 	}
@@ -575,6 +598,18 @@ void mygui(ImGuiIO& io) {
 		ImGui::SetNextWindowSize(ImVec2(g_sizeRightPanelW - 40, g_sizeWinY - 100), ImGuiCond_Once);
 		ImGui::Begin("Control Widgets");                          // Create a window called "Hello, world!" and append into it.
 		ImGui::ColorEdit4("background color", (float*)&clear_color); // Edit 4 floats representing a color
+
+		static bool showGridView1 = true, showGridView2 = true;
+		ImGui::Checkbox("View1: Show Grid", &showGridView1); 
+		ImGui::SameLine();
+		ImGui::Checkbox("View2: Show Grid", &showGridView2);
+		int aidWorldGrid = vzmutils::GetSceneItemIdByName("World Grid");
+		if (showGridView1) cpCam1.DeactiveHiddenActor(aidWorldGrid);
+		else  cpCam1.HideActor(aidWorldGrid);
+		if (showGridView2) cpCam2.DeactiveHiddenActor(aidWorldGrid);
+		else  cpCam2.HideActor(aidWorldGrid);
+		vzm::SetCameraParams(cidRender1, cpCam1);
+		vzm::SetCameraParams(cidRender2, cpCam2);
 
 		if (ImGui::Button("Save Cam"))
 		{
@@ -597,7 +632,7 @@ void mygui(ImGuiIO& io) {
 		ImGui::SameLine();
 		if (ImGui::Button("Load Cam"))
 		{
-			if (__gc.g_calribmodeToggle) {
+			if (__gc.g_markerSelectionMode) {
 				__gc.SetErrorCode("Loading Camera is Not Allowed during Calib Mode!");
 			}
 			else {
@@ -630,9 +665,9 @@ void mygui(ImGuiIO& io) {
 			}
 			else {
 
-				__gc.g_calribmodeToggle = !__gc.g_calribmodeToggle;
+				__gc.g_markerSelectionMode = !__gc.g_markerSelectionMode;
 
-				if (!__gc.g_calribmodeToggle) {
+				if (!__gc.g_markerSelectionMode) {
 					view1.EnableCustomDown(false);
 					__gc.g_testMKs.clear();
 					__gc.g_selectedMkNames.clear();
@@ -643,20 +678,27 @@ void mygui(ImGuiIO& io) {
 				else 
 					view1.EnableCustomDown(true);
 
-				__gc.g_engineLogger->info("calibration mode " + __gc.g_calribmodeToggle ? "ON" : "OFF");
+				__gc.g_engineLogger->info("Marker Selection mode " + __gc.g_markerSelectionMode ? "ON" : "OFF");
 
 				using namespace glm;
 				fmat4x4 matCam2WS;
-				track_info trk;
-				trk = __gc.g_track_que.front();
-				trk.GetTrackingCamPose(0, matCam2WS);
+				trackInfo.GetTrackingCamPose(0, matCam2WS);
 
 				*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
 				*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
 				*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
-				cpCam1.projection_mode = vzm::CameraParameters::ProjectionMode::CAMERA_FOV;
-				cpCam1.fov_y = glm::pi<float>() / 2.f;
-				cpCam1.aspect_ratio = cpCam1.ip_w / cpCam1.ip_h;
+
+				float vFov = 3.141592654f / 4.f;
+				float aspect_ratio = (float)cpCam1.w / (float)cpCam1.h;
+				float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
+
+				//  fy = h/(2 * tan(f_y / 2)) 
+				cpCam1.fx = cpCam1.w / (2.f * tan(hFov / 2.f));
+				cpCam1.fy = cpCam1.h / (2.f * tan(vFov / 2.f));
+				cpCam1.sc = 0;
+				cpCam1.cx = cpCam1.w / 2.f;
+				cpCam1.cy = cpCam1.h / 2.f;
+				cpCam1.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
 				cpCam1.np = 0.15f;
 
 				vzm::SetCameraParams(cidRender1, cpCam1);
@@ -668,12 +710,12 @@ void mygui(ImGuiIO& io) {
 			__gc.g_selectedMkNames.clear();
 		}
 
-		if (ImGui::Button("Register C-Arm", ImVec2(0, buttonHeight)))
+		if (ImGui::Button("Reg C-Arm", ImVec2(0, buttonHeight)))
 		{
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
-			else if (!__gc.g_calribmodeToggle) {
+			else if (!__gc.g_markerSelectionMode) {
 				__gc.SetErrorCode("No Marker Selection!");
 			}
 			else {
@@ -683,20 +725,18 @@ void mygui(ImGuiIO& io) {
 					__gc.SetErrorCode("At least 3 Points are Needed!");
 				}
 
-				__gc.g_engineLogger->info("rigidbody for c-arm is registered with {} points", numSelectedMKs);
-
 				__gc.g_optiEvent = OPTTRK_THREAD::C_ARM_REGISTER;
 
 				while (__gc.g_optiEvent == OPTTRK_THREAD::C_ARM_REGISTER) { Sleep(2); }
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Register T-Niddle", ImVec2(0, buttonHeight)))
+		if (ImGui::Button("Reg T-Niddle", ImVec2(0, buttonHeight)))
 		{
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
-			else if (!__gc.g_calribmodeToggle) {
+			else if (!__gc.g_markerSelectionMode) {
 				__gc.SetErrorCode("No Marker Selection!");
 			}
 			else if (__gc.g_selectedMkNames.size() < 4) {
@@ -711,12 +751,12 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Register Troca", ImVec2(0, buttonHeight)))
+		if (ImGui::Button("Reg Troca", ImVec2(0, buttonHeight)))
 		{
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
-			else if (!__gc.g_calribmodeToggle) {
+			else if (!__gc.g_markerSelectionMode) {
 				__gc.SetErrorCode("No Marker Selection!");
 			}
 			else if (__gc.g_selectedMkNames.size() < 4) {
@@ -730,21 +770,61 @@ void mygui(ImGuiIO& io) {
 				__gc.g_optiToolId = 0;
 			}
 		}
+		ImGui::SameLine();
+		if (ImGui::Button("Reg CalibRig", ImVec2(0, buttonHeight)))
+		{
+			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+				__gc.SetErrorCode("Not Allowed during Rec Processing!");
+			}
+			else if (!__gc.g_markerSelectionMode) {
+				__gc.SetErrorCode("No Marker Selection!");
+			}
+			else {
+				int numSelectedMKs = (int)__gc.g_selectedMkNames.size();
+				if (numSelectedMKs < 3) {
+					__gc.SetErrorCode("At least 3 Points are Needed!");
+				}
+
+				__gc.g_optiEvent = OPTTRK_THREAD::CALIB_REGISTER;
+
+				while (__gc.g_optiEvent == OPTTRK_THREAD::CALIB_REGISTER) { Sleep(2); }
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Reg Checker", ImVec2(0, buttonHeight)))
+		{
+			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
+				__gc.SetErrorCode("Not Allowed during Rec Processing!");
+			}
+			else if (!__gc.g_markerSelectionMode) {
+				__gc.SetErrorCode("No Marker Selection!");
+			}
+			else {
+				int numSelectedMKs = (int)__gc.g_selectedMkNames.size();
+				if (numSelectedMKs < 3) {
+					__gc.SetErrorCode("At least 3 Points are Needed!");
+				}
+
+				__gc.g_optiEvent = OPTTRK_THREAD::CHECKER_REGISTER;
+
+				while (__gc.g_optiEvent == OPTTRK_THREAD::CHECKER_REGISTER) { Sleep(2); }
+			}
+		}
+
 
 		if (ImGui::Button("T-Needle Pivoting", ImVec2(0, buttonHeight)))
 		{
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
-			else if (__gc.g_calribmodeToggle) {
+			else if (__gc.g_markerSelectionMode) {
 				__gc.SetErrorCode("Pivoting is Not Allowed during Marker Selection!");
 			}
 			else if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_RESET_PIVOT) {
 				__gc.SetErrorCode("Wait for Canceling Pivot Process!");
 			}
 			else {
-				track_info trk = __gc.g_track_que.front(); // __gc.g_track_que.wait_and_pop(trk);
-				if (!trk.GetRigidBodyQuatTVecByName("t-needle", NULL, NULL)) {
+				if (!trackInfo.GetRigidBodyQuatTVecByName("t-needle", NULL, NULL)) {
 					__gc.SetErrorCode("No Tool is Registered!");
 				}
 				else {
@@ -761,15 +841,14 @@ void mygui(ImGuiIO& io) {
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
-			else if (__gc.g_calribmodeToggle) {
+			else if (__gc.g_markerSelectionMode) {
 				__gc.SetErrorCode("Pivoting is Not Allowed during Marker Selection!");
 			}
 			else if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_RESET_PIVOT) {
 				__gc.SetErrorCode("Wait for Canceling Pivot Process!");
 			}
 			else {
-				track_info trk = __gc.g_track_que.front(); // __gc.g_track_que.wait_and_pop(trk);
-				if (!trk.GetRigidBodyQuatTVecByName("troca", NULL, NULL)) {
+				if (!trackInfo.GetRigidBodyQuatTVecByName("troca", NULL, NULL)) {
 					__gc.SetErrorCode("No Tool is Registered!");
 				}
 				else {
@@ -835,7 +914,7 @@ void mygui(ImGuiIO& io) {
 				float y = (center.y);
 				float r = (circleRadiis[i]);
 
-				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), 5);
+				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 255, 255), 3);
 				//std::string text = " (" + std::to_string(x) + ", " + std::to_string(y) + ")";
 				//cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
 
@@ -884,15 +963,17 @@ void mygui(ImGuiIO& io) {
 			static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
 			static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
 			static int intrinsicWidth = 8, intrinsicHeight = 8;
+			static float intrinsicSpaceX = 1.6f, intrinsicSpaceY = 1.6f;
 			static int w, h;
 			static bool isCalibratedIntrinsic = false;
 			if (ImGui::Button("Add Intrinsic", ImVec2(0, buttonHeight)))
 			{
 				cv::Mat img;
-				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD)
+				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
 					img = cv::imread(files[indexIntrinsic]);
+				}
 				else if (g_curScanGrayImg.data != NULL) {
-					cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGBA);
+					cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGB);
 					cv::imwrite(__gc.g_folder_trackingInfo + "int_images/" + __gc.g_lastStoredImageName + ".png", img);
 				}
 				else {
@@ -905,9 +986,18 @@ void mygui(ImGuiIO& io) {
 				if (fs.isOpened()) {
 					fs["INT_ROWS"] >> intrinsicHeight;
 					fs["INT_COLS"] >> intrinsicWidth;
+					fs["INT_SPACE_X"] >> intrinsicSpaceX;
+					fs["INT_SPACE_Y"] >> intrinsicSpaceY;
 					fs["INT_MODE"] >> calib_mode;
 					fs["INT_DETECTOR"] >> det_mode;
 					fs.release();
+				}
+				if (corners.size() == 0) {
+					for (int i = 0; i < intrinsicHeight; ++i) {
+						for (int j = 0; j < intrinsicWidth; ++j) {
+							corners.push_back(cv::Point3f(j * intrinsicSpaceX, i * intrinsicSpaceY, 0));
+						}
+					}
 				}
 
 				// Load from disk into a raw RGBA buffer
@@ -924,7 +1014,7 @@ void mygui(ImGuiIO& io) {
 
 					std::vector<float> circleRadiis;
 					points2D.clear();
-					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2D, 2000.f, 10000.f, 50.f, &circleRadiis);
+					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2D, 1000.f, 10000.f, 50.f, &circleRadiis);
 
 					DrawCircles(points2D, circleRadiis, img);
 
@@ -966,15 +1056,6 @@ void mygui(ImGuiIO& io) {
 				else {
 					isCalibratedIntrinsic = true;
 
-					if (corners.size() == 0) {
-						const float squareSize = 15.9375f; // mm unit
-						for (int i = 0; i < intrinsicHeight; ++i) {
-							for (int j = 0; j < intrinsicWidth; ++j) {
-								corners.push_back(cv::Point3f(j * squareSize, i * squareSize, 0));
-							}
-						}
-					}
-
 					calib_points2Ds.push_back(points2D);
 					calib_points3Ds.push_back(corners);
 
@@ -999,6 +1080,12 @@ void mygui(ImGuiIO& io) {
 					fs.release();
 				}
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Reset Intrinsic", ImVec2(0, buttonHeight))) {
+				calib_points2Ds.clear();
+				calib_points3Ds.clear();
+				__gc.g_engineLogger->info("Intrinsic Points are cleaned!");
+			}
 			if (pSRV != NULL) {
 				//ImVec2 pos = ImGui::GetCursorScreenPos();
 				ImVec2 canvas_size = ImGui::GetContentRegionAvail();
@@ -1009,17 +1096,23 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
-
 		///////////////////////
 		// extrinsics
 		///////////////////////
 		{
 			static int indexExtrinsics = -1;
-			static std::vector<std::string> files;
+			static std::vector<std::string> img_files;
+			static std::vector<std::string> geo_files;
 			if (indexExtrinsics == -1) {
 				for (const auto& entry : std::filesystem::directory_iterator(__gc.g_folder_trackingInfo + "ext_images")) {
-					if (entry.path().extension().string() == ".png")
-						files.push_back(entry.path().string());
+					if (entry.path().extension().string() == ".png") {
+						std::string fileName = entry.path().string();
+						img_files.push_back(fileName);
+
+						size_t lastindex = fileName.find_last_of(".");
+						std::string geoFileName = fileName.substr(0, lastindex) + "_RBPts.txt";
+						geo_files.push_back(geoFileName);
+					}
 				}
 				indexExtrinsics = 0;
 			}
@@ -1039,93 +1132,87 @@ void mygui(ImGuiIO& io) {
 			{
 				bool errResult = false;
 
-				glm::fquat q;
-				glm::fvec3 t;
-				if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
-					glm::fmat4x4 mat_r = glm::toMat4(q);
-					glm::fmat4x4 mat_t = glm::translate(t);
-					matRB2WS = mat_t * mat_r;
-					matWS2RB = glm::inverse(matRB2WS);
-				}
-				else {
-					__gc.SetErrorCode("Failure to Detect C-Arm Rigidbody!");
-					errResult = true;
+				cv::FileStorage fs(__gc.g_folder_trackingInfo + "calib_settings.txt", cv::FileStorage::Mode::READ);
+				//std::string calib_mode = "FMARKERS";
+				//std::string det_mode = "SimpleBlobDetector";
+				if (fs.isOpened()) {
+					fs["EXT_ROWS"] >> extrinsicHeight;
+					fs["EXT_COLS"] >> extrinsicWidth;
+					//fs["EXT_MODE"] >> calib_mode;
+					//fs["EXT_DETECTOR"] >> det_mode;
+					fs.release();
 				}
 
-				if (!__gc.g_calribmodeToggle) {
-					__gc.SetErrorCode("Must be Marker Selection Mode!");
-					errResult = true;
+				// set matRB2WS, matWS2RB
+				// set pointsWS3D (set to __gc.g_testMKs), pointsRB3D
+				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+					cv::FileStorage fs(geo_files[indexExtrinsics], cv::FileStorage::Mode::READ);
+					if (fs.isOpened()) {
+						cv::Mat ocvMat;
+						fs["RB_POSITIONS"] >> ocvMat;
+						pointsRB3D = ocvMat;
+						fs["WS_POSITIONS"] >> ocvMat;
+						pointsWS3D = ocvMat;
+						__gc.g_testMKs.clear();
+						__gc.g_testMKs.assign(pointsWS3D.size(), glm::fvec3(0));
+						memcpy(&__gc.g_testMKs[0], &pointsWS3D[0], sizeof(glm::fvec3)* pointsWS3D.size());
+						fs["MAT_WS2RB"] >> ocvMat;
+						memcpy(glm::value_ptr(matWS2RB), ocvMat.ptr(), sizeof(float) * 16);
+						fs["MAT_RB2WS"] >> ocvMat;
+						memcpy(glm::value_ptr(matRB2WS), ocvMat.ptr(), sizeof(float) * 16);
+						fs.release();
+					}
+					else {
+						__gc.SetErrorCode("The image has no scan information!");
+						errResult = true;
+					}
 				}
-				else if (__gc.g_selectedMkNames.size() != 4) {
-					__gc.SetErrorCode("4 markers must be selected!! Current Selection Markers {}", __gc.g_selectedMkNames.size());
-					errResult = true;
+				else {
+					glm::fquat q;
+					glm::fvec3 t;
+					if (trackInfo.GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
+						glm::fmat4x4 mat_r = glm::toMat4(q);
+						glm::fmat4x4 mat_t = glm::translate(t);
+						matRB2WS = mat_t * mat_r;
+						matWS2RB = glm::inverse(matRB2WS);
+					}
+					else {
+						__gc.SetErrorCode("Failure to Detect C-Arm Rigidbody!");
+						errResult = true;
+					}
+
+					std::map<std::string, std::map<track_info::MKINFO, std::any>> rbmkSet;
+					if (trackInfo.GetRigidBodyByName("calib", NULL, NULL, &rbmkSet, NULL)) {
+						if (rbmkSet.size() != extrinsicWidth * extrinsicHeight) {
+							__gc.SetErrorCode(fmt::format("# of Markers of Calib-rig Rigidbody ({}) must be {}", rbmkSet.size(), extrinsicWidth* extrinsicHeight));
+							errResult = true;
+						}
+					}
+					else {
+						__gc.SetErrorCode("Failure to Detect Calib-rig Rigidbody!");
+						errResult = true;
+					}
+
+					if (!errResult)
+					{
+						pointsWS3D.clear();
+						pointsRB3D.clear();
+
+						for (auto& it : rbmkSet) {
+							glm::fvec3 p_ws = std::any_cast<glm::fvec3>(it.second[track_info::MKINFO::POSITION_RBPC]); // must be track_info::MKINFO::POSITION_RBPC
+							glm::fvec3 p_rb = vzmutils::transformPos(p_ws, matWS2RB);
+							pointsWS3D.push_back(*(cv::Point3f*)&p_ws);
+							pointsRB3D.push_back(*(cv::Point3f*)&p_rb);
+						}
+					}
 				}
 
 				if (!errResult)
 				{
-					cv::FileStorage fs(__gc.g_folder_trackingInfo + "calib_settings.txt", cv::FileStorage::Mode::READ);
-					std::string calib_mode = "FMARKERS";
-					std::string det_mode = "SimpleBlobDetector";
-					if (fs.isOpened()) {
-						fs["EXT_ROWS"] >> extrinsicHeight;
-						fs["EXT_COLS"] >> extrinsicWidth;
-						fs["EXT_MODE"] >> calib_mode;
-						fs["EXT_DETECTOR"] >> det_mode;
-						fs.release();
-					}
-
-					// gather 3D points 
-					std::vector<cv::Point3f> posWsMarkers(__gc.g_selectedMkNames.size());
-					for (auto it = __gc.g_selectedMkNames.begin(); it != __gc.g_selectedMkNames.end(); it++) {
-						std::map<track_info::MKINFO, std::any> mkInfo;
-						trackInfo.GetMarkerByName(it->first, mkInfo);
-						glm::fvec3 pos = std::any_cast<glm::fvec3>(mkInfo[track_info::MKINFO::POSITION]);
-						posWsMarkers[it->second] = *(cv::Point3f*)&pos;
-					}
-
-					glm::fvec3 v01 = *(glm::fvec3*)&posWsMarkers[1] - *(glm::fvec3*)&posWsMarkers[0];
-					glm::fvec3 v03 = *(glm::fvec3*)&posWsMarkers[3] - *(glm::fvec3*)&posWsMarkers[0];
-					glm::fvec3 selDir = glm::cross(v01, v03);
-					glm::fvec3 posCenterCArmRB = vzmutils::transformPos(glm::fvec3(0, 0, 0), matRB2WS);
-					glm::fvec3 cal2DetDir = posCenterCArmRB - *(glm::fvec3*)&posWsMarkers[0];
-					//if (glm::dot(selDir, cal2DetDir) < 0)
-					{
-						//std::cout << "\ncorrecting the selecting direction!" << std::endl;
-						// 이상함... 아래것으로 해야 하는데... 이렇게 하면 카메라 위치가 반대로 감...
-						// 일단은 데모를 위해 주석 처리...
-						// 0123 to 1032
-						std::vector<cv::Point3f> posWsMarkersTmp = posWsMarkers;
-						posWsMarkers[0] = posWsMarkersTmp[1];
-						posWsMarkers[1] = posWsMarkersTmp[0];
-						posWsMarkers[2] = posWsMarkersTmp[3];
-						posWsMarkers[3] = posWsMarkersTmp[2];
-					}
-
-					pointsWS3D.clear();
-					mystudents::Get3DPostionsFromFMarkersPhantom(__cv3__ & posWsMarkers[0], __cv3__ & posWsMarkers[1], __cv3__ & posWsMarkers[2], __cv3__ & posWsMarkers[3],
-							&trackInfo, extrinsicHeight, extrinsicWidth, pointsWS3D);
-
-					if (pointsWS3D.size() != extrinsicHeight * extrinsicWidth) {
-						__gc.SetErrorCode("Failure to Sort {} Markers!!", extrinsicHeight* extrinsicWidth);
-						errResult = true;
-					}
-					else {
-						__gc.g_testMKs.clear();
-						__gc.g_testMKs.assign(pointsWS3D.size(), glm::fvec3(0));
-						pointsRB3D.clear();
-						pointsRB3D.assign(pointsWS3D.size(), cv::Point3f(0));
-						memcpy(&__gc.g_testMKs[0], &pointsWS3D[0], sizeof(glm::fvec3) * pointsWS3D.size());
-
-						for (int i = 0; i < (int)pointsWS3D.size(); i++) {
-							*(glm::fvec3*)&pointsRB3D[i] = vzmutils::transformPos(*(glm::fvec3*)&pointsWS3D[i], matWS2RB);
-						}
-					}
-				}
-				
-				if (!errResult) {
 					cv::Mat img;
-					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD)
-						img = cv::imread(files[indexExtrinsics]);
+					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+						img = cv::imread(img_files[indexExtrinsics]);
+					}
 					else if (g_curScanGrayImg.data != NULL) {
 						cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGB);
 						cv::imwrite(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + ".png", img);
@@ -1142,7 +1229,6 @@ void mygui(ImGuiIO& io) {
 					}
 					else {
 						__gc.SetErrorCode("No Image!!");
-						errResult = true;
 					}
 
 					// Load into a raw RGBA buffer
@@ -1159,21 +1245,21 @@ void mygui(ImGuiIO& io) {
 
 						std::vector<float> circleRadiis;
 						points2D.clear();
-						mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, extrinsicWidth, extrinsicHeight, points2D, 2000.f, 16000.f, 100.f, &circleRadiis);
+						mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, extrinsicWidth, extrinsicHeight, points2D, 1500.f, 16000.f, 100.f, &circleRadiis);
 
 						DrawCircles(points2D, circleRadiis, img);
 
 						if (img.channels() == 3) {
 							// First create the image with alpha channel
 							cv::cvtColor(img, img, cv::COLOR_RGB2RGBA);
-					
+
 							// # Split the image for access to alpha channel
 							std::vector<cv::Mat> channels(4);
 							cv::split(img, channels);
-						
+
 							// Assign the mask to the last channel of the image
 							channels[3] = 255;
-						
+
 							// Finally concat channels for rgba image
 							cv::merge(channels, img);
 						}
@@ -1182,7 +1268,7 @@ void mygui(ImGuiIO& io) {
 
 						pSRV = LoadTextureFromFile(img.data, "EXTRINSIC_IMG", image_width, image_height);
 						indexExtrinsics++;
-						if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) indexExtrinsics = indexExtrinsics % files.size();
+						if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) indexExtrinsics = indexExtrinsics % img_files.size();
 						isCalibratedExtrinsic = false;
 
 						cv::flip(img, imgProcessing, 1);
@@ -1287,6 +1373,43 @@ void mygui(ImGuiIO& io) {
 					}
 				}
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Reset Extrinsic", ImVec2(0, buttonHeight))) {
+				__gc.g_homographyPairs.clear();
+				__gc.g_engineLogger->info("Extrinsic Points are cleaned!");
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(!__gc.g_showCalibMarkers? "Show Calib Points" : "Hide Calib Points", ImVec2(0, buttonHeight)))
+			{
+				__gc.g_showCalibMarkers = !__gc.g_showCalibMarkers;
+
+				if (__gc.g_showCalibMarkers) {
+					using namespace glm;
+					fmat4x4 matCam2WS;
+					trackInfo.GetTrackingCamPose(0, matCam2WS);
+
+					*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
+					*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
+					*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
+
+					float vFov = 3.141592654f / 4.f;
+					float aspect_ratio = (float)cpCam1.w / (float)cpCam1.h;
+					float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
+
+					//  fy = h/(2 * tan(f_y / 2)) 
+					cpCam1.fx = cpCam1.w / (2.f * tan(hFov / 2.f));
+					cpCam1.fy = cpCam1.h / (2.f * tan(vFov / 2.f));
+					cpCam1.sc = 0;
+					cpCam1.cx = cpCam1.w / 2.f;
+					cpCam1.cy = cpCam1.h / 2.f;
+					cpCam1.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+					cpCam1.np = 0.15f;
+
+					vzm::SetCameraParams(cidRender1, cpCam1);
+				}
+			}
+
+
 			if (pSRV != NULL) {
 				//ImVec2 pos = ImGui::GetCursorScreenPos();
 				ImVec2 canvas_size = ImGui::GetContentRegionAvail();
@@ -1299,10 +1422,37 @@ void mygui(ImGuiIO& io) {
 			__gc.g_optiEvent = OPTTRK_THREAD::C_ARM_SHOT_MOMENT;
 		}
 
-
 		ImGui::Text("Render Count = %d", vzmpf::GetRenderCount());
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
 		ImGui::Text((std::string("Network task : ") + __gc.g_networkState).c_str());
+		ImGui::Text("<TRACKING ASSETS>============");
+		ImGui::Text(__gc.g_optiRbStates.c_str());
+
+		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD)
+		{
+			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+			static cv::Size imgSize(canvas_size.x, canvas_size.x);
+			cv::Mat imgGray = cv::Mat(imgSize, CV_8UC1);
+			optitrk::GetCameraBuffer(0, imgSize.width, imgSize.height, imgGray.data);
+
+			cv::Mat img;
+			cv::cvtColor(imgGray, img, cv::COLOR_GRAY2RGB);
+			if (img.channels() == 3) {
+				cv::cvtColor(img, img, cv::COLOR_RGB2RGBA);
+				std::vector<cv::Mat> channels(4);
+				cv::split(img, channels);
+				channels[3] = 255;
+				cv::merge(channels, img);
+			}
+
+			static ID3D11ShaderResourceView* pSRV = NULL;
+			pSRV = LoadTextureFromFile(img.data, "OPTI_CAMERA1", imgSize.width, imgSize.height);
+			if (pSRV != NULL) {
+				//ImVec2 pos = ImGui::GetCursorScreenPos();
+				ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x), ImVec2(0, 0), ImVec2(1, 1));
+			}
+		}
+
 		ImGui::End();
 	}
 
@@ -1339,6 +1489,18 @@ void mygui(ImGuiIO& io) {
 
 int main()
 {
+	// test code //
+	//std::vector<cv::Point3f> pp = { cv::Point3f(1.1), cv::Point3f(2.2), cv::Point3f(3.3), cv::Point3f(4.4) };
+	//cv::FileStorage fs1("test___.txt", cv::FileStorage::Mode::WRITE);
+	//fs1 << "test" << cv::Mat(pp);
+	//fs1.release();
+	//cv::FileStorage fs2("test___.txt", cv::FileStorage::Mode::READ);
+	//cv::Mat ocvTest;
+	//fs2["test"] >> ocvTest;
+	//fs2.release();
+	//std::vector<cv::Point3f> pp2 = ocvTest;
+
+
 	EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, 0);
 	WNDCLASSEXW wc = { sizeof(wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"ImGui Example", nullptr };
 	::RegisterClassExW(&wc);
@@ -1415,7 +1577,6 @@ int main()
 		config_fs["RecordMode"] >> configLoad;
 		config_fs["RecordPeriod"] >> __gc.g_optiRecordPeriod;
 		config_fs["PivotSamples"] >> __gc.g_optiPivotSamples;
-		std::cout << (int)__gc.g_optiPivotSamples << std::endl;
 	}
 	else {
 		trackDataFolder = "Tracking 2023-10-05";

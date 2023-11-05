@@ -36,6 +36,7 @@ namespace rendertask {
 		// objId != 0 인 경우, 해당 ID 의 actor resource 가 없을 때, 새로운 actor resource 를 생성하고 새로운 ID 를 받음
 		int oidAxis = 0;
 		vzm::GenerateAxisHelperObject(oidAxis, 0.5f);
+		vzm::SetResObjectName(oidAxis, "Axis 0.5");
 
 		// DOJO : Actor Parameter (vzm::ActorParameters) 와 actor resource 로 actor 생성
 		vzm::ActorParameters apAxis;
@@ -58,6 +59,10 @@ namespace rendertask {
 		int oidGrid, oidLines, oidTextX, oidTextZ;
 		// scene 의 바닥에 그려지는 actor resources 를 생성
 		navihelpers::World_GridAxis_Gen(oidGrid, oidLines, oidTextX, oidTextZ);
+		vzm::SetResObjectName(oidGrid, "Grid");
+		vzm::SetResObjectName(oidLines, "Grid Axis");
+		vzm::SetResObjectName(oidTextX, "Grid X Text");
+		vzm::SetResObjectName(oidTextZ, "Grid Y Text");
 
 		std::vector<glm::fvec3> pinfo(3);
 		pinfo[0] = glm::fvec3(0, 0.5, 0);
@@ -320,6 +325,9 @@ namespace rendertask {
 				vzm::GetActorParams(aidCamLabel, apCamLabel);
 
 				Cam_Gen(matCam2WS, "CAM" + to_string(i), oidCamTris[i], oidCamLines[i], oidCamLabel[i]);
+				vzm::SetResObjectName(oidCamTris[i], fmt::format("CAM {} Tris", i));
+				vzm::SetResObjectName(oidCamLines[i], fmt::format("CAM {} Lines", i));
+				vzm::SetResObjectName(oidCamLabel[i], fmt::format("CAM {} Label", i));
 
 				apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris[i]);
 				apCamTris.color[3] = 0.5f;
@@ -340,11 +348,13 @@ namespace rendertask {
 		// axis 를 그리는 resource object 생성
 		if (vzm::GetResObjType(oidAxis) == vzm::ResObjType::UNDEFINED) {
 			vzm::GenerateAxisHelperObject(oidAxis, 0.15f);
+			vzm::SetResObjectName(oidAxis, "Axis (obj) 0.15");
 		}
 		// spherical marker 를 그리는 resource object 생성
 		if (vzm::GetResObjType(oidMarker) == vzm::ResObjType::UNDEFINED) {
 			glm::fvec4 pos(0, 0, 0, 1.f);
 			vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidMarker);
+			vzm::SetResObjectName(oidMarker, "Marker Unit Sphere");
 		}
 		// probe 를 그리는 resource object 생성
 		if (vzm::GetResObjType(oidProbe) == vzm::ResObjType::UNDEFINED) {
@@ -357,6 +367,7 @@ namespace rendertask {
 			vzm::GenerateCylindersObject((float*)pp, (float*)rr, NULL, 1, oidProbe);
 			//glm::fvec4 pos(0, 0, 0, 0.001f);
 			//vzm::GenerateSpheresObject(__FP pos, NULL, 1, oidProbe);
+			vzm::SetResObjectName(oidProbe, "Probe");
 		}
 
 		const int numRBs = trackInfo.NumRigidBodies();
@@ -422,8 +433,10 @@ namespace rendertask {
 						vector<fvec3> toolUserData = __gc->g_rbLocalUserPoints[rbName];
 						// compute the line geometry in the tool's rigid body
 						fvec3 linePos[2] = { toolUserData[0], fvec3(0) };
-						static int oidToolLine = 0;
+						static int oidToolLines[2] = {0, 0};
+						int& oidToolLine = oidToolLines[rbName == "t-needle" ? 0 : 1];
 						vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
+						vzm::SetResObjectName(oidToolLine, rbName + " Line");
 
 						apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
 						apToolBody.line_thickness = 3;
@@ -501,7 +514,7 @@ namespace rendertask {
 
 		/**/
 		auto displayMarkers = [&sidScene](const map<string, fvec3>& mks, const string& groupName
-			, const fvec4& mkColor, const float r, const bool isPickable = false, const bool isVisible = true) {
+			, const fvec4& mkColor, const float r, const bool isPickable = false, const bool isVisible = true, const bool visibleLabel = false) {
 			int numCurMKs = (int)mks.size();
 			int aidGroupMks = vzmutils::GetSceneItemIdByName(groupName);
 			vzm::ActorParameters apMkGroup;
@@ -535,15 +548,26 @@ namespace rendertask {
 
 				fvec3 posWS = std::any_cast<fvec3>(mk.second);
 
-				float targetR = __gc->g_calribmodeToggle ? 2.f * r : r;
+				float targetR = __gc->g_markerSelectionMode ? 2.f * r : r;
 				*(glm::fvec4*)apMarker.color = mkColor; // rgba
-				//apMarker.color[3] = __gc->g_calribmodeToggle ? 0.3f : 0.3f;
-				auto it = __gc->g_selectedMkNames.find(mk.first);
-				if (it != __gc->g_selectedMkNames.end()) {
-					*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 0.3);
-					apMarker.label.textStr = "p:" + std::to_string(it->second);
+				//apMarker.color[3] = __gc->g_markerSelectionMode ? 0.3f : 0.3f;
+				if (visibleLabel) {
+					apMarker.label.textStr = mk.first;
 					apMarker.label.fontSize = 15.f;
+					apMarker.label.iColor = 0xFFFF00;
 				}
+				else {
+					auto it = __gc->g_selectedMkNames.find(mk.first);
+					if (it != __gc->g_selectedMkNames.end()) {
+						*(glm::fvec4*)apMarker.color = glm::fvec4(0, 1, 0, 0.8);
+						apMarker.label.textStr = "s(" + std::to_string(it->second + 1) + ")";
+						apMarker.label.fontSize = 15.f;
+					}
+					else {
+						apMarker.label.textStr = "";
+					}
+				}
+
 
 				glm::fmat4x4 matT = glm::translate(posWS);
 				glm::fmat4x4 matScale = glm::scale(glm::fvec3(targetR)); // set 0.7 cm to the marker diameter
@@ -569,23 +593,49 @@ namespace rendertask {
 		}
 		displayMarkers(optiMarkers, "OptiMarkers", glm::fvec4(1.f, 1.f, 1.f, 0.6f), 0.007f, true);
 
-		
+		map<string, fvec3> extCalibMarkers;
+		map<std::string, map<track_info::MKINFO, std::any>> rbmkSet;
+		if (trackInfo.GetRigidBodyByName("calib", NULL, NULL, &rbmkSet, NULL)){
+			int idx = 1;
+			for (auto& it : rbmkSet) {
+				// "p" + to_string(idx++)
+				std::string mkName = it.first;
+
+				if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+					map<track_info::MKINFO, std::any> mkInfo;
+					if (trackInfo.GetMarkerByName(mkName + " PC", mkInfo)) {
+						mkName.erase(0, 12);
+						extCalibMarkers["P" + to_string(stoi(mkName) - 1)] = std::any_cast<fvec3>(mkInfo[track_info::MKINFO::POSITION]);
+					}
+				}
+				else {
+					//"calib:Marker[No]"
+					mkName.erase(0, 12);
+					extCalibMarkers["P" + to_string(stoi(mkName) - 1)] = std::any_cast<fvec3>(it.second[track_info::MKINFO::POSITION_RBPC]);
+				}
+
+			}
+		}
+		displayMarkers(extCalibMarkers, "ExtCalibMarkers", glm::fvec4(0, 0, 1.f, 0.9f), 0.003f, false, __gc->g_showCalibMarkers, true);
+
 		map<string, fvec3> testMarkers;
 		for (int i = 0; i < (int)__gc->g_testMKs.size(); i++) {
 			testMarkers["testMK" + to_string(i + 1)] = __gc->g_testMKs[i];
 		}
-		displayMarkers(testMarkers, "TestMarkers", glm::fvec4(0, 0, 1.f, 0.6f), 0.007f);
+		displayMarkers(testMarkers, "TestMarkers", glm::fvec4(0, 0, 1.f, 0.6f), 0.007f, false, true, true);
 
 
-		map<string, fvec3> calibMarkers;
-		int mkIndex = 1;
-		glm::fmat4x4 matCArmRB2WS;
-		trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
-		for (auto it : __gc->g_homographyPairs) {
-			calibMarkers["calibMK" + to_string(mkIndex++)] = it.first;
-		}
-		displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 0.6f), 0.003f, false, __gc->g_showCalibMarkers);
+		//map<string, fvec3> calibMarkers; // calibPoints
+		//int mkIndex = 1;
+		//glm::fmat4x4 matCArmRB2WS;
+		//trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL);
+		//for (auto it : __gc->g_homographyPairs) {
+		//	calibMarkers["calibMK" + to_string(mkIndex++)] = it.first;
+		//}
+		//displayMarkers(calibMarkers, "CalibMarkers", glm::fvec4(1.f, 1.f, 0, 0.6f), 0.003f, false, __gc->g_showCalibMarkers);
 		
+
+
 		/**/
 	}
 
@@ -652,7 +702,7 @@ namespace rendertask {
 		textItem.posScreenY = 10;
 		cpCam1.text_items.SetParam("RECORD", textItem);
 
-		textItem.textStr = __gc->g_calribmodeToggle ? "SELECTING MARKER MODE (" + std::to_string(__gc->g_selectedMkNames.size()) + ")" : "";
+		textItem.textStr = __gc->g_markerSelectionMode ? "SELECTING MARKER MODE (" + std::to_string(__gc->g_selectedMkNames.size()) + ")" : "";
 		textItem.iColor = 0xFFFF30;
 		textItem.posScreenY = 50;
 		cpCam1.text_items.SetParam("OPERATION_MODE", textItem);

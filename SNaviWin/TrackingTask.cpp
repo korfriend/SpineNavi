@@ -94,6 +94,7 @@ namespace trackingtask {
 				return cid;
 			};
 
+			std::string optRbState = "";
 			if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
 
 				recFinished();
@@ -218,7 +219,8 @@ namespace trackingtask {
 							rbMkSets.push_back(rbmkSet);
 
 							// 저장 시 tvec, quaternion 버전으로..
-							trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, mkMSE, mkMSE >= 0, rbmkSet);
+							if (!trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, mkMSE, mkMSE >= 0, rbmkSet))
+								__gc->g_engineLogger->error("(" + rbName + ") is already added to <track_info>!!");
 						} // else if (rowTypes[i] == "Rigid Body")
 						else if (rowTypes[i] == "Marker") {
 							int mkIdx = 1;
@@ -262,7 +264,7 @@ namespace trackingtask {
 
 				for (int i = 0; i < numAllFramesRBs; i++)
 				{
-					string rbName;// = rbNames[i];
+					std::string rbName;// = rbNames[i];
 					fmat4x4 matLS2WS;
 					float rbMSE;
 					vector<float> posMKs;
@@ -277,6 +279,12 @@ namespace trackingtask {
 					if (isTracked) {
 						if (rbMSE > 0.01) cout << "\n" << "problematic error!! " << rbName << " : " << rbMSE << endl;
 					}
+
+					if (isTracked)
+						optRbState += rbName + "(O) ERR:" + to_string(rbMSE * 1000.f) + " mm\n";
+					else
+						optRbState += rbName + "(X) ERR: NAN\n";
+
 
 					int numRbMks = (int)posMKs.size() / 3;
 					vector<fvec3> mkPts(numRbMks);
@@ -302,7 +310,8 @@ namespace trackingtask {
 						//if (mk_qual < 0.9) cout << "\n" << "rb(" << j << ") marker problematic error!!  : " << mk_qual << endl;
 					}
 					
-					trk_info.AddRigidBody(rbName, rbCid, matLS2WS, qvec, tvec, rbMSE, isTracked, rbmkSet);
+					if (!trk_info.AddRigidBody(rbName, rbCid, matLS2WS, qvec, tvec, rbMSE, isTracked, rbmkSet))
+						__gc->g_engineLogger->error("(" + rbName + ") is already added to <track_info>!!");
 				}
 				vector<float> mkPts;
 				vector<float> mkResiduals;
@@ -335,9 +344,14 @@ namespace trackingtask {
 				auto UpdateRigidBodiesInThread = [&]() {
 					rbNames.clear();
 					numAllFramesRBs = optitrk::GetRigidBodies(&rbNames);
-					for (int i = 0; i < numAllFramesRBs; i++) {
-						cout << rbNames[i] << endl;
+					std::string rbAssetInfo = "Current RB Assets: ";
+					int i = 0;
+					for (; i < numAllFramesRBs - 1; i++) {
+						rbAssetInfo += rbNames[i] + ", ";
 					}
+					if (numAllFramesRBs > 0)
+						rbAssetInfo += rbNames[i];
+					__gc->g_engineLogger->info(rbAssetInfo);
 				};
 				// because the critical section APIs are not successfully applied, naive path is added to avoid the read/write/modify hazard
 				// e.g., this tracking thread is trying to access the optitrack tracking resources while the main thread (event) is modifying the optitrack tracking resources
@@ -347,6 +361,24 @@ namespace trackingtask {
 				static clock_t prevTime = clock(), curTime;
 
 				switch (__gc->g_optiEvent) {
+				case OPTTRK_THREAD::CHECKER_REGISTER: {
+					std::vector<glm::fvec3> selectedMks;
+					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
+					optitrk::SetRigidBody("checker", selectedMks.size(), (float*)&selectedMks[0]);
+					UpdateRigidBodiesInThread();
+					optitrk::StoreProfile(__gc->g_profileFileName);
+					__gc->g_engineLogger->info("C-Arm Checker is successfully registered!");
+					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+				} break;
+				case OPTTRK_THREAD::CALIB_REGISTER: {
+					std::vector<glm::fvec3> selectedMks;
+					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
+					optitrk::SetRigidBody("calib", selectedMks.size(), (float*)&selectedMks[0]);
+					UpdateRigidBodiesInThread();
+					optitrk::StoreProfile(__gc->g_profileFileName);
+					__gc->g_engineLogger->info("Calibration Rig is successfully registered!");
+					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+				} break;
 				case OPTTRK_THREAD::C_ARM_REGISTER: {
 					std::vector<glm::fvec3> selectedMks;
 					GetWsMarkersFromSelectedMarkerNames(__gc->g_selectedMkNames, selectedMks); // WS
@@ -491,22 +523,22 @@ namespace trackingtask {
 
 					if (__gc->g_optiRecordFrame == 0) {
 						std::vector<std::string> toolNames = { "t-needle", "troca" };
+						cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltipRecord.txt", cv::FileStorage::Mode::WRITE);
 						for (int i = 0; i < 2; i++) {
 							std::vector<glm::fvec3>& toolUserData = __gc->g_rbLocalUserPoints[toolNames[i]];
 							if (toolUserData.size() == 2) {
-								cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltipRecord.txt", cv::FileStorage::Mode::WRITE);
 								cv::Mat ocv3(1, 3, CV_32FC1);
 								memcpy(ocv3.ptr(), &toolUserData[0], sizeof(glm::fvec3));
 								fs << "ToolPos_" + to_string(i) << ocv3;
 								memcpy(ocv3.ptr(), &toolUserData[1], sizeof(glm::fvec3));
 								fs << "ToolVec_" + to_string(i) << ocv3;
-								fs.release();
 							}
 							//else {
 							//	__gc->SetErrorCode("No Tool is Registered!");
 							//	__gc->g_optiRecordMode = OPTTRK_RECMODE::NONE;
 							//}
 						}
+						fs.release();
 
 						__gc->g_recFileStream.open(__gc->g_recFileName);
 						if (!__gc->g_recFileStream.is_open()) {
@@ -699,6 +731,8 @@ namespace trackingtask {
 				}
 				// __gc->g_optiRecordMode != OPTTRK_RECMODE::LOAD
 			} 
+
+			__gc->g_optiRbStates = optRbState;
 
 			if (trk_info.NumMarkers() > 0 || trk_info.NumRigidBodies() > 0)
 				__gc->g_track_que.push(trk_info);

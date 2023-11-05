@@ -75,7 +75,7 @@ namespace mystudents {
 			string text = " (" + to_string(x) + ", " + to_string(y) + ")";
 			cv::putText(img, text, cv::Point(x - 25, y - 5), cv::FONT_HERSHEY_SIMPLEX, 0.3, cv::Scalar(255, 0, 0), 1);
 		}
-		cv::imwrite(__gc->g_folder_trackingInfo + "test_circle_detect.png", img); // cv imshow()로 보이기.
+		//cv::imwrite(__gc->g_folder_trackingInfo + "test_circle_detect.png", img); // cv imshow()로 보이기.
 
 		return true; // 반지름 반환
 	}
@@ -216,7 +216,7 @@ namespace mystudents {
 		}
 
 		// 포지션 잘 정렬되었는지 확인.
-		mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
+		//mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
 
 		return (int)points2Ds.size();
 	}
@@ -650,13 +650,13 @@ namespace mystudents {
 		}
 
 
-		cv::Mat ocvVec3(1, 3, CV_32FC1);
-		cv::FileStorage fs(__gc->g_folder_trackingInfo + "test_tip_sphere_mk.txt", cv::FileStorage::Mode::WRITE);
-		for (int i = 0; i < (int)points3Ds.size(); i++) {
-			memcpy(ocvVec3.ptr(), &points3Ds[i], sizeof(float) * 3);
-			fs << "inter_sphere_" + std::to_string(i) << ocvVec3;
-		}
-		fs.release();
+		//cv::Mat ocvVec3(1, 3, CV_32FC1);
+		//cv::FileStorage fs(__gc->g_folder_trackingInfo + "test_tip_sphere_mk.txt", cv::FileStorage::Mode::WRITE);
+		//for (int i = 0; i < (int)points3Ds.size(); i++) {
+		//	memcpy(ocvVec3.ptr(), &points3Ds[i], sizeof(float) * 3);
+		//	fs << "inter_sphere_" + std::to_string(i) << ocvVec3;
+		//}
+		//fs.release();
 		//vector<vector<cv::Point3f>> points3Ds;
 		//points3Ds.push_back(inter_points);
 		return (int)points3Ds.size();

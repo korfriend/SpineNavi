@@ -114,20 +114,47 @@ bool optitrk::InitOptiTrackLib()
 	return true;
 }
 
-bool optitrk::SetCameraSettings(int cam_idx, int video_type, int exposure, int threshold, int intensity)
+bool optitrk::SetCameraSettings(const int cam_idx, const int video_type, const int exposure, const int threshold, const int intensity)
 {
 	return TT_SetCameraSettings(cam_idx, video_type, exposure, threshold, intensity);
 }
 
-bool optitrk::SetCameraFrameRate(int cam_idx, int frameRate)
+bool optitrk::SetCameraFrameRate(const int cam_idx, const int frameRate)
 {
 	return TT_SetCameraFrameRate(cam_idx, frameRate);
 }
 
-bool optitrk::LoadProfileAndCalibInfo(const std::string& file_profile, const std::string& file_calib)
+bool optitrk::GetCameraSettings(int cam_idx, int* video_type, int* exposure, int* threshold, int* intensity)
+{
+	if (cam_idx < 0 || cam_idx >= TT_CameraCount())
+		return false;
+	if (video_type) *video_type = TT_CameraVideoType(cam_idx);
+	if (exposure) *exposure = TT_CameraExposure(cam_idx);
+	if (threshold) *threshold = TT_CameraThreshold(cam_idx);
+	if (intensity) *intensity = TT_CameraIntensity(cam_idx);
+
+	return true;
+}
+
+bool optitrk::GetCameraBuffer(const int cam_idx, const int bufferPixelWidth, const int bufferPixelHeight, unsigned char* buffer)
+{
+	if (cam_idx < 0 || cam_idx >= TT_CameraCount())
+		return false;
+	return TT_CameraFrameBuffer(cam_idx, bufferPixelWidth, bufferPixelHeight, 0, 8, buffer);
+}
+
+bool optitrk::StoreCameraBufferAsBMP(const int cam_idx, const std::string& filename)
+{
+	return TT_CameraFrameBufferSaveAsBMP(cam_idx, filename.c_str());
+}
+
+bool optitrk::LoadProfileAndCalibInfo(const std::string& file_profile, const std::string& file_calib, const bool clearPrevAssets)
 {
 	// Do an update to pick up any recently-arrived cameras.
 	TT_Update();
+
+	if (clearPrevAssets)
+		TT_ClearRigidBodyList();
 
 	// Load a project file from the executable directory.
 	printf("Loading Profile: UserProfile.motive\n");
@@ -277,7 +304,7 @@ bool optitrk::SetRigidBodyEnabledbyName(const std::string& name, const bool enab
 	return true;
 }
 
-bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const float* mkPosArray)
+bool SetRigidBodyOld(const std::string& name, const int numMKs, const float* mkPosArray)
 {
 	if (!is_initialized) return false;
 
@@ -345,6 +372,42 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 	//if (TT_SetRigidBodySettings(rb_idx, setting) != NPRESULT_SUCCESS)
 	//	return false;
 	//
+	cout << "\n" << name << " error : " << TT_RigidBodyMeanError(rb_idx) << endl;
+	return true;
+}
+
+bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const float* mkPosArray)
+{
+	if (!is_initialized) return false;
+
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+	int rb_idx = 0;
+	for (; rb_idx < numRBs; rb_idx++)
+		if (name == rbNames[rb_idx]) break;
+
+	if (rb_idx < numRBs)
+		TT_RemoveRigidBody(rb_idx);
+
+	vector<glm::fvec3> mkMkPos(numMKs);
+	memcpy(&mkMkPos[0], mkPosArray, sizeof(glm::fvec3) * numMKs);
+
+	glm::fvec3 mkPivotPos = glm::fvec3(0, 0, 0);
+	for (int i = 0; i < numMKs; i++) {
+		mkPivotPos += mkMkPos[i];
+	}
+	mkPivotPos /= (float)numMKs;
+	for (int i = 0; i < numMKs; i++) {
+		mkMkPos[i] -= mkPivotPos;
+	}
+
+	TT_CreateRigidBody(name.c_str(), rb_idx, numMKs, (float*)&mkMkPos[0]);
+
+	RigidBodySolver::cRigidBodySettings settings;
+	TT_RigidBodySettings(rb_idx, settings);
+	settings.MinimumMarkerCount = numMKs;
+	TT_SetRigidBodySettings(rb_idx, settings);
+
 	cout << "\n" << name << " error : " << TT_RigidBodyMeanError(rb_idx) << endl;
 	return true;
 }

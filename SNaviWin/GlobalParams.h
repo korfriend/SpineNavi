@@ -272,10 +272,13 @@ public:
 		return std::any_cast<bool>(v[RBINFO::TRACKED]);
 	}
 
-	void AddRigidBody(const std::string& rbName, const std::bitset<128>& cid, const glm::fmat4x4& matLS2WS, 
+	bool AddRigidBody(const std::string& rbName, const std::bitset<128>& cid, const glm::fmat4x4& matLS2WS, 
 		const glm::fquat& qtLS2WS, const glm::fvec3& tvec, const float mkMSE, const bool isTracked,
 		const std::map<std::string, std::map<MKINFO, std::any>>& rbmkSet)
 	{
+		if (__rbinfo.find(rbName) != __rbinfo.end())
+			return false;
+
 		std::map<RBINFO, std::any>& v = __rbinfo[rbName];
 		v[RBINFO::RB_CID] = cid;
 		v[RBINFO::LS2WS] = matLS2WS;
@@ -357,6 +360,8 @@ public:
 
 enum class OPTTRK_THREAD {
 	FREE = 0,
+	CALIB_REGISTER,
+	CHECKER_REGISTER,
 	C_ARM_REGISTER,
 	C_ARM_SHOT_MOMENT,
 	TOOL_REGISTER,
@@ -395,6 +400,7 @@ typedef struct GlobalContainer {
 	std::ofstream g_recScanStream;
 
 	std::map<std::string, int> g_selectedMkNames;
+	std::vector<std::string> g_calibSortMKNames;
 	std::map<int, int> g_mapAidGroupCArmCam;
 
 	std::map<std::string, std::vector<glm::fvec3>> g_rbLocalUserPoints;
@@ -449,8 +455,9 @@ typedef struct GlobalContainer {
 		}
 	};
 
+	bool g_showCalibMarkers = false;
 	std::map<glm::fvec3, glm::fvec2, homographyPairCompare> g_homographyPairs;
-	bool g_showCalibMarkers;
+	std::string g_optiRbStates;
 
 	//================ THREAD SAFE GROUP ==================
 	std::atomic<OPTTRK_THREAD> g_optiEvent; // { OPTTRK_THREAD::FREE };
@@ -473,7 +480,7 @@ typedef struct GlobalContainer {
 	// tracking thread 에서 queue 에 등록 (최신 정보 insert) 및 삭제 (오래된 element push out)
 	// timer thread (rendering thread) 에서 queue 의 정보를 pop out (삭제) 하여 사용 
 
-	std::atomic_bool g_calribmodeToggle;// { false };
+	std::atomic_bool g_markerSelectionMode;// { false };
 	std::atomic_int g_downloadCompleted;// { 0 };
 	std::atomic_int g_ui_banishing_count;// { 0 };
 
@@ -519,7 +526,7 @@ typedef struct GlobalContainer {
 		g_tracker_alive = true;
 		g_network_alive = true;
 
-		g_calribmodeToggle = false;
+		g_markerSelectionMode = false;
 		g_downloadCompleted = 0;
 		g_ui_banishing_count = 0;
 

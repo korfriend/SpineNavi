@@ -61,6 +61,7 @@ namespace vmgui {
 			CLIPPER = 0x1 << 3,
 			CUSTOM_MOVE = 0x1 << 4,
 			CUSTOM_DOWN = 0x1 << 5,
+			CUSTOM_WHEEL = 0x1 << 6,
 		};
 	private:
 		std::string __windowName = "";
@@ -94,6 +95,10 @@ namespace vmgui {
 		~ImGuiVzmWindow();
 		std::string GetWindowName();
 		void SetStageCenterScale(const glm::fvec3& centerStage, const float centerStageScale);
+		void GetStageCenterScale(glm::fvec3& centerStage, float& centerStageScale) {
+			centerStage = __centerStage;
+			centerStageScale = __centerStageScale;
+		}
 		glm::fvec2 GetMousePos() {
 			return __curMousePos;
 		}
@@ -119,6 +124,7 @@ namespace vmgui {
 		void EnableTransformer(const bool enabled);
 		void EnableCustomMove(const bool enabled);
 		void EnableCustomDown(const bool enabled);
+		void EnableCustomWHEEL(const bool enabled);
 		void EnableBoxClipper(const bool enabled, const int aidTarget);
 		void EnableMouseMove(const bool enabled);
 		void EnableMouseZoom(const bool enabled);

@@ -19,10 +19,13 @@ namespace optitrk
 	//==     6 = MJPEG Mode
 	// exposure [0~480] and threshold [0~255]
 	// intensity [0~15] almost 15
-	__dojostatic bool SetCameraSettings(int cam_idx, int video_type, int exposure, int threshold, int intensity = 15);
-	__dojostatic bool SetCameraFrameRate(int cam_idx, int frameRate);
+	__dojostatic bool SetCameraSettings(const int cam_idx, const int video_type, const int exposure, const int threshold, const int intensity = 15);
+	__dojostatic bool SetCameraFrameRate(const int cam_idx, const int frameRate);
+	__dojostatic bool GetCameraSettings(const int cam_idx, int* video_type, int* exposure, int* threshold, int* intensity);
+	__dojostatic bool GetCameraBuffer(const int cam_idx, const int bufferPixelWidth, const int bufferPixelHeight, unsigned char* buffer);
+	__dojostatic bool StoreCameraBufferAsBMP(const int cam_idx, const std::string& filename);
 
-	__dojostatic bool LoadProfileAndCalibInfo(const std::string& file_profile, const std::string& file_calib);
+	__dojostatic bool LoadProfileAndCalibInfo(const std::string& file_profile, const std::string& file_calib, const bool clearPrevAssets = true);
 	__dojostatic bool StoreProfile(const std::string& file_profile);
 	__dojostatic int GetMarkersLocation(std::vector<float>* mk_xyz_list, std::vector<float>* mk_residual_list = NULL, std::vector<std::bitset<128>>* mk_cid_list = NULL);
 	__dojostatic int GetRigidBodies(std::vector<std::string>* rb_names = NULL);
