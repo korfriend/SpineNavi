@@ -596,9 +596,7 @@ namespace rendertask {
 		map<string, fvec3> extCalibMarkers;
 		map<std::string, map<track_info::MKINFO, std::any>> rbmkSet;
 		if (trackInfo.GetRigidBodyByName("calib", NULL, NULL, &rbmkSet, NULL)){
-			int idx = 1;
 			for (auto& it : rbmkSet) {
-				// "p" + to_string(idx++)
 				std::string mkName = it.first;
 
 				if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD) {

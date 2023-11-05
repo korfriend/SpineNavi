@@ -194,7 +194,7 @@ namespace trackingtask {
 							glm::fmat4x4 mat_t = glm::translate(posData);
 							glm::fmat4x4 matLS2WS = mat_t * mat_r;
 
-							float mkMSE = std::stof(rowData[i++]);
+							float rbMSE = std::stof(rowData[i++]);
 
 							std::map<std::string, std::map<track_info::MKINFO, std::any>> rbmkSet;
 							while (rowTypes[i] == "Rigid Body Marker") {
@@ -218,8 +218,13 @@ namespace trackingtask {
 							}
 							rbMkSets.push_back(rbmkSet);
 
+							if (rbMSE >= 0)
+								optRbState += rbName + "(O) ERR:" + to_string(rbMSE * 1000.f) + " mm\n";
+							else
+								optRbState += rbName + "(X) ERR: NAN\n";
+
 							// 저장 시 tvec, quaternion 버전으로..
-							if (!trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, mkMSE, mkMSE >= 0, rbmkSet))
+							if (!trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, rbMSE, rbMSE >= 0, rbmkSet))
 								__gc->g_engineLogger->error("(" + rbName + ") is already added to <track_info>!!");
 						} // else if (rowTypes[i] == "Rigid Body")
 						else if (rowTypes[i] == "Marker") {
@@ -732,7 +737,8 @@ namespace trackingtask {
 				// __gc->g_optiRecordMode != OPTTRK_RECMODE::LOAD
 			} 
 
-			__gc->g_optiRbStates = optRbState;
+			if (optRbState != "")
+				__gc->g_optiRbStates = optRbState;
 
 			if (trk_info.NumMarkers() > 0 || trk_info.NumRigidBodies() > 0)
 				__gc->g_track_que.push(trk_info);

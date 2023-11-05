@@ -496,6 +496,22 @@ typedef struct GlobalContainer {
 	std::atomic_int g_error_duration; // frames
 	std::string g_error_text;
 	std::shared_ptr<spdlog::logger> g_engineLogger;
+
+	// intrinsics
+	float g_intParam_minCircularity = 0.75f;
+	float g_intParam_minInertiaRatio = 0.3f;
+	int g_intParam_minRepeatability = 2;
+	// extrinsics
+	// https://stackoverflow.com/questions/32973537/what-is-the-use-of-minrepeatability-parameter-of-simpleblobdetector-in-opencv
+	float g_extParam_minCircularity = 0.75f;
+	float g_extParam_minInertiaRatio = 0.3f;
+	int g_extParam_minRepeatability = 2;
+	// opencv highgui
+	int g_circleThickness = 2;
+
+	float g_refCArmRbDist = -1.f;
+	float g_refCArmRbAngle = 0;
+
 	void SetErrorCode(std::string errorText, int duration = 100) {
 		g_error_text = errorText;
 		g_error_duration = duration;

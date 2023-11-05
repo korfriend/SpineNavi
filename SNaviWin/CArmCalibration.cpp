@@ -257,11 +257,20 @@ namespace mystudents {
 
 		params.minArea = minArea; // The size of the blob filter to be applied.If the corresponding value is increased, small circles are not detected.
 		params.maxArea = maxArea;
-		params.minCircularity = 0.3; // 1 >> it detects perfect circle.Minimum size of center angle
-
-		params.minInertiaRatio = 0.1; // 1 >> it detects perfect circle. short / long axis
-		params.minRepeatability = 2;
 		params.minDistBetweenBlobs = minInterval;
+
+		if (rows * cols < 40) {
+			// extrinsics
+			params.minCircularity = __gc->g_extParam_minCircularity; // 1 >> it detects perfect circle.Minimum size of center angle
+			params.minInertiaRatio = __gc->g_extParam_minInertiaRatio; // 1 >> it detects perfect circle. short / long axis
+			params.minRepeatability = __gc->g_extParam_minRepeatability;
+		}
+		else {
+			// intrinsics
+			params.minCircularity = __gc->g_intParam_minCircularity; // 1 >> it detects perfect circle.Minimum size of center angle
+			params.minInertiaRatio = __gc->g_intParam_minInertiaRatio; // 1 >> it detects perfect circle. short / long axis
+			params.minRepeatability = __gc->g_intParam_minRepeatability;
+		}
 
 		cv::Ptr<cv::SimpleBlobDetector> detector = cv::SimpleBlobDetector::create(params);
 		vector<cv::KeyPoint> keypoints;
