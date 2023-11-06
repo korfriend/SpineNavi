@@ -221,7 +221,7 @@ namespace trackingtask {
 							if (rbMSE >= 0)
 								optRbState += rbName + "(O) ERR:" + to_string(rbMSE * 1000.f) + " mm\n";
 							else
-								optRbState += rbName + "(X) ERR: NAN\n";
+								optRbState += rbName + "(X) ERR: N/A\n";
 
 							// 저장 시 tvec, quaternion 버전으로..
 							if (!trk_info.AddRigidBody(rbName, cid, matLS2WS, qtData, posData, rbMSE, rbMSE >= 0, rbmkSet))
@@ -288,7 +288,7 @@ namespace trackingtask {
 					if (isTracked)
 						optRbState += rbName + "(O) ERR:" + to_string(rbMSE * 1000.f) + " mm\n";
 					else
-						optRbState += rbName + "(X) ERR: NAN\n";
+						optRbState += rbName + "(X) ERR: N/A\n";
 
 
 					int numRbMks = (int)posMKs.size() / 3;

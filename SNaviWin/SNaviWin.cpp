@@ -584,8 +584,9 @@ void mygui(ImGuiIO& io) {
 
 	static ImVec4 clear_color = ImVec4(0.f, 0.2f, 0.3f, 0.95f);
 
+	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.5, 0.3, 0.1, 1));
 	{
-		static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+		static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove //| ImGuiWindowFlags_NoSavedSettings
 			| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground; // ImGuiWindowFlags_NoDecoration | 
 		// tree view 넣기
 
@@ -596,6 +597,7 @@ void mygui(ImGuiIO& io) {
 		ImGui::Begin("Control Widgets");                          // Create a window called "Hello, world!" and append into it.
 		ImGui::Spacing();
 		static int buttonHeight = 30;
+		//ImGui::SetNextItemOpen(true, ImGuiTreeNodeFlags_DefaultOpen);
 		if (ImGui::CollapsingHeader("Render Option", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::ColorEdit4("background color", (float*)&clear_color); // Edit 4 floats representing a color
 
@@ -699,6 +701,8 @@ void mygui(ImGuiIO& io) {
 			ImGui::SameLine();
 			ImGui::SetNextItemWidth(200);
 			ImGui::SliderInt("Circle Line Thickness", &__gc.g_circleThickness, 1, 5);
+
+			//ImGui::TreePop();
 		}
 
 		auto ComputeRefCArmPhase = [](float& dist, float& angle) {
@@ -715,6 +719,8 @@ void mygui(ImGuiIO& io) {
 			return false;
 		};
 		ImGui::Spacing();
+		//ImGui::SeparatorText("");
+		//ImGui::SetNextItemOpen(true, ImGuiTreeNodeFlags_DefaultOpen);
 		if (ImGui::CollapsingHeader("Tracker Operation", ImGuiTreeNodeFlags_DefaultOpen)) {
 			ImGui::SeparatorText("Marker Selection:");
 			if (ImGui::Button(__gc.g_markerSelectionMode? "Selection OFF" : "Selection ON", ImVec2(0, buttonHeight)))
@@ -978,6 +984,8 @@ void mygui(ImGuiIO& io) {
 					ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x), ImVec2(0, 0), ImVec2(1, 1));
 				}
 			}
+
+			//ImGui::TreePop();
 		}
 
 		auto DrawCircles = [](const std::vector<cv::Point2f>& points2Ds, std::vector<float>& circleRadiis, const int thickness, cv::Mat& img) {
@@ -1017,6 +1025,8 @@ void mygui(ImGuiIO& io) {
 			return std::sqrt(totalErr / totalPoints);
 		};
 		ImGui::Spacing();
+		//ImGui::SeparatorText("");
+		//ImGui::SetNextItemOpen(true, ImGuiTreeNodeFlags_DefaultOpen);
 		if (ImGui::CollapsingHeader("Calibration (Intrinsics)", ImGuiTreeNodeFlags_DefaultOpen)) {
 			static std::vector<cv::Point3f> corners;
 			static int indexIntrinsic = -1;
@@ -1133,7 +1143,7 @@ void mygui(ImGuiIO& io) {
 
 					cv::Mat cameraMatrix, distCoeffs;
 					std::vector<cv::Mat> rvecs, tvecs;
-					float err = (float)cv::calibrateCamera(calib_points3Ds, calib_points2Ds, cv::Size(intrinsicWidth, intrinsicHeight), cameraMatrix, distCoeffs, rvecs, tvecs);
+					float err = (float)cv::calibrateCamera(calib_points3Ds, calib_points2Ds, cv::Size(g_curScanGrayImg.cols, g_curScanGrayImg.rows), cameraMatrix, distCoeffs, rvecs, tvecs);
 
 					float err1 = ComputeReprojectionErrors(calib_points3Ds, calib_points2Ds, rvecs, tvecs, cameraMatrix, distCoeffs);
 					__gc.g_engineLogger->info("Calibtation Error : {}, Reprojection Error : {}", err, err1);
@@ -1180,9 +1190,13 @@ void mygui(ImGuiIO& io) {
 				//ImVec2 uv_max = ImVec2(1.0f, 1.0f);                 // Lower-right
 				//ImGui::Image(my_tex_id, ImVec2(my_tex_w, my_tex_h), uv_min, uv_max);
 			}
+
+			//ImGui::TreePop();
 		}
 		
 		ImGui::Spacing();
+		//ImGui::SeparatorText("");
+		//ImGui::SetNextItemOpen(true, ImGuiTreeNodeFlags_DefaultOpen);
 		if (ImGui::CollapsingHeader("Calibration (Extrinsics)", ImGuiTreeNodeFlags_DefaultOpen)) {
 			static int indexExtrinsics = -1;
 			static std::vector<std::string> img_files;
@@ -1514,35 +1528,39 @@ void mygui(ImGuiIO& io) {
 				ImVec2 canvas_size = ImGui::GetContentRegionAvail();
 				ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x), ImVec2(0, 0), ImVec2(1, 1));
 			}
+
+			//ImGui::TreePop();
 		}
 
-		ImGui::SeparatorText("System Information:");
-		ImGui::Text("Render Count = %d", vzmpf::GetRenderCount());
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-		ImGui::Text((std::string("Network task : ") + __gc.g_networkState).c_str());
-		float dist_cur = -1, angle_cur = 0;
-		ComputeRefCArmPhase(dist_cur, angle_cur);
-		if (dist_cur >= 0) {
-			ImGui::Text("C-Arm & Checker Difference (Dist:%f mm)(Angle:%f deg)", abs(__gc.g_refCArmRbDist - dist_cur) * 1000.f, abs(__gc.g_refCArmRbAngle - angle_cur));
-		}
-		else {
-			ImGui::Text("C-Arm & Checker Difference (NAN)");
-		}
+		ImGui::Spacing();
+		//ImGui::SeparatorText("");
+		//ImGui::SetNextItemOpen(true, ImGuiTreeNodeFlags_DefaultOpen);
+		if (ImGui::CollapsingHeader("System Information", ImGuiTreeNodeFlags_DefaultOpen)) {
+			ImGui::Text("Render Count = %d", vzmpf::GetRenderCount());
+			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+			ImGui::Text((std::string("Network task : ") + __gc.g_networkState).c_str());
+			float dist_cur = -1, angle_cur = 0;
+			ComputeRefCArmPhase(dist_cur, angle_cur);
+			if (dist_cur >= 0) {
+				ImGui::Text("C-Arm & Checker Difference (Dist:%.3f mm)(Angle:%.3f deg)", abs(__gc.g_refCArmRbDist - dist_cur) * 1000.f, abs(__gc.g_refCArmRbAngle - angle_cur));
+			}
+			else {
+				ImGui::Text("C-Arm & Checker Difference (N/A)");
+			}
 
-		ImGui::SeparatorText("TRACKING ASSETS:");
-		ImGui::Text(__gc.g_optiRbStates.c_str());
+			ImGui::SeparatorText("TRACKING ASSETS:");
+			ImGui::Text(__gc.g_optiRbStates.c_str());
+
+			//ImGui::TreePop();
+		}
 
 		ImGui::End();
 	}
+	ImGui::PopStyleColor(ImGuiCol_Header);
 
-	//bool debugWindowShow = false;
-	//ImGui::ShowDebugLogWindow(&debugWindowShow);
-
-	// 3. Show another simple window.
-	if (ImGui::CollapsingHeader(view1.GetWindowName().c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+	if (1) // ImGui::CollapsingHeader(view2.GetWindowName().c_str(), ImGuiTreeNodeFlags_DefaultOpen)
 	{
 		ImGui::SetNextWindowPos(ImVec2(5, 5), ImGuiCond_Once);
-
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 		ImGui::PushStyleColor(ImGuiCol_WindowBg, clear_color); // Set window background to 
 		ImGui::Begin(view1.GetWindowName().c_str());   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
@@ -1550,12 +1568,8 @@ void mygui(ImGuiIO& io) {
 		ImGui::PopStyleColor();
 		view1.View(NULL);
 		ImGui::End();
-	}
 
-	if (ImGui::CollapsingHeader(view2.GetWindowName().c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-	{
 		ImGui::SetNextWindowPos(ImVec2((g_sizeWinX - g_sizeRightPanelW) / 2 + 10, 5), ImGuiCond_Once);
-
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
 		ImGui::PushStyleColor(ImGuiCol_WindowBg, clear_color); // Set window background to 
 		ImGui::Begin(view2.GetWindowName().c_str());   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
@@ -1639,10 +1653,13 @@ int main()
 	ImFontConfig config;
 	config.OversampleH = 2;
 	config.OversampleV = 2;
+	//config.SizePixels
 	config.GlyphExtraSpacing.x = 1.0f;
-	ImFont* font1 = io.Fonts->AddFontDefault();
-	ImFont* font2 = io.Fonts->AddFontFromFileTTF("c:/windows/fonts/arial.ttf", 12, &config);
-	ImFont* font3 = io.Fonts->AddFontFromFileTTF("c:/windows/fonts/arial.ttf", 30, &config);
+	config.RasterizerMultiply = 1.2f;
+	//ImFont* font1 = io.Fonts->AddFontDefault();
+	ImFont* font2 = io.Fonts->AddFontFromFileTTF("c:/windows/fonts/arial.ttf", 13, &config);
+	//ImFont* font3 = io.Fonts->AddFontFromFileTTF("c:/windows/fonts/arial.ttf", 30);//, &config);
+	io.Fonts->Build();
 
 	__gc.Init();
 	__gc.g_folder_data = GetDataPath();

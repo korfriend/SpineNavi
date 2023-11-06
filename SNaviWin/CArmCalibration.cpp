@@ -349,7 +349,7 @@ namespace mystudents {
 
 		if (circleRadius) *circleRadius = circleRadiis;
 		// 포지션 잘 정렬되었는지 확인.
-		mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
+		//mystudents::CheckPositionSort(inputImg, points2Ds, circleRadiis);
 
 		return (int)points2Ds.size();
 	}
