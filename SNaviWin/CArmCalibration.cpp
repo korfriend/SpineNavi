@@ -705,7 +705,7 @@ namespace calibtask {
 			__gc->g_CArmRB2SourceCS[3][2] = (float)((double*)tvec.data)[2];
 		}
 	}
-	int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName)
+	int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName, cv::Mat* pimgCArm)
 	{
 		cv::FileStorage fs(carmScanParams, cv::FileStorage::Mode::READ);
 		if (!fs.isOpened())
@@ -736,6 +736,8 @@ namespace calibtask {
 		// the C-arm image (Genoray) is aligned w.r.t. detector's view
 		// the calibration image must be aligned w.r.t. source's view (view frustum's origin point)
 		// therefore, the position mirrored horizontally
+
+		//if (pimgCArm)
 		cv::Mat imgCArm = cv::imread(imgFileName);
 
 		double arrayMatK[9] = {};

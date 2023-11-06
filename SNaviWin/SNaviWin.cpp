@@ -140,13 +140,13 @@ auto ___SaveAndChangeViewState = [](const int keyParam, const int sidScene, cons
 				__gc.SetErrorCode("The Image is Empty!");
 				return false;
 			}
-
+			
 			timePack = to_string(navihelpers::GetCurrentTimePack());
 
 			string downloadImgFileName = __gc.g_folder_trackingInfo + "test" + to_string(i) + "_" + timePack + ".png";
 			__gc.g_lastStoredImageName = "test" + to_string(i) + "_" + timePack;
-			cv::imwrite(downloadImgFileName, colored_img);
 
+			cv::imwrite(downloadImgFileName, colored_img);
 			___StoreParams("test" + to_string(i) + "_" + timePack + ".txt", matCArmRB2WS, downloadImgFileName);
 			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
 
@@ -204,7 +204,7 @@ auto ___SaveAndChangeViewState = [](const int keyParam, const int sidScene, cons
 			}
 		} // if (pcolored_img)
 		else { // // if (pcolored_img == NULL)
-			// load case
+			// load case // __gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD
 
 			if (load_timePack == NULL) {
 				using std::filesystem::directory_iterator;
@@ -249,7 +249,7 @@ auto ___SaveAndChangeViewState = [](const int keyParam, const int sidScene, cons
 		if (it != __gc.g_mapAidGroupCArmCam.end())
 			vzm::RemoveSceneItem(it->second, true);
 		int aidGroup = calibtask::RegisterCArmImage(sidScene, 
-			__gc.g_folder_trackingInfo + "test" + to_string(i) + "_" + timePack + ".txt", "test" + to_string(i));
+			__gc.g_folder_trackingInfo + "test" + to_string(i) + "_" + timePack + ".txt", "test" + to_string(i), NULL);
 		if (aidGroup != -1) {
 			__gc.g_mapAidGroupCArmCam[i] = aidGroup;
 
@@ -1465,7 +1465,8 @@ void mygui(ImGuiIO& io) {
 						fs.write("tvec", tvec);
 						fs.release();
 
-						___SaveAndChangeViewState(char('1'), sidScene, cidRender1, 0, &matRB2WS, &imgProcessing);
+						___SaveAndChangeViewState(char('1'), sidScene, cidRender1, 0, &matRB2WS, NULL);
+						//___SaveAndChangeViewState(char('1'), sidScene, cidRender1, 0, &matRB2WS, &imgProcessing);
 					}
 					else {
 						__gc.SetErrorCode("Cannot load the Intrinsics!!");
@@ -1556,7 +1557,7 @@ void mygui(ImGuiIO& io) {
 
 		ImGui::End();
 	}
-	ImGui::PopStyleColor(ImGuiCol_Header);
+	ImGui::PopStyleColor();
 
 	if (1) // ImGui::CollapsingHeader(view2.GetWindowName().c_str(), ImGuiTreeNodeFlags_DefaultOpen)
 	{
