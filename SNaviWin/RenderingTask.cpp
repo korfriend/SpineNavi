@@ -99,19 +99,6 @@ namespace rendertask {
 		*(glm::fvec3*)cpCam.view = glm::fvec3(1, -1, 1);
 		cpCam.displayActorLabel = cpCam.displayCamTextItem = true;
 
-		// YAML 로 이전에 저장된 (world view 에서의) 카메라 위치 정보 읽어 들임
-		cv::FileStorage fs(__gc->g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
-		if (fs.isOpened()) {
-			cv::Mat ocvVec3;
-			fs["POS"] >> ocvVec3;
-			memcpy(cpCam.pos, ocvVec3.ptr(), sizeof(float) * 3);
-			fs["VIEW"] >> ocvVec3;
-			memcpy(cpCam.view, ocvVec3.ptr(), sizeof(float) * 3);
-			fs["UP"] >> ocvVec3;
-			memcpy(cpCam.up, ocvVec3.ptr(), sizeof(float) * 3);
-			fs.release();
-		}
-
 		// 렌더링될 buffer 사이즈
 		cpCam.w = initBufW;
 		cpCam.h = initBufH;
@@ -184,6 +171,40 @@ namespace rendertask {
 		//vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 		// NOTE : 여기에서는 모든 actor 및 camera, light 등 scene item 들이 모두 scene (i.e., root) 에 바로 연결되었지만,
 		// 특정 actor 의 자식으로 붙을 수도 있다 (e.g., scene<-aidAxis<-aidTextZ<-cidCam1 ,...)
+
+		cv::FileStorage fs(__gc->g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
+		if (fs.isOpened()) {
+			vzm::CameraParameters cpCam1, cpCam2;
+			vzm::GetCameraParams(cidCam1, cpCam1);
+			vzm::GetCameraParams(cidCam2, cpCam2);
+			cv::Mat ocvVec3;
+			fs["POS"] >> ocvVec3;
+			memcpy(cpCam1.pos, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["VIEW"] >> ocvVec3;
+			memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["UP"] >> ocvVec3;
+			memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["fx"] >> cpCam1.fx;
+			fs["fy"] >> cpCam1.fy;
+			fs["sc"] >> cpCam1.sc;
+			fs["cx"] >> cpCam1.cx;
+			fs["cy"] >> cpCam1.cy;
+
+			fs["POS2"] >> ocvVec3;
+			memcpy(cpCam2.pos, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["VIEW2"] >> ocvVec3;
+			memcpy(cpCam2.view, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["UP2"] >> ocvVec3;
+			memcpy(cpCam2.up, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["fx2"] >> cpCam2.fx;
+			fs["fy2"] >> cpCam2.fy;
+			fs["sc2"] >> cpCam2.sc;
+			fs["cx2"] >> cpCam2.cx;
+			fs["cy2"] >> cpCam2.cy;
+			fs.release();
+			vzm::SetCameraParams(cidCam1, cpCam1);
+			vzm::SetCameraParams(cidCam2, cpCam2);
+		}
 	}
 
 	// DOJO : 특별한 기능은 아니며, 카메라 전환 시 부드러운 변화를 위해 slerp 로 카메라 정보를 저장한 구조체

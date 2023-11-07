@@ -711,7 +711,7 @@ namespace calibtask {
 	{
 		int aidGroupCArmCam = 0;
 		vzm::ActorParameters apGroupCams;
-		vzm::NewActor(apGroupCams, "Tracking CAM Group:scanName", aidGroupCArmCam);
+		vzm::NewActor(apGroupCams, "Tracking CAM Group:" + scanName, aidGroupCArmCam);
 		vzm::AppendSceneItemToSceneTree(aidGroupCArmCam, sidScene);
 
 
@@ -752,7 +752,7 @@ namespace calibtask {
 
 		glm::fmat4x4 matCA2WS = matRB2WS * matCA2RB;
 		int oidCamTris = 0, oidCamLines = 0, oidCamLabel = 0;
-		navihelpers::CamOcv_Gen(matCA2WS, "C-Arm Source:" + scanName, oidCamTris, oidCamLines, oidCamLabel);
+		navihelpers::CamOcv_Gen(matCA2WS, "Source:" + scanName, oidCamTris, oidCamLines, oidCamLabel);
 		vzm::ActorParameters apCamTris, apCamLines, apCamLabel;
 		apCamTris.SetResourceID(vzm::ActorParameters::GEOMETRY, oidCamTris);
 		apCamTris.color[3] = 0.5f;
@@ -794,7 +794,7 @@ namespace calibtask {
 
 		int oidImage = 0;
 		//vzm::LoadImageFile(imgFileName, oidImage, true, true);
-		vzm::GenerateImageBuffer(oidImage, imgCArm.data, imgCArm.cols, imgCArm.rows, 3);
+		vzm::GenerateImageBuffer(oidImage, imgCArm.data, imgCArm.cols, imgCArm.rows, imgCArm.channels());
 		int oidCArmPlane = 0;
 		vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
 		vzm::ActorParameters apCArmPlane;

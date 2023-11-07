@@ -110,7 +110,7 @@ void mygui(ImGuiIO& io) {
 	opcode::buttonHeight = 30;
 
 	if (opcode::trackInfo.IsValidTracking()) {
-		opcode::TrackInfo2Scene();
+		opcode::TrackInfo2Scene(); // call render
 	}
 
 	vzm::CameraParameters cpCam1, cpCam2;
@@ -141,21 +141,25 @@ void mygui(ImGuiIO& io) {
 	ImGui::PushStyleColor(ImGuiCol_Header, ImVec4(0.5, 0.3, 0.1, 1));
 	static ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove //| ImGuiWindowFlags_NoSavedSettings
 		| ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoBackground; // ImGuiWindowFlags_NoDecoration | 
+	ImGui::SetNextWindowPos(ImVec2(g_sizeWinX - g_sizeRightPanelW + 20, 5), ImGuiCond_Once);
+	ImGui::SetNextWindowSize(ImVec2(g_sizeRightPanelW - 40, g_sizeWinY - 100), ImGuiCond_Once);
+	ImGui::Begin("Control Widgets");
 	{
-		// tree view 넣기
-		ImGui::SetNextWindowPos(ImVec2(g_sizeWinX - g_sizeRightPanelW + 20, 5), ImGuiCond_Once);
-		ImGui::SetNextWindowSize(ImVec2(g_sizeRightPanelW - 40, g_sizeWinY - 100), ImGuiCond_Once);
-		ImGui::Begin("Control Widgets");                          // Create a window called "Hello, world!" and append into it.
+		// tree view 넣기                        // Create a window called "Hello, world!" and append into it.
 		ImGui::Spacing();
 		if (ImGui::CollapsingHeader("Render Option", ImGuiTreeNodeFlags_DefaultOpen)) {
 			opcode::ControlWidgets(clear_color);
 		}
 
-		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) {
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE || __gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
 			ImGui::Spacing();
 			if (ImGui::CollapsingHeader("Tracker Operation", ImGuiTreeNodeFlags_DefaultOpen)) {
 				opcode::TrackerOperation(view1, view2);
 			}
+		}
+
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
+
 		}
 
 		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
@@ -174,9 +178,8 @@ void mygui(ImGuiIO& io) {
 		if (ImGui::CollapsingHeader("System Information", ImGuiTreeNodeFlags_DefaultOpen)) {
 			opcode::SystemInfo();
 		}
-
-		ImGui::End();
 	}
+	ImGui::End();
 	ImGui::PopStyleColor();
 
 	if (1) // ImGui::CollapsingHeader(view2.GetWindowName().c_str(), ImGuiTreeNodeFlags_DefaultOpen)
@@ -198,6 +201,11 @@ void mygui(ImGuiIO& io) {
 		ImGui::PopStyleColor();
 		view2.View(NULL);
 		ImGui::End();
+	}
+
+	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+		vzm::RenderScene(opcode::sidScene, opcode::cidRender1);
+		vzm::RenderScene(opcode::sidScene, opcode::cidRender2);
 	}
 }
 
@@ -351,8 +359,15 @@ int main()
 	vzm::RenderScene(sidScene, cidRender1);
 	vzm::RenderScene(sidScene, cidRender2);
 
-	std::thread tracker_processing_thread(trackingtask::OptiTrackingProcess);
-	std::thread network_processing_thread(nettask::NetworkProcess);
+	std::thread tracker_processing_thread;
+	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) {
+		tracker_processing_thread = std::thread(trackingtask::OptiTrackingProcess);
+	}
+
+	std::thread network_processing_thread;
+	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE || __gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
+		network_processing_thread = std::thread(nettask::NetworkProcess);
+	}
 	// Main loop
 	bool done = false;
 	while (!done)
@@ -401,10 +416,15 @@ int main()
 		//g_pSwapChain->Present(0, 0); // Present without vsync
 	}
 
-	__gc.g_tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
-	tracker_processing_thread.join();
-	__gc.g_network_alive = false;
-	network_processing_thread.join();
+	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) {
+		__gc.g_tracker_alive = false; // make the thread finishes, this setting should be located right before the thread join
+		tracker_processing_thread.join();
+	}
+
+	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE || __gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
+		__gc.g_network_alive = false;
+		network_processing_thread.join();
+	}
 
 	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
 		optitrk::DeinitOptiTrackLib();

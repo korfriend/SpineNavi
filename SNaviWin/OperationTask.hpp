@@ -270,12 +270,8 @@ namespace opcode {
 			}
 		}
 
-		auto it = __gc.g_mapAidGroupCArmCam.find(EXTRINSIC_PHANTOM_IMG_INDEX);
-		if (it != __gc.g_mapAidGroupCArmCam.end())
-			vzm::RemoveSceneItem(it->second, true);
-
 		// load case
-		it = __gc.g_mapAidGroupCArmCam.find(viewIdx);
+		auto it = __gc.g_mapAidGroupCArmCam.find(viewIdx);
 		if (it != __gc.g_mapAidGroupCArmCam.end())
 			vzm::RemoveSceneItem(it->second, true);
 
@@ -312,7 +308,7 @@ namespace opcode {
 			// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
 			// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
 			// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
-			int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:test" + std::to_string(viewIdx));
+			int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(viewIdx));
 			if (aidCArmPlane == 0)
 				return false;
 
@@ -400,38 +396,47 @@ namespace opcode {
 				if (__gc.g_optiRecordFrame <= 2) {
 					recRowCount = 0;
 
-					glm::fvec3 posInit, viewInit, upInit;
 					cv::FileStorage fs(__gc.g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
 					if (fs.isOpened()) {
+						glm::fvec3 posInit[2], viewInit[2], upInit[2];
+						float fx[2], fy[2], sc[2], cx[2], cy[2];
 						cv::Mat ocvVec3;
-						fs["POS"] >> ocvVec3;
-						memcpy(&posInit, ocvVec3.ptr(), sizeof(float) * 3);
-						fs["VIEW"] >> ocvVec3;
-						memcpy(&viewInit, ocvVec3.ptr(), sizeof(float) * 3);
-						fs["UP"] >> ocvVec3;
-						memcpy(&upInit, ocvVec3.ptr(), sizeof(float) * 3);
+						for (int i = 0; i < 2; i++) {
+							fs[i == 0 ? "POS" : "POS2"] >> ocvVec3;
+							memcpy(&posInit[i], ocvVec3.ptr(), sizeof(float) * 3);
+							fs[i == 0 ? "VIEW" : "VIEW2"] >> ocvVec3;
+							memcpy(&viewInit[i], ocvVec3.ptr(), sizeof(float) * 3);
+							fs[i == 0 ? "UP" : "UP2"] >> ocvVec3;
+							memcpy(&upInit[i], ocvVec3.ptr(), sizeof(float) * 3);
+							fs[i == 0 ? "fx" : "fx2"] >> fx[i];
+							fs[i == 0 ? "fy" : "fy2"] >> fy[i];
+							fs[i == 0 ? "sc" : "sc2"] >> sc[i];
+							fs[i == 0 ? "cx" : "cx2"] >> cx[i];
+							fs[i == 0 ? "cy" : "cy2"] >> cy[i];
+						}
 						fs.release();
+
+						//float vFov = 3.141592654f / 4.f;
+						int cidCams[2] = { cidRender1 , cidRender2 };
+						for (int i = 0; i < 2; i++) {
+							vzm::CameraParameters cpCam;
+							vzm::GetCameraParams(cidCams[i], cpCam);
+
+							//float aspect_ratio = (float)cpCam.w / (float)cpCam.h;
+							//float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
+							cpCam.fx = fx[i]; //cpCam.w / (2.f * tan(hFov / 2.f));
+							cpCam.fy = fy[i]; //cpCam.h / (2.f * tan(vFov / 2.f));
+							cpCam.sc = sc[i]; //0;
+							cpCam.cx = cx[i]; //cpCam.w / 2.f;
+							cpCam.cy = cy[i]; //cpCam.h / 2.f;
+							cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+							*(glm::fvec3*)cpCam.pos = posInit[i];
+							*(glm::fvec3*)cpCam.view = viewInit[i];
+							*(glm::fvec3*)cpCam.up = upInit[i];
+							vzm::SetCameraParams(cidCams[i], cpCam);
+						}
 					}
 
-					float vFov = 3.141592654f / 4.f;
-					int cidCams[2] = { cidRender1 , cidRender2 };
-					for (int i = 0; i < 2; i++) {
-						vzm::CameraParameters cpCam;
-						vzm::GetCameraParams(cidCams[i], cpCam);
-
-						float aspect_ratio = (float)cpCam.w / (float)cpCam.h;
-						float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
-						cpCam.fx = cpCam.w / (2.f * tan(hFov / 2.f));
-						cpCam.fy = cpCam.h / (2.f * tan(vFov / 2.f));
-						cpCam.sc = 0;
-						cpCam.cx = cpCam.w / 2.f;
-						cpCam.cy = cpCam.h / 2.f;
-						cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
-						*(glm::fvec3*)cpCam.pos = posInit;
-						*(glm::fvec3*)cpCam.view = viewInit;
-						*(glm::fvec3*)cpCam.up = upInit;
-						vzm::SetCameraParams(cidCams[i], cpCam);
-					}
 
 					for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
 						vzm::RemoveSceneItem(it->second, true);
@@ -550,12 +555,23 @@ namespace opcode {
 			fs.write("VIEW", ocvVec3);
 			memcpy(ocvVec3.ptr(), cpCam1.up, sizeof(float) * 3);
 			fs.write("UP", ocvVec3);
+			fs.write("fx", cpCam1.fx);
+			fs.write("fy", cpCam1.fy);
+			fs.write("sc", cpCam1.sc);
+			fs.write("cx", cpCam1.cx);
+			fs.write("cy", cpCam1.cy);
+
 			memcpy(ocvVec3.ptr(), cpCam2.pos, sizeof(float) * 3);
 			fs.write("POS2", ocvVec3);
 			memcpy(ocvVec3.ptr(), cpCam2.view, sizeof(float) * 3);
 			fs.write("VIEW2", ocvVec3);
 			memcpy(ocvVec3.ptr(), cpCam2.up, sizeof(float) * 3);
 			fs.write("UP2", ocvVec3);
+			fs.write("fx2", cpCam2.fx);
+			fs.write("fy2", cpCam2.fy);
+			fs.write("sc2", cpCam2.sc);
+			fs.write("cx2", cpCam2.cx);
+			fs.write("cy2", cpCam2.cy);
 			fs.release();
 		}
 		ImGui::SameLine();
@@ -574,60 +590,90 @@ namespace opcode {
 					memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
 					fs["UP"] >> ocvVec3;
 					memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["fx"] >> cpCam1.fx;
+					fs["fy"] >> cpCam1.fy;
+					fs["sc"] >> cpCam1.sc;
+					fs["cx"] >> cpCam1.cx;
+					fs["cy"] >> cpCam1.cy;
+
 					fs["POS2"] >> ocvVec3;
 					memcpy(cpCam2.pos, ocvVec3.ptr(), sizeof(float) * 3);
 					fs["VIEW2"] >> ocvVec3;
 					memcpy(cpCam2.view, ocvVec3.ptr(), sizeof(float) * 3);
 					fs["UP2"] >> ocvVec3;
 					memcpy(cpCam2.up, ocvVec3.ptr(), sizeof(float) * 3);
+					fs["fx2"] >> cpCam2.fx;
+					fs["fy2"] >> cpCam2.fy;
+					fs["sc2"] >> cpCam2.sc;
+					fs["cx2"] >> cpCam2.cx;
+					fs["cy2"] >> cpCam2.cy;
 					fs.release();
 				}
 				vzm::SetCameraParams(cidRender1, cpCam1);
 				vzm::SetCameraParams(cidRender2, cpCam2);
 			}
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("Delete Scans", ImVec2(0, buttonHeight)))
-		{
-			for (int i = 0; i < 9; i++) {
-				auto it = __gc.g_mapAidGroupCArmCam.find(i + 1);
-				if (it != __gc.g_mapAidGroupCArmCam.end())
-					vzm::RemoveSceneItem(it->second, true);
-			}
-			__gc.g_mapAidGroupCArmCam.clear();
+		//ImGui::SameLine();
+		//if (ImGui::Button("Delete Scans", ImVec2(0, buttonHeight)))
+		//{
+		//	for (int i = 0; i < 9; i++) {
+		//		auto it = __gc.g_mapAidGroupCArmCam.find(i + 1);
+		//		if (it != __gc.g_mapAidGroupCArmCam.end())
+		//			vzm::RemoveSceneItem(it->second, true);
+		//	}
+		//	__gc.g_mapAidGroupCArmCam.clear();
+		//
+		//	__gc.g_testMKs.clear();
+		//	__gc.g_selectedMkNames.clear();
+		//	int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
+		//	if (aidTestGroup != 0)
+		//		vzm::RemoveSceneItem(aidTestGroup);
+		//}
 
-			__gc.g_testMKs.clear();
-			__gc.g_selectedMkNames.clear();
-			int aidTestGroup = vzmutils::GetSceneItemIdByName("testMK Group");
-			if (aidTestGroup != 0)
-				vzm::RemoveSceneItem(aidTestGroup);
-		}
-
+		static bool hideAP = false, hideLL = false;
 		if (ImGui::Button("View AP", ImVec2(0, buttonHeight)))
 		{
-			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
-				__gc.SetErrorCode("Not Allowed during Rec Processing!");
-			}
-			else {
-				SaveAndChangeViewState(sidScene, cidRender1, 1, NULL, NULL);
-			}
+			hideAP = false;
+			SaveAndChangeViewState(sidScene, cidRender1, 1, NULL, NULL);
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("View LL", ImVec2(0, buttonHeight)))
 		{
-			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
-				__gc.SetErrorCode("Not Allowed during Rec Processing!");
+			hideLL = false;
+			SaveAndChangeViewState(sidScene, cidRender2, 2, NULL, NULL);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button(hideAP? "Show AP Image" : "Hide AP Image", ImVec2(0, buttonHeight)))
+		{
+			hideAP = !hideAP;
+			int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:1");
+			if (aidImgPlane != 0) {
+				vzm::ActorParameters apImg;
+				vzm::GetActorParams(aidImgPlane, apImg);
+				apImg.is_visible = !hideAP;
+				vzm::SetActorParams(aidImgPlane, apImg);
 			}
-			else {
-				SaveAndChangeViewState(sidScene, cidRender2, 2, NULL, NULL);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button(hideLL ? "Show LL Image" : "Hide LL Image", ImVec2(0, buttonHeight)))
+		{
+			hideLL = !hideLL;
+			int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:2");
+			if (aidImgPlane != 0) {
+				vzm::ActorParameters apImg;
+				vzm::GetActorParams(aidImgPlane, apImg);
+				apImg.is_visible = !hideLL;
+				vzm::SetActorParams(aidImgPlane, apImg);
 			}
 		}
 
-		ImGui::SeparatorText("Image Processing Display:");
-		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(200);
-		ImGui::SliderInt("Circle Line Thickness", &__gc.g_circleThickness, 1, 5);
+		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
+			ImGui::SeparatorText("Image Processing Display:");
+			if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(200);
+			ImGui::SliderInt("Circle Line Thickness", &__gc.g_circleThickness, 1, 5);
+		}
 	}
 
 	void TrackerOperation(vmgui::ImGuiVzmWindow& view1, vmgui::ImGuiVzmWindow& view2)
@@ -900,13 +946,17 @@ namespace opcode {
 	void CalibrateIntrinsics()
 	{
 		static std::vector<cv::Point3f> corners;
-		static int indexIntrinsic = -1;
+		static int indexIntrinsic = -2;
 		static std::vector<std::string> files;
-		if (indexIntrinsic == -1) {
-			indexIntrinsic = 0;
+		static std::map<int, bool> mapScanToCalib;
+		if (indexIntrinsic == -2) {
+			indexIntrinsic = -1;
+			int count = 0;
 			for (const auto& entry : std::filesystem::directory_iterator(__gc.g_folder_trackingInfo + "int_images")) {
-				if (entry.path().extension().string() == ".png")
+				if (entry.path().extension().string() == ".png") {
 					files.push_back(entry.path().string());
+					mapScanToCalib[count++] = false;
+				}
 			}
 		}
 		static ID3D11ShaderResourceView* pSRV = NULL;
@@ -917,11 +967,33 @@ namespace opcode {
 		static float intrinsicSpaceX = 1.6f, intrinsicSpaceY = 1.6f;
 		static int w, h;
 		static bool isCalibratedIntrinsic = false;
-		if (ImGui::Button("Add Intrinsic", ImVec2(0, buttonHeight)))
+		static bool imgReady = false;
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+			for (int i = 0; i < (int)files.size(); i++)
+			{
+				bool colorHighlight = i == indexIntrinsic;
+				if (colorHighlight) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6, 0.1, 0.2, 1));
+				else if (mapScanToCalib[i]) {
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1, 0.6, 0.2, 1));
+					colorHighlight = true;
+				}
+
+				if(ImGui::Button(((i < 10? "I:0" : "I:") + std::to_string(i)).c_str())) {
+					indexIntrinsic = i;
+					imgReady = true;
+				}
+				if ((i % 10 != 0 || i == 0) && i != (int)files.size() - 1) ImGui::SameLine();
+				if (colorHighlight) ImGui::PopStyleColor();
+			}
+		}
+
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT ? imgReady : ImGui::Button("Add Intrinsic", ImVec2(0, buttonHeight)))
 		{
+			imgReady = false;
 			cv::Mat img;
-			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 				img = cv::imread(files[indexIntrinsic]);
+				__gc.g_engineLogger->info("image index : {}", indexIntrinsic);
 			}
 			else if (g_curScanGrayImg.data != NULL) {
 				cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGB);
@@ -987,17 +1059,19 @@ namespace opcode {
 					cv::merge(channels, img);
 				}
 
-				__gc.g_engineLogger->info("image index : {}", indexIntrinsic);
-
 				pSRV = LoadTextureFromFile(img.data, "INTRINSIC_IMG", image_width, image_height);
 				isCalibratedIntrinsic = false;
 			}
 		}
-		ImGui::SameLine();
+		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) ImGui::SameLine();
 		if (ImGui::Button("Apply Intrinsic", ImVec2(0, buttonHeight)))
 		{
-			indexIntrinsic++;
-			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) indexIntrinsic = indexIntrinsic % files.size();
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+				if (mapScanToCalib[indexIntrinsic]) {
+					isCalibratedIntrinsic = true;
+				}
+				mapScanToCalib[indexIntrinsic] = true;
+			}
 			if (points2D.size() != intrinsicWidth * intrinsicHeight) {
 				__gc.SetErrorCode("Failure to detect the entire circles!");
 			}
@@ -1065,10 +1139,12 @@ namespace opcode {
 
 	void CalibrateExtrinsics()
 	{
-		static int indexExtrinsics = -1;
+		static int indexExtrinsics = -2;
 		static std::vector<std::string> img_files;
 		static std::vector<std::string> geo_files;
-		if (indexExtrinsics == -1) {
+		static std::map<int, bool> mapScanToCalib;
+		if (indexExtrinsics == -2) {
+			int count = 0;
 			for (const auto& entry : std::filesystem::directory_iterator(__gc.g_folder_trackingInfo + "ext_images")) {
 				if (entry.path().extension().string() == ".png") {
 					std::string fileName = entry.path().string();
@@ -1077,9 +1153,11 @@ namespace opcode {
 					size_t lastindex = fileName.find_last_of(".");
 					std::string geoFileName = fileName.substr(0, lastindex) + "_RBPts.txt";
 					geo_files.push_back(geoFileName);
+
+					mapScanToCalib[count++] = false;
 				}
 			}
-			indexExtrinsics = 0;
+			indexExtrinsics = -1;
 		}
 		static ID3D11ShaderResourceView* pSRV = NULL;
 		static std::vector<cv::Point3f> pointsWS3D;
@@ -1090,11 +1168,37 @@ namespace opcode {
 		static int extrinsicWidth = 3, extrinsicHeight = 3;
 		static int w, h;
 		static bool isCalibratedExtrinsic = false;
+		static bool imgReady = false;
 		static glm::fmat4x4 matRB2WS, matWS2RB;
 		static cv::Mat imgProcessing;
+		static bool showOnlyCurrentSelectionScan = false;
+		bool clickedScanNumber = false;
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+			for (int i = 0; i < (int)img_files.size(); i++)
+			{
+				
+				bool colorHighlight = i == indexExtrinsics;
+				if (colorHighlight) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6, 0.1, 0.2, 1));
+				else if (mapScanToCalib[i]) {
+					ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.1, 0.6, 0.2, 1));
+					colorHighlight = true;
+				}
+				
+				if (ImGui::Button(((i < 10 ? "E:0" : "E:") + std::to_string(i)).c_str())) {
+					indexExtrinsics = i;
+					imgReady = true;
 
-		if (ImGui::Button("Add Extrinsic", ImVec2(0, buttonHeight)))
+					showOnlyCurrentSelectionScan = true;
+					clickedScanNumber = true;
+				}
+				if ((i % 8 != 0 || i == 0) && i != (int)img_files.size() - 1) ImGui::SameLine();
+				if (colorHighlight) ImGui::PopStyleColor();
+			}
+		}
+
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT ? imgReady : ImGui::Button("Add Extrinsic", ImVec2(0, buttonHeight)))
 		{
+			imgReady = false;
 			bool errResult = false;
 
 			cv::FileStorage fs(__gc.g_folder_trackingInfo + "calib_settings.txt", cv::FileStorage::Mode::READ);
@@ -1110,7 +1214,7 @@ namespace opcode {
 
 			// set matRB2WS, matWS2RB
 			// set pointsWS3D (set to __gc.g_testMKs), pointsRB3D
-			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 				cv::FileStorage fs(geo_files[indexExtrinsics], cv::FileStorage::Mode::READ);
 				if (fs.isOpened()) {
 					cv::Mat ocvMat;
@@ -1179,7 +1283,7 @@ namespace opcode {
 			if (!errResult)
 			{
 				cv::Mat img;
-				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
+				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 					img = cv::imread(img_files[indexExtrinsics]);
 				}
 				else if (g_curScanGrayImg.data != NULL) {
@@ -1194,6 +1298,8 @@ namespace opcode {
 					fs << "MAT_WS2RB" << ocvMat;
 					memcpy(ocvMat.ptr(), glm::value_ptr(matRB2WS), sizeof(float) * 16);
 					fs << "MAT_RB2WS" << ocvMat;
+
+					// add CAM pos
 					fs.release();
 				}
 				else {
@@ -1242,11 +1348,15 @@ namespace opcode {
 				}
 			}
 		}
-		ImGui::SameLine();
+		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) ImGui::SameLine();
 		if (ImGui::Button("Apply Extrinsic", ImVec2(0, buttonHeight)))
 		{
-			indexExtrinsics++;
-			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) indexExtrinsics = indexExtrinsics % img_files.size();
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+				if (mapScanToCalib[indexExtrinsics]) {
+					isCalibratedExtrinsic = true;
+				}
+				mapScanToCalib[indexExtrinsics] = true;
+			}
 
 			if (points2D.size() != extrinsicWidth * extrinsicHeight) {
 				__gc.SetErrorCode("Failure to detect the entire circles!");
@@ -1302,15 +1412,6 @@ namespace opcode {
 
 					__gc.g_engineLogger->info("reprojectionError of {} pairs : {}, max error : {}", global_points2d.size(), reprojectionError, maxErr);
 
-					//maxErr = 0;
-					//reprojectionError = 0;
-					//for (int i = 0; i < (int)calib_points2Ds.size(); i++) {
-					//	reprojectionError += ComputeReprojErr(points2D, imagePointsReprojected, maxErr);
-					//}
-					//reprojectionError /= (float)calib_points2Ds.size();
-					//__gc.g_engineLogger->info("entire set ==> reprojectionError : {}, max error : {}", reprojectionError, maxErr);
-
-
 					//matCArmRB2SourceCS
 					cv::Mat matR;
 					cv::Rodrigues(rvec, matR);
@@ -1336,7 +1437,48 @@ namespace opcode {
 					fs.write("tvec", tvec);
 					fs.release();
 
-					SaveAndChangeViewState(sidScene, cidRender1, 1, &matRB2WS, &imgProcessing);
+					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+
+						auto it = __gc.g_mapAidGroupCArmCam.find(indexExtrinsics);
+						if (it != __gc.g_mapAidGroupCArmCam.end())
+							vzm::RemoveSceneItem(it->second, true);
+
+
+						fs = cv::FileStorage(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+						cv::Mat K;
+						fs["K"] >> K;
+						cv::Mat DistCoeffs;
+						fs["DistCoeffs"] >> DistCoeffs;
+						fs.release();
+
+						cv::Mat rb2wsMat(4, 4, CV_32FC1);
+						memcpy(rb2wsMat.ptr(), glm::value_ptr(matRB2WS),sizeof(float) * 16);
+						int aidGroup = calibtask::RegisterCArmImage(sidScene, std::to_string(indexExtrinsics), K, DistCoeffs, rvec, tvec, rb2wsMat, imgProcessing);
+						if (aidGroup != -1) {
+							__gc.g_mapAidGroupCArmCam[indexExtrinsics] = aidGroup;
+
+							// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
+							// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
+							// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
+							int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(1));
+							if (aidCArmPlane != 0) {
+
+								vzm::ActorParameters apCArmPlane;
+								vzm::GetActorParams(aidCArmPlane, apCArmPlane);
+								glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
+
+								rendertask::SetAnimationCamTo(cidRender1, 0,
+									K.at<double>(0, 0), K.at<double>(1, 1), K.at<double>(0, 1), K.at<double>(0, 2), K.at<double>(1, 2),
+									matCA2WS);
+							}
+						}
+						
+						// DOJO TO DO
+						// 구슬 띄우기
+					}
+					else {
+						SaveAndChangeViewState(sidScene, cidRender1, 1, &matRB2WS, &imgProcessing);
+					}
 				}
 				else {
 					__gc.SetErrorCode("Cannot load the Intrinsics!!");
@@ -1345,37 +1487,69 @@ namespace opcode {
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Reset Extrinsic", ImVec2(0, buttonHeight))) {
+
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT)
+			{
+				for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
+					vzm::RemoveSceneItem(it->second, true);
+				}
+				__gc.g_mapAidGroupCArmCam.clear(); 
+				for (auto it = mapScanToCalib.begin(); it != mapScanToCalib.end(); it++) {
+					it->second = false;
+				}
+			}
+
+
 			__gc.g_homographyPairs.clear();
 			__gc.g_engineLogger->info("Extrinsic Points are cleaned!");
 		}
 		ImGui::SameLine();
-		if (ImGui::Button(!__gc.g_showCalibMarkers ? "Show Calib Points" : "Hide Calib Points", ImVec2(0, buttonHeight)))
-		{
-			__gc.g_showCalibMarkers = !__gc.g_showCalibMarkers;
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+			if (ImGui::Button(showOnlyCurrentSelectionScan ? "Show All Scans" : "Show Current Scan", ImVec2(0, buttonHeight)) || clickedScanNumber) {
+				showOnlyCurrentSelectionScan = !showOnlyCurrentSelectionScan;
+				for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
+					int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(it->first));
+					if (aidImgPlane != 0) {
+						vzm::ActorParameters apImg;
+						vzm::GetActorParams(aidImgPlane, apImg);
+						if (showOnlyCurrentSelectionScan) {
+							apImg.is_visible = it->first == indexExtrinsics;
+						}
+						else apImg.is_visible = true;
+						vzm::SetActorParams(aidImgPlane, apImg);
+					}
+				}
+			}
+		}
+		else {
+			if (ImGui::Button(!__gc.g_showCalibMarkers ? "Show Calib Points" : "Hide Calib Points", ImVec2(0, buttonHeight)))
+			{
+				__gc.g_showCalibMarkers = !__gc.g_showCalibMarkers;
 
-			if (__gc.g_showCalibMarkers) {
-				using namespace glm;
-				fmat4x4 matCam2WS;
-				trackInfo.GetTrackingCamPose(0, matCam2WS);
+				if (__gc.g_showCalibMarkers) {
+					using namespace glm;
+					fmat4x4 matCam2WS;
+					trackInfo.GetTrackingCamPose(0, matCam2WS);
 
-				*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
-				*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
-				*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
+					*(fvec3*)cpCam1.pos = vzmutils::transformPos(fvec3(0, 0, 0), matCam2WS);
+					*(fvec3*)cpCam1.view = vzmutils::transformVec(fvec3(0, 0, -1), matCam2WS);
+					*(fvec3*)cpCam1.up = vzmutils::transformVec(fvec3(0, 1, 0), matCam2WS);
 
-				float vFov = 3.141592654f / 4.f;
-				float aspect_ratio = (float)cpCam1.w / (float)cpCam1.h;
-				float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
+					float vFov = 3.141592654f / 4.f;
+					float aspect_ratio = (float)cpCam1.w / (float)cpCam1.h;
+					float hFov = 2.f * atan(vFov / 2.f) * aspect_ratio;
 
-				//  fy = h/(2 * tan(f_y / 2)) 
-				cpCam1.fx = cpCam1.w / (2.f * tan(hFov / 2.f));
-				cpCam1.fy = cpCam1.h / (2.f * tan(vFov / 2.f));
-				cpCam1.sc = 0;
-				cpCam1.cx = cpCam1.w / 2.f;
-				cpCam1.cy = cpCam1.h / 2.f;
-				cpCam1.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
-				cpCam1.np = 0.15f;
+					//  fy = h/(2 * tan(f_y / 2)) 
+					cpCam1.fx = cpCam1.w / (2.f * tan(hFov / 2.f));
+					cpCam1.fy = cpCam1.h / (2.f * tan(vFov / 2.f));
+					cpCam1.sc = 0;
+					cpCam1.cx = cpCam1.w / 2.f;
+					cpCam1.cy = cpCam1.h / 2.f;
+					cpCam1.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+					cpCam1.np = 0.15f;
 
-				vzm::SetCameraParams(cidRender1, cpCam1);
+					vzm::SetCameraParams(cidRender1, cpCam1);
+				}
 			}
 		}
 
