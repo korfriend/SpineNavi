@@ -58,7 +58,7 @@
     <ClInclude Include="..\imgui\backends\imgui_impl_win32.h">
       <Filter>imgui</Filter>
     </ClInclude>
-    <ClInclude Include="OperationTask.h" />
+    <ClInclude Include="OperationTask.hpp" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="small.ico">

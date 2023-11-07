@@ -374,6 +374,7 @@ enum class OPTTRK_RECMODE {
 	NONE = 0,
 	RECORD,
 	LOAD,
+	CALIB_EDIT,
 };
 
 enum class RENDER_THREAD {

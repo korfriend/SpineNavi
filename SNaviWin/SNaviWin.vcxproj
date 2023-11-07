@@ -162,7 +162,7 @@
     <ClInclude Include="GlobalParams.h" />
     <ClInclude Include="naviHelpers.hpp" />
     <ClInclude Include="NetworkTask.h" />
-    <ClInclude Include="OperationTask.h" />
+    <ClInclude Include="OperationTask.hpp" />
     <ClInclude Include="RenderingTask.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="SNaviWin.h" />

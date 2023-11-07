@@ -705,25 +705,10 @@ namespace calibtask {
 			__gc->g_CArmRB2SourceCS[3][2] = (float)((double*)tvec.data)[2];
 		}
 	}
-	int RegisterCArmImage(const int sidScene, const std::string& carmScanParams, const std::string& scanName, cv::Mat* pimgCArm)
+
+	int RegisterCArmImage(const int sidScene, const std::string& scanName, 
+		const cv::Mat& K, const cv::Mat& DistCoeffs, const cv::Mat& rvec, const cv::Mat& tvec, const cv::Mat& rb2wsMat, const cv::Mat& imgCArm)
 	{
-		cv::FileStorage fs(carmScanParams, cv::FileStorage::Mode::READ);
-		if (!fs.isOpened())
-			return -1;
-
-		cv::Mat K;
-		fs["K"] >> K;
-		cv::Mat DistCoeffs;
-		fs["DistCoeffs"] >> DistCoeffs;
-		cv::Mat rvec, tvec;
-		fs["rvec"] >> rvec;
-		fs["tvec"] >> tvec;
-		cv::Mat rb2wsMat;
-		fs["rb2wsMat"] >> rb2wsMat; // memory storage ordering in opengl
-		std::string imgFileName;
-		fs["imgFile"] >> imgFileName;
-		fs.release();
-
 		int aidGroupCArmCam = 0;
 		vzm::ActorParameters apGroupCams;
 		vzm::NewActor(apGroupCams, "Tracking CAM Group:scanName", aidGroupCArmCam);
@@ -736,9 +721,6 @@ namespace calibtask {
 		// the C-arm image (Genoray) is aligned w.r.t. detector's view
 		// the calibration image must be aligned w.r.t. source's view (view frustum's origin point)
 		// therefore, the position mirrored horizontally
-
-		//if (pimgCArm)
-		cv::Mat imgCArm = cv::imread(imgFileName);
 
 		double arrayMatK[9] = {};
 		double arrayDistCoeffs[5] = {};
@@ -811,7 +793,8 @@ namespace calibtask {
 		unsigned int idxList[6] = { 0, 1, 3, 1, 2, 3 };
 
 		int oidImage = 0;
-		vzm::LoadImageFile(imgFileName, oidImage, true, true);
+		//vzm::LoadImageFile(imgFileName, oidImage, true, true);
+		vzm::GenerateImageBuffer(oidImage, imgCArm.data, imgCArm.cols, imgCArm.rows, 3);
 		int oidCArmPlane = 0;
 		vzm::GeneratePrimitiveObject(__FP ptsCArmPlanes[0], NULL, NULL, __FP ptsTexCoords[0], 4, idxList, 2, 3, oidCArmPlane);
 		vzm::ActorParameters apCArmPlane;
@@ -826,6 +809,7 @@ namespace calibtask {
 
 		return aidGroupCArmCam;
 	}
+
 
 	// note : this function needs to be called in the render thread
 	// using "carm_intrinsics.txt", store opencv's rvec and tvec to "rb2carm1.txt"
