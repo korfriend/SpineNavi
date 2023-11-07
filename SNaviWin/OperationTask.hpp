@@ -1107,6 +1107,14 @@ namespace opcode {
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Reset Intrinsic", ImVec2(0, buttonHeight))) {
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT)
+			{
+				for (auto it = mapScanToCalib.begin(); it != mapScanToCalib.end(); it++) {
+					it->second = false;
+				}
+			}
+
+
 			calib_points2Ds.clear();
 			calib_points3Ds.clear();
 			__gc.g_engineLogger->info("Intrinsic Points are cleaned!");
@@ -1172,7 +1180,6 @@ namespace opcode {
 		static glm::fmat4x4 matRB2WS, matWS2RB;
 		static cv::Mat imgProcessing;
 		static bool showOnlyCurrentSelectionScan = false;
-		bool clickedScanNumber = false;
 		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 			for (int i = 0; i < (int)img_files.size(); i++)
 			{
@@ -1187,9 +1194,6 @@ namespace opcode {
 				if (ImGui::Button(((i < 10 ? "E:0" : "E:") + std::to_string(i)).c_str())) {
 					indexExtrinsics = i;
 					imgReady = true;
-
-					showOnlyCurrentSelectionScan = true;
-					clickedScanNumber = true;
 				}
 				if ((i % 8 != 0 || i == 0) && i != (int)img_files.size() - 1) ImGui::SameLine();
 				if (colorHighlight) ImGui::PopStyleColor();
@@ -1355,7 +1359,20 @@ namespace opcode {
 				if (mapScanToCalib[indexExtrinsics]) {
 					isCalibratedExtrinsic = true;
 				}
-				mapScanToCalib[indexExtrinsics] = true;
+				else {
+					mapScanToCalib[indexExtrinsics] = true;
+					showOnlyCurrentSelectionScan = false;
+
+					for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
+						int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(it->first));
+						if (aidImgPlane != 0) {
+							vzm::ActorParameters apImg;
+							vzm::GetActorParams(aidImgPlane, apImg);
+							apImg.is_visible = true;
+							vzm::SetActorParams(aidImgPlane, apImg);
+						}
+					}
+				}
 			}
 
 			if (points2D.size() != extrinsicWidth * extrinsicHeight) {
@@ -1505,7 +1522,7 @@ namespace opcode {
 		}
 		ImGui::SameLine();
 		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
-			if (ImGui::Button(showOnlyCurrentSelectionScan ? "Show All Scans" : "Show Current Scan", ImVec2(0, buttonHeight)) || clickedScanNumber) {
+			if (ImGui::Button(showOnlyCurrentSelectionScan ? "Show All Scans" : "Show Current Scan", ImVec2(0, buttonHeight))) {
 				showOnlyCurrentSelectionScan = !showOnlyCurrentSelectionScan;
 				for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
 					int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(it->first));
