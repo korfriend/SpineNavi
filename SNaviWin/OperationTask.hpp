@@ -1210,8 +1210,6 @@ namespace opcode {
 				if (ImGui::Button(((i < 10 ? "E:0" : "E:") + std::to_string(i)).c_str()) || processAll == i) {
 					indexExtrinsics = i;
 					imgReady = true;
-
-					// ±¸½½ ¶ç¿ì±â?
 				}
 				if ((i % 8 != 0 || i == 0) && i != (int)img_files.size() - 1) ImGui::SameLine();
 				if (colorHighlight) ImGui::PopStyleColor();
@@ -1398,6 +1396,20 @@ namespace opcode {
 
 					pSRV = LoadTextureFromFile(imgFlip.data, "EXTRINSIC_IMG", image_width, image_height);
 					isCalibratedExtrinsic = false;
+
+
+					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+						if (mapScanToCalib[indexExtrinsics]) {
+							cv::Mat K, D;
+							cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+							if (fs.isOpened()) {
+								fs["K"] >> K;
+								fs["DistCoeffs"] >> D;
+								fs.release();
+								SetAnimation(cidRender1, 1, K, indexExtrinsics);
+							}
+						}
+					}
 				}
 			}
 		}
@@ -1545,6 +1557,17 @@ namespace opcode {
 					}
 				}
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("TODO:", ImVec2(0, buttonHeight))) {
+				// TO DO
+				// toggle ON / OFF
+				// when ON save the previous cam2 (static) and load the previous CA-cam2 (static)
+				// when OFF save the previous CA-cam2 (static) load the previous cam2 (static) 
+				// MARKERS to C-ARM Space using RB2CA
+				// CA to the tracking camera position (-z dir)
+				// set scene stage to view2
+			}
+
 			if (ImGui::Button("Process All Images for Extrinsics", ImVec2(0, buttonHeight)) || processAll >= 0) {
 				processAll++;
 				if (processAll == (int)img_files.size())
