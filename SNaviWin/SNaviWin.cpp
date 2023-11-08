@@ -110,7 +110,7 @@ void mygui(ImGuiIO& io) {
 	opcode::buttonHeight = 30;
 
 	if (opcode::trackInfo.IsValidTracking()) {
-		opcode::TrackInfo2Scene(); // call render
+		opcode::TrackInfo2Scene();
 	}
 
 	vzm::CameraParameters cpCam1, cpCam2;
@@ -203,10 +203,9 @@ void mygui(ImGuiIO& io) {
 		ImGui::End();
 	}
 
-	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
-		vzm::RenderScene(opcode::sidScene, opcode::cidRender1);
-		vzm::RenderScene(opcode::sidScene, opcode::cidRender2);
-	}
+	rendertask::AnimateFrame(opcode::cidRender1, opcode::cidRender2);
+	vzm::RenderScene(opcode::sidScene, opcode::cidRender1);
+	vzm::RenderScene(opcode::sidScene, opcode::cidRender2);
 }
 
 int main()

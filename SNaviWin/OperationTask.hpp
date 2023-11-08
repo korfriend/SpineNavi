@@ -104,214 +104,66 @@ namespace opcode {
 		return std::sqrt(totalErr / totalPoints);
 	};
 
+	void ComputePoseMatrixFromRTVec(const cv::Mat& rvec, const cv::Mat& tvec, glm::fmat4x4& matRB2CA, glm::fmat4x4& matCA2RB)
+	{
+		cv::Mat matR;
+		cv::Rodrigues(rvec, matR);
+		// note, here camera frame (notation 'CA', opencv convention) is defined with
+		// z axis as viewing direction
+		// -y axis as up vector
+		matRB2CA = glm::fmat4x4(1);
+		matRB2CA[0][0] = (float)matR.at<double>(0, 0);
+		matRB2CA[0][1] = (float)matR.at<double>(1, 0);
+		matRB2CA[0][2] = (float)matR.at<double>(2, 0);
+		matRB2CA[1][0] = (float)matR.at<double>(0, 1);
+		matRB2CA[1][1] = (float)matR.at<double>(1, 1);
+		matRB2CA[1][2] = (float)matR.at<double>(2, 1);
+		matRB2CA[2][0] = (float)matR.at<double>(0, 2);
+		matRB2CA[2][1] = (float)matR.at<double>(1, 2);
+		matRB2CA[2][2] = (float)matR.at<double>(2, 2);
+		matRB2CA[3][0] = (float)((double*)tvec.data)[0];
+		matRB2CA[3][1] = (float)((double*)tvec.data)[1];
+		matRB2CA[3][2] = (float)((double*)tvec.data)[2];
+		matCA2RB = glm::inverse(matRB2CA);
+	}
 
-	// DOJO : 스캔 시 정보를 저장할 파일
-	// 현 버전에서는 carm_intrinsics.txt (presetting) 에 저장된 intrinsic parameter 와
-	// rb2carm1.txt (presetting + 매 스캔 시 저장됨) 에 저장된 c-arm source pose (extrinsic parameter) 를 로드하여 이를 파일로 저장
-	// TODO : 추후 해당 부분을 file to file 이 아닌, memory to memory 로 관리해야 함
-	// TODO : 매 스캔마다 camera intrinsics 와 extrinsics 를 계산하도록 수정해야 함
-	auto ___StoreParams = [](const std::string& paramsFileName, const glm::fmat4x4& matCArmRB2WS, const std::string& imgFileName) {
+	// viewIdx (1) refers to AP, viewIndex (2) to LL
+	bool LoadScanInfo(const int viewIdx, const std::string& timePack,
+		cv::Mat& K, cv::Mat& DistCoeffs, glm::fmat4x4& matRB2CA, glm::fmat4x4& matCA2RB, glm::fmat4x4& matRB2WS, std::string& imgFileName)
+	{
+		if (viewIdx != 1 && viewIdx != 2)
+			__gc.g_engineLogger->error("viewIdx should be 1 or 2, not {}", viewIdx);
 
-		cv::FileStorage __fs(__gc.g_folder_trackingInfo + paramsFileName, cv::FileStorage::Mode::WRITE);
+		std::string scanGeoFileName = __gc.g_folder_trackingInfo + "test" + std::to_string(viewIdx) + "_" + timePack + ".txt";
 
-		cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-		cv::Mat matK;
-		fs["K"] >> matK;
-		__fs << "K" << matK;
-		cv::Mat distCoeffs;
-		fs["DistCoeffs"] >> distCoeffs;
-		__fs << "DistCoeffs" << distCoeffs;
-		fs.release();
+		cv::FileStorage fs(scanGeoFileName, cv::FileStorage::Mode::READ);
+		if (!fs.isOpened())
+			return false;
 
-		fs.open(__gc.g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
-		cv::Mat rvec, tvec;
+		fs["K"] >> K;
+		fs["DistCoeffs"] >> DistCoeffs;
+		fs["imgFile"] >> imgFileName;
+
+		cv::Mat rvec, tvec, rb2wsMat;
 		fs["rvec"] >> rvec;
 		fs["tvec"] >> tvec;
-		__fs << "rvec" << rvec;
-		__fs << "tvec" << tvec;
+		fs["rb2wsMat"] >> rb2wsMat; // memory storage ordering in opengl
 		fs.release();
 
-		cv::Mat ocvRb(4, 4, CV_32FC1);
-		memcpy(ocvRb.ptr(), glm::value_ptr(matCArmRB2WS), sizeof(float) * 16);
-		__fs << "rb2wsMat" << ocvRb;
-		__fs << "imgFile" << imgFileName;
-		__fs.release();
-	};
+		ComputePoseMatrixFromRTVec(rvec, tvec, matRB2CA, matCA2RB);
+		memcpy(glm::value_ptr(matRB2WS), rb2wsMat.ptr(), sizeof(float) * 16);
 
+		return true;
+	}
 
-	// DOJO : 매 스캔 시 호출 (c-arm 스캔 정보를 scene 에 적용), network thread 에서 호출되야 함
-	// AP 인지 LATERAL 인지 자동으로 확인하고, 1 이나 2번 할당하는 작업 필요
-	// note : this function needs to be called in the render thread
-	bool SaveAndChangeViewState(const int sidScene, const int cidCam, const int viewIdx,
-		const glm::fmat4x4* pmatCArmRB2WS, const cv::Mat* pcolored_img, const std::string* load_timePack = NULL)
+	void SetAnimation(const int cidCam, const int viewIdx, const cv::Mat& K, const int CArmPlaneIdx = -1)
 	{
-		// note: matCArmRB2WS is used only when a valid pcolored_img is not NULL 
-		using namespace std;
-
-		//track_info* trk = (track_info*)&trackInfo;
-		//glm::fquat q;
-		//glm::fvec3 t;
-		//if (!trk->GetRigidBodyQuatTVecByName("c-arm", &q, &t)) {
-		//	cout << "\nfailure to get c-arm rigid body" << endl;
-		//	return false;
-		//}
-		//
-		//glm::fmat4x4 mat_r = glm::toMat4(q);
-		//glm::fmat4x4 mat_t = glm::translate(t);
-		//glm::fmat4x4 matCArmRB2WS = mat_t * mat_r;
-
-		string timePack;
-
-		if (pcolored_img)
-		{
-			const cv::Mat& colored_img = *pcolored_img;
-			const glm::fmat4x4& matCArmRB2WS = *pmatCArmRB2WS;
-			if (colored_img.empty()) {
-				__gc.SetErrorCode("The Image is Empty!");
-				return false;
-			}
-
-			timePack = to_string(navihelpers::GetCurrentTimePack());
-
-			__gc.g_lastStoredImageName = "test" + to_string(viewIdx) + "_" + timePack;
-			string downloadImgFileName = __gc.g_folder_trackingInfo + __gc.g_lastStoredImageName + ".png";
-
-			cv::imwrite(downloadImgFileName, colored_img);
-			___StoreParams(__gc.g_lastStoredImageName + ".txt", matCArmRB2WS, downloadImgFileName);
-			std::cout << "\nSTORAGE COMPLETED!!!" << std::endl;
-
-			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
-				if (colored_img.empty()) {
-					__gc.SetErrorCode("Not Allowed Calibration Image during Recording");
-					__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
-					return false;
-				}
-				if (!__gc.g_recScanStream.is_open()) {
-					__gc.g_recScanStream.open(__gc.g_recScanName);
-					if (!__gc.g_recScanStream.is_open()) {
-						__gc.SetErrorCode("Invalid Rec File!");
-						__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
-						return false;
-					}
-
-					std::vector<std::vector<std::string>> csvData(1);
-					std::vector<std::string>& csvRow = csvData[0];
-					csvRow = { "FRAME", "TIME", "AP/LL" };
-
-					// Write CSV data to the file
-					for (int j = 0; j < (int)csvData.size(); j++) {
-						std::vector<std::string>& csvRow = csvData[j];
-						for (int k = 0; k < (int)csvRow.size(); k++) {
-							__gc.g_recScanStream << csvRow[k];
-							if (k < csvRow.size() - 1) {
-								__gc.g_recScanStream << ',';
-							}
-							else
-								__gc.g_recScanStream << '\n';
-						}
-					}
-				}
-				else {
-
-					std::vector<std::string> csvRow = { to_string(__gc.g_optiRecordFrame), timePack, viewIdx == 1 ? "AP" : "LL" };
-
-					// Write CSV data to the file
-					for (int j = 0; j < (int)csvRow.size(); j++) {
-						__gc.g_recScanStream << csvRow[j];
-						if (j < csvRow.size() - 1) {
-							__gc.g_recScanStream << ',';
-						}
-						else
-							__gc.g_recScanStream << '\n';
-					}
-				}
-			} // if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD)
-			else {
-				if (__gc.g_recScanStream.is_open()) {
-					std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
-					__gc.g_recScanStream.close();
-				}
-			}
-		} // if (pcolored_img)
-		else { // // if (pcolored_img == NULL)
-			// load case // __gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD
-
-			if (load_timePack == NULL) {
-				using std::filesystem::directory_iterator;
-
-				set<unsigned long long> latestTimePacks;
-				for (const auto& file : directory_iterator(__gc.g_folder_trackingInfo)) {
-					const std::string ss = file.path().u8string();
-					//char* ptr = std::strrchr(file.path().c_str(), '\\');     //문자열(path)의 뒤에서부터 '\'의 위치를 검색하여 반환
-
-					std::filesystem::path filePath = file.path().filename();
-					if (filePath.extension() == ".png") {
-						std::string fn = filePath.u8string();
-						if (fn.find("test" + to_string(viewIdx)) != std::string::npos) {
-							std::string::size_type filePos = fn.rfind('_');
-							//std::cout << file.path().filename().u8string() << std::endl;
-
-							if (filePos != std::string::npos)
-								++filePos;
-							else
-								filePos = 0;
-							std::string timePackExt = fn.substr(filePos);
-							timePackExt.erase(timePackExt.find_last_of("."), string::npos);
-							unsigned long long itimePackExt = std::stoll(timePackExt);
-							latestTimePacks.insert(itimePackExt);
-						}
-					}
-				}
-
-				timePack = to_string(*latestTimePacks.rbegin());
-			}
-			else {
-				timePack = *load_timePack;
-			}
-		}
-
-		// load case
-		auto it = __gc.g_mapAidGroupCArmCam.find(viewIdx);
-		if (it != __gc.g_mapAidGroupCArmCam.end())
-			vzm::RemoveSceneItem(it->second, true);
-
-		std::string scanGeoFileName = __gc.g_folder_trackingInfo + "test" + to_string(viewIdx) + "_" + timePack + ".txt";
-
-		int aidGroup = -1;
-		cv::Mat K;
-		cv::FileStorage fs(scanGeoFileName, cv::FileStorage::Mode::READ);
-		if (fs.isOpened()) {
-			fs["K"] >> K;
-			cv::Mat DistCoeffs;
-			fs["DistCoeffs"] >> DistCoeffs;
-			cv::Mat rvec, tvec;
-			fs["rvec"] >> rvec;
-			fs["tvec"] >> tvec;
-			cv::Mat rb2wsMat;
-			fs["rb2wsMat"] >> rb2wsMat; // memory storage ordering in opengl
-			std::string imgFileName;
-			fs["imgFile"] >> imgFileName;
-			fs.release();
-
-			cv::Mat imgCArm = cv::imread(__gc.g_folder_trackingInfo + imgFileName);
-			cv::flip(imgCArm, imgCArm, 1);
-
-			aidGroup = calibtask::RegisterCArmImage(sidScene, "test" + to_string(viewIdx), K, DistCoeffs, rvec, tvec, rb2wsMat, imgCArm);
-		}
+		// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
+		// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
+		int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(CArmPlaneIdx < 0 ? viewIdx : CArmPlaneIdx));
+		if (aidCArmPlane == 0)
+			__gc.g_engineLogger->error("CArm Plane is not defined!");
 		else {
-			__gc.g_engineLogger->error("Scan Geo File Loading Failure!!");
-		}
-
-		if (aidGroup != -1) {
-			__gc.g_mapAidGroupCArmCam[viewIdx] = aidGroup;
-
-			// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
-			// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
-			// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
-			int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(viewIdx));
-			if (aidCArmPlane == 0)
-				return false;
-
 			vzm::ActorParameters apCArmPlane;
 			vzm::GetActorParams(aidCArmPlane, apCArmPlane);
 			glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
@@ -320,9 +172,24 @@ namespace opcode {
 				K.at<double>(0, 0), K.at<double>(1, 1), K.at<double>(0, 1), K.at<double>(0, 2), K.at<double>(1, 2),
 				matCA2WS);
 		}
+	}
 
-		return true;
-	};
+	void SetScan2View(const int viewIdx, const std::string& timePack) {
+		std::string imgFileName;
+		cv::Mat K, D;
+		glm::fmat4x4 matRB2CA, matCA2RB, matRB2WS;
+		LoadScanInfo(viewIdx, timePack, K, D, matRB2CA, matCA2RB, matRB2WS, imgFileName);
+
+		auto it = __gc.g_mapAidGroupCArmCam.find(viewIdx);
+		if (it != __gc.g_mapAidGroupCArmCam.end())
+			vzm::RemoveSceneItem(it->second, true);
+
+		cv::Mat imgCArm = cv::imread(__gc.g_folder_trackingInfo + imgFileName);
+		cv::flip(imgCArm, imgCArm, 1);
+		int aidGroup = calibtask::RegisterCArmImage(sidScene, viewIdx, K, D, matCA2RB, matRB2WS, imgCArm);
+		__gc.g_mapAidGroupCArmCam[viewIdx] = aidGroup;
+		SetAnimation(viewIdx == 1 ? cidRender1 : cidRender2, viewIdx, K);
+	}
 
 	// Simple helper function to load an image into a DX11 texture with common settings
 	ID3D11ShaderResourceView* LoadTextureFromFile(const unsigned char* image_data, const char* texture_name, const int width, const int height)
@@ -455,12 +322,9 @@ namespace opcode {
 
 				std::string timePack = rowData[0];
 				if (timePack.back() == ' ') timePack.pop_back();
-				if (isAP) {
-					SaveAndChangeViewState(sidScene, cidRender1, 1, NULL, NULL, &timePack);
-				}
-				else {
-					SaveAndChangeViewState(sidScene, cidRender2, 2, NULL, NULL, &timePack);
-				}
+
+				int viewIdx = isAP ? 1 : 2;
+				SetScan2View(viewIdx, timePack);
 			}
 		}
 		else {
@@ -468,10 +332,6 @@ namespace opcode {
 			if (__gc.g_renderEvent == RENDER_THREAD::DOWNLOAD_IMG_PROCESS) {
 				//__gc.g_renderEvent = RENDER_THREAD::BUSY;
 				memcpy(g_curScanGrayImg.ptr(), &__gc.g_downloadImgBuffer[0], __gc.g_downloadImgBuffer.size());
-
-				cv::Mat downloadColorImg;
-				cv::cvtColor(g_curScanGrayImg, downloadColorImg, cv::COLOR_GRAY2RGB);
-				//cv::imwrite(__gc.g_folder_trackingInfo + "test_downloaded.png", downloadColorImg);
 
 				glm::fmat4x4 matCArmRB2WS;
 				if (trackInfo.GetRigidBodyByName("c-arm", &matCArmRB2WS, NULL, NULL, NULL)) {
@@ -500,9 +360,7 @@ namespace opcode {
 							+ "err_t:" + std::to_string(err_t), 1000);
 					}
 
-					// trackInfo.matCArmRB2WS, trackInfo.matCam2WS, downloadColorImg
 					glm::fmat4x4 matSourceCS2WS = matCArmRB2WS * glm::inverse(__gc.g_CArmRB2SourceCS);
-					//glm::fvec3 posCArmDet = vzmutils::transformPos(glm::fvec3(0, 0, 0), matCArmRB2WS);
 					glm::fvec3 dirCArm = vzmutils::transformVec(glm::fvec3(0, 0, -1), matSourceCS2WS);
 					dirCArm = glm::normalize(dirCArm);
 
@@ -512,10 +370,108 @@ namespace opcode {
 					camRight = glm::normalize(camRight);
 
 					float horizonAngle = fabs(glm::dot(camRight, dirCArm));
-					if (horizonAngle < 0.3f)
-						SaveAndChangeViewState(sidScene, cidRender1, 1, &matCArmRB2WS, &downloadColorImg);
-					else
-						SaveAndChangeViewState(sidScene, cidRender2, 2, &matCArmRB2WS, &downloadColorImg);
+					bool isAP = horizonAngle < 0.3f;
+					int viewIdx = isAP ? 1 : 2;
+
+					// OPTI TRACK MODE //
+					std::string timePack = std::to_string(navihelpers::GetCurrentTimePack());
+					__gc.g_lastStoredImageName = "test" + std::to_string(viewIdx) + "_" + timePack;
+
+					cv::Mat imgCArm;
+					cv::cvtColor(g_curScanGrayImg, imgCArm, cv::COLOR_GRAY2RGB);				
+					cv::imwrite(__gc.g_folder_trackingInfo + __gc.g_lastStoredImageName + ".png", imgCArm);
+
+					cv::Mat K, D, rvec, tvec;
+					cv::FileStorage fs_intrinsic(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
+					cv::FileStorage fs_extrinsic(__gc.g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::READ);
+					if (fs_intrinsic.isOpened()) {
+						fs_intrinsic["K"] >> K;
+						fs_intrinsic["DistCoeffs"] >> D;
+						fs_intrinsic.release();
+					}
+					else {
+						__gc.g_engineLogger->error("No carm_intrinsics.txt!!");
+					}
+					if (fs_extrinsic.isOpened()) {
+						fs_extrinsic["rvec"] >> rvec;
+						fs_extrinsic["tvec"] >> tvec;
+						fs_extrinsic.release();
+					}
+					else {
+						__gc.g_engineLogger->error("No rb2carm1.txt!!");
+					}
+					cv::FileStorage fs(__gc.g_folder_trackingInfo + __gc.g_lastStoredImageName + ".txt", cv::FileStorage::Mode::WRITE);
+					fs << "K" << K;
+					fs << "DistCoeffs" << D;
+					fs << "rvec" << rvec;
+					fs << "tvec" << tvec;
+					cv::Mat ocvRb(4, 4, CV_32FC1);
+					memcpy(ocvRb.ptr(), glm::value_ptr(matCArmRB2WS), sizeof(float) * 16);
+					fs << "rb2wsMat" << ocvRb;
+					fs << "imgFile" << __gc.g_lastStoredImageName + ".png";
+
+					glm::fmat4x4 matRB2CA, matCA2RB;
+					ComputePoseMatrixFromRTVec(rvec, tvec, matRB2CA, matCA2RB);
+
+					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
+						if (imgCArm.empty()) {
+							__gc.SetErrorCode("Not Allowed Calibration Image during Recording");
+							__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
+						}
+						if (!__gc.g_recScanStream.is_open()) {
+							__gc.g_recScanStream.open(__gc.g_recScanName);
+							if (!__gc.g_recScanStream.is_open()) {
+								__gc.SetErrorCode("Invalid Rec File!");
+								__gc.g_optiRecordMode = OPTTRK_RECMODE::NONE;
+							}
+
+							std::vector<std::vector<std::string>> csvData(1);
+							std::vector<std::string>& csvRow = csvData[0];
+							csvRow = { "FRAME", "TIME", "AP/LL" };
+
+							// Write CSV data to the file
+							for (int j = 0; j < (int)csvData.size(); j++) {
+								std::vector<std::string>& csvRow = csvData[j];
+								for (int k = 0; k < (int)csvRow.size(); k++) {
+									__gc.g_recScanStream << csvRow[k];
+									if (k < csvRow.size() - 1) {
+										__gc.g_recScanStream << ',';
+									}
+									else
+										__gc.g_recScanStream << '\n';
+								}
+							}
+						}
+						else {
+
+							std::vector<std::string> csvRow = { to_string(__gc.g_optiRecordFrame), timePack, viewIdx == 1 ? "AP" : "LL" };
+
+							// Write CSV data to the file
+							for (int j = 0; j < (int)csvRow.size(); j++) {
+								__gc.g_recScanStream << csvRow[j];
+								if (j < csvRow.size() - 1) {
+									__gc.g_recScanStream << ',';
+								}
+								else
+									__gc.g_recScanStream << '\n';
+							}
+						}
+					} // if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD)
+					else {
+						if (__gc.g_recScanStream.is_open()) {
+							std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
+							__gc.g_recScanStream.close();
+						}
+					}
+					
+					cv::flip(imgCArm, imgCArm, 1);
+
+					auto it = __gc.g_mapAidGroupCArmCam.find(viewIdx);
+					if (it != __gc.g_mapAidGroupCArmCam.end())
+						vzm::RemoveSceneItem(it->second, true);
+					int aidGroup = calibtask::RegisterCArmImage(sidScene, viewIdx, K, D, matCA2RB, matCArmRB2WS, imgCArm);
+					__gc.g_mapAidGroupCArmCam[viewIdx] = aidGroup;
+					SetAnimation(isAP ? cidRender1 : cidRender2, viewIdx, K);
 				}
 				else {
 					PlaySound((LPCTSTR)SND_ALIAS_SYSTEMWELCOME, NULL, SND_ALIAS_ID | SND_ASYNC);
@@ -526,7 +482,7 @@ namespace opcode {
 			}
 		}
 
-		rendertask::RenderTrackingScene(&trackInfo);
+		rendertask::UpdateTrackInfo2Scene(trackInfo);
 	}
 
 	void ControlWidgets(const ImVec4& clear_color)
@@ -630,40 +586,89 @@ namespace opcode {
 		//		vzm::RemoveSceneItem(aidTestGroup);
 		//}
 
-		static bool hideAP = false, hideLL = false;
-		if (ImGui::Button("View AP", ImVec2(0, buttonHeight)))
-		{
-			hideAP = false;
-			SaveAndChangeViewState(sidScene, cidRender1, 1, NULL, NULL);
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("View LL", ImVec2(0, buttonHeight)))
-		{
-			hideLL = false;
-			SaveAndChangeViewState(sidScene, cidRender2, 2, NULL, NULL);
-		}
-		ImGui::SameLine();
-		if (ImGui::Button(hideAP? "Show AP Image" : "Hide AP Image", ImVec2(0, buttonHeight)))
-		{
-			hideAP = !hideAP;
-			int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:1");
-			if (aidImgPlane != 0) {
-				vzm::ActorParameters apImg;
-				vzm::GetActorParams(aidImgPlane, apImg);
-				apImg.is_visible = !hideAP;
-				vzm::SetActorParams(aidImgPlane, apImg);
+		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) {
+			static bool hideAP = false, hideLL = false;
+			auto GetTimePackFromFiles = [](const int viewIdx) {
+				if (viewIdx != 1 && viewIdx != 2) {
+					__gc.g_engineLogger->error("viewIdx should be 1 or 2, not {}", viewIdx);
+					return std::string("");
+				}
+
+				using namespace std;
+				using std::filesystem::directory_iterator;
+
+				set<unsigned long long> latestTimePacks;
+				for (const auto& file : directory_iterator(__gc.g_folder_trackingInfo)) {
+					const std::string ss = file.path().u8string();
+					//char* ptr = std::strrchr(file.path().c_str(), '\\');     //문자열(path)의 뒤에서부터 '\'의 위치를 검색하여 반환
+
+					std::filesystem::path filePath = file.path().filename();
+					if (filePath.extension() == ".png") {
+						std::string fn = filePath.u8string();
+						if (fn.find("test" + to_string(viewIdx)) != std::string::npos) {
+							std::string::size_type filePos = fn.rfind('_');
+							//std::cout << file.path().filename().u8string() << std::endl;
+
+							if (filePos != std::string::npos)
+								++filePos;
+							else
+								filePos = 0;
+							std::string timePackExt = fn.substr(filePos);
+							timePackExt.erase(timePackExt.find_last_of("."), string::npos);
+							unsigned long long itimePackExt = std::stoll(timePackExt);
+							latestTimePacks.insert(itimePackExt);
+						}
+					}
+				}
+
+				return std::to_string(*latestTimePacks.rbegin());
+			};
+			if (ImGui::Button("View AP", ImVec2(0, buttonHeight)))
+			{
+				hideAP = false;
+				std::string timePack = GetTimePackFromFiles(1);
+				if (timePack == "") {
+					__gc.SetErrorCode("There is No AP file!");
+				}
+				else {
+					SetScan2View(1, timePack);
+				}
 			}
-		}
-		ImGui::SameLine();
-		if (ImGui::Button(hideLL ? "Show LL Image" : "Hide LL Image", ImVec2(0, buttonHeight)))
-		{
-			hideLL = !hideLL;
-			int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:2");
-			if (aidImgPlane != 0) {
-				vzm::ActorParameters apImg;
-				vzm::GetActorParams(aidImgPlane, apImg);
-				apImg.is_visible = !hideLL;
-				vzm::SetActorParams(aidImgPlane, apImg);
+			ImGui::SameLine();
+			if (ImGui::Button("View LL", ImVec2(0, buttonHeight)))
+			{
+				hideLL = false;
+				std::string timePack = GetTimePackFromFiles(2);
+				if (timePack == "") {
+					__gc.SetErrorCode("There is No LL file!");
+				}
+				else {
+					SetScan2View(2, timePack);
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(hideAP ? "Show AP Image" : "Hide AP Image", ImVec2(0, buttonHeight)))
+			{
+				hideAP = !hideAP;
+				int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:1");
+				if (aidImgPlane != 0) {
+					vzm::ActorParameters apImg;
+					vzm::GetActorParams(aidImgPlane, apImg);
+					apImg.is_visible = !hideAP;
+					vzm::SetActorParams(aidImgPlane, apImg);
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button(hideLL ? "Show LL Image" : "Hide LL Image", ImVec2(0, buttonHeight)))
+			{
+				hideLL = !hideLL;
+				int aidImgPlane = vzmutils::GetSceneItemIdByName("CArm Plane:2");
+				if (aidImgPlane != 0) {
+					vzm::ActorParameters apImg;
+					vzm::GetActorParams(aidImgPlane, apImg);
+					apImg.is_visible = !hideLL;
+					vzm::SetActorParams(aidImgPlane, apImg);
+				}
 			}
 		}
 
@@ -968,6 +973,7 @@ namespace opcode {
 		static int w, h;
 		static bool isCalibratedIntrinsic = false;
 		static bool imgReady = false;
+		static int processAll = -1;
 		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 			for (int i = 0; i < (int)files.size(); i++)
 			{
@@ -978,7 +984,7 @@ namespace opcode {
 					colorHighlight = true;
 				}
 
-				if(ImGui::Button(((i < 10? "I:0" : "I:") + std::to_string(i)).c_str())) {
+				if(ImGui::Button(((i < 10? "I:0" : "I:") + std::to_string(i)).c_str()) || processAll == i) {
 					indexIntrinsic = i;
 					imgReady = true;
 				}
@@ -1064,7 +1070,7 @@ namespace opcode {
 			}
 		}
 		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) ImGui::SameLine();
-		if (ImGui::Button("Apply Intrinsic", ImVec2(0, buttonHeight)))
+		if (ImGui::Button("Apply Intrinsic", ImVec2(0, buttonHeight)) || processAll >= 0)
 		{
 			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 				if (mapScanToCalib[indexIntrinsic]) {
@@ -1119,6 +1125,13 @@ namespace opcode {
 			calib_points3Ds.clear();
 			__gc.g_engineLogger->info("Intrinsic Points are cleaned!");
 		}
+		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
+			if (ImGui::Button("Process All Images for Intrinsics", ImVec2(0, buttonHeight)) || processAll >= 0) {
+				processAll++;
+				if (processAll == (int)files.size())
+					processAll = -1;
+			}
+		}
 
 		ImGui::SeparatorText("Parameter Settings:");
 		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
@@ -1171,15 +1184,18 @@ namespace opcode {
 		static std::vector<cv::Point3f> pointsWS3D;
 		static std::vector<cv::Point3f> pointsRB3D;
 		static std::vector<cv::Point2f> points2D;
-		static std::vector<std::vector<cv::Point3f>> calib_points3Ds;
+		static std::vector<std::vector<cv::Point3f>> calib_pointsRB3Ds;
+		static std::vector<std::vector<cv::Point3f>> calib_pointsWS3Ds;
 		static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
 		static int extrinsicWidth = 3, extrinsicHeight = 3;
 		static int w, h;
 		static bool isCalibratedExtrinsic = false;
 		static bool imgReady = false;
 		static glm::fmat4x4 matRB2WS, matWS2RB;
-		static cv::Mat imgProcessing;
+		static cv::Mat imgOriginal, imgFlip;
 		static bool showOnlyCurrentSelectionScan = false;
+		static int processAll = -1;
+		static int aidMarkerGroup = 0;
 		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 			for (int i = 0; i < (int)img_files.size(); i++)
 			{
@@ -1191,9 +1207,11 @@ namespace opcode {
 					colorHighlight = true;
 				}
 				
-				if (ImGui::Button(((i < 10 ? "E:0" : "E:") + std::to_string(i)).c_str())) {
+				if (ImGui::Button(((i < 10 ? "E:0" : "E:") + std::to_string(i)).c_str()) || processAll == i) {
 					indexExtrinsics = i;
 					imgReady = true;
+
+					// 구슬 띄우기?
 				}
 				if ((i % 8 != 0 || i == 0) && i != (int)img_files.size() - 1) ImGui::SameLine();
 				if (colorHighlight) ImGui::PopStyleColor();
@@ -1234,6 +1252,39 @@ namespace opcode {
 					fs["MAT_RB2WS"] >> ocvMat;
 					memcpy(glm::value_ptr(matRB2WS), ocvMat.ptr(), sizeof(float) * 16);
 					fs.release();
+
+					// 구슬 띄우기...
+					if (aidMarkerGroup != 0)
+						vzm::RemoveSceneItem(aidMarkerGroup);
+					vzm::NewActor(vzm::ActorParameters(), "Extrinsic Marker Group", aidMarkerGroup);
+					vzm::AppendSceneItemToSceneTree(aidMarkerGroup, sidScene);
+					static int oidSphere = 0;
+					if (oidSphere == 0) {
+						glm::fvec4 xyzr(0, 0, 0, 1.f);
+						vzm::GenerateSpheresObject(__FP xyzr, NULL, 1, oidSphere);
+					}
+					vzm::ActorParameters ap;
+					ap.SetResourceID(vzm::ActorParameters::GEOMETRY, oidSphere);
+
+
+					for (int i = 0; i < (int)pointsWS3D.size(); i++) {
+						glm::fmat4x4 matS = glm::scale(glm::fvec3(0.003f));
+						glm::fmat4x4 matT = glm::translate(*(glm::fvec3*)&pointsWS3D[i]);
+						glm::fmat4x4 matTr = matT * matS;
+						ap.SetLocalTransform(__FP matTr);
+						*(glm::fvec4*)ap.color = glm::fvec4(1, 0, 0, 1);
+						int aid = 0;
+						vzm::NewActor(ap, "extrinsic inner marker:" + std::to_string(i + 1), aid);
+						vzm::AppendSceneItemToSceneTree(aid, aidMarkerGroup);
+
+						matS = glm::scale(glm::fvec3(0.007f));
+						matT = glm::translate(*(glm::fvec3*)&pointsWS3D[i]);
+						matTr = matT * matS;
+						ap.SetLocalTransform(__FP matTr);
+						*(glm::fvec4*)ap.color = glm::fvec4(1, 1, 1, 0.5);
+						vzm::NewActor(ap, "extrinsic outer marker:" + std::to_string(i + 1), aid);
+						vzm::AppendSceneItemToSceneTree(aid, aidMarkerGroup);
+					}
 				}
 				else {
 					__gc.SetErrorCode("The image has no scan information!");
@@ -1286,13 +1337,14 @@ namespace opcode {
 
 			if (!errResult)
 			{
-				cv::Mat img;
+				imgOriginal = cv::Mat();
+				imgFlip = cv::Mat();
 				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
-					img = cv::imread(img_files[indexExtrinsics]);
+					imgOriginal = cv::imread(img_files[indexExtrinsics]);
 				}
 				else if (g_curScanGrayImg.data != NULL) {
-					cv::cvtColor(g_curScanGrayImg, img, cv::COLOR_GRAY2RGB);
-					cv::imwrite(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + ".png", img);
+					cv::cvtColor(g_curScanGrayImg, imgOriginal, cv::COLOR_GRAY2RGB);
+					cv::imwrite(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + ".png", imgOriginal);
 
 					cv::FileStorage fs(__gc.g_folder_trackingInfo + "ext_images/" + __gc.g_lastStoredImageName + "_RBPts.txt", cv::FileStorage::Mode::WRITE);
 					fs << "RB_POSITIONS" << cv::Mat(pointsRB3D);
@@ -1311,49 +1363,46 @@ namespace opcode {
 				}
 
 				// Load into a raw RGBA buffer
-				if (img.data != NULL) {
-					int image_width = img.cols;
-					int image_height = img.rows;
+				if (imgOriginal.data != NULL) {
+					int image_width = imgOriginal.cols;
+					int image_height = imgOriginal.rows;
 
 					// optional
-					cv::flip(img, img, 1);
+					cv::flip(imgOriginal, imgFlip, 1);
 
 					cv::Mat imgGray;
-					cv::cvtColor(img, imgGray, cv::COLOR_RGB2GRAY);
-					// processing..
+					cv::cvtColor(imgFlip, imgGray, cv::COLOR_RGB2GRAY);
 
 					std::vector<float> circleRadiis;
 					points2D.clear();
 					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, extrinsicWidth, extrinsicHeight, points2D, 1500.f, 16000.f, 100.f, &circleRadiis);
 
-					DrawCircles(points2D, circleRadiis, __gc.g_circleThickness, img);
+					DrawCircles(points2D, circleRadiis, __gc.g_circleThickness, imgFlip);
 
-					if (img.channels() == 3) {
+					if (imgFlip.channels() == 3) {
 						// First create the image with alpha channel
-						cv::cvtColor(img, img, cv::COLOR_RGB2RGBA);
+						cv::cvtColor(imgFlip, imgFlip, cv::COLOR_RGB2RGBA);
 
 						// # Split the image for access to alpha channel
 						std::vector<cv::Mat> channels(4);
-						cv::split(img, channels);
+						cv::split(imgFlip, channels);
 
 						// Assign the mask to the last channel of the image
 						channels[3] = 255;
 
 						// Finally concat channels for rgba image
-						cv::merge(channels, img);
+						cv::merge(channels, imgFlip);
 					}
 
 					__gc.g_engineLogger->info("image index : {}", indexExtrinsics);
 
-					pSRV = LoadTextureFromFile(img.data, "EXTRINSIC_IMG", image_width, image_height);
+					pSRV = LoadTextureFromFile(imgFlip.data, "EXTRINSIC_IMG", image_width, image_height);
 					isCalibratedExtrinsic = false;
-
-					cv::flip(img, imgProcessing, 1);
 				}
 			}
 		}
 		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) ImGui::SameLine();
-		if (ImGui::Button("Apply Extrinsic", ImVec2(0, buttonHeight)))
+		if (ImGui::Button("Apply Extrinsic", ImVec2(0, buttonHeight)) || processAll >= 0)
 		{
 			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 				if (mapScanToCalib[indexExtrinsics]) {
@@ -1384,15 +1433,16 @@ namespace opcode {
 			else {
 				isCalibratedExtrinsic = true;
 				calib_points2Ds.push_back(points2D);
-				calib_points3Ds.push_back(pointsRB3D);
+				calib_pointsRB3Ds.push_back(pointsRB3D);
+				calib_pointsWS3Ds.push_back(pointsWS3D);
 
 				__gc.g_engineLogger->info("# of {}-pair sets : {}", extrinsicWidth * extrinsicHeight, calib_points2Ds.size());
 
-				cv::Mat cameraMatrix, distCoeffs;
+				cv::Mat K, D;
 				cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
 				if (fs.isOpened()) {
-					fs["K"] >> cameraMatrix;
-					fs["DistCoeffs"] >> distCoeffs;
+					fs["K"] >> K;
+					fs["DistCoeffs"] >> D;
 					fs.release();
 
 					for (int i = 0; i < points2D.size(); i++) {
@@ -1406,7 +1456,7 @@ namespace opcode {
 						global_points3d.push_back(*(cv::Point3f*)&(_pair.first));
 					}
 					cv::Mat rvec, tvec;
-					cv::solvePnP(global_points3d, global_points2d, cameraMatrix, distCoeffs, rvec, tvec);
+					cv::solvePnP(global_points3d, global_points2d, K, D, rvec, tvec);
 
 					auto ComputeReprojErr = [](const std::vector<cv::Point2f>& pts2d, const std::vector<cv::Point2f>& pts2d_reproj, float& maxErr) {
 						float avrDiff = 0;
@@ -1421,7 +1471,7 @@ namespace opcode {
 
 					// Reproject the 3D points onto the image plane using the camera calibration
 					std::vector<cv::Point2f> imagePointsReprojected;
-					cv::projectPoints(global_points3d, rvec, tvec, cameraMatrix, distCoeffs, imagePointsReprojected);
+					cv::projectPoints(global_points3d, rvec, tvec, K, D, imagePointsReprojected);
 
 					// Compute the reprojection error
 					float maxErr = 0;
@@ -1429,73 +1479,26 @@ namespace opcode {
 
 					__gc.g_engineLogger->info("reprojectionError of {} pairs : {}, max error : {}", global_points2d.size(), reprojectionError, maxErr);
 
-					//matCArmRB2SourceCS
-					cv::Mat matR;
-					cv::Rodrigues(rvec, matR);
-					// note, here camera frame (notation 'CA', opencv convention) is defined with
-					// z axis as viewing direction
-					// -y axis as up vector
-					__gc.g_CArmRB2SourceCS = glm::fmat4x4(1);
-					__gc.g_CArmRB2SourceCS[0][0] = (float)matR.at<double>(0, 0);
-					__gc.g_CArmRB2SourceCS[0][1] = (float)matR.at<double>(1, 0);
-					__gc.g_CArmRB2SourceCS[0][2] = (float)matR.at<double>(2, 0);
-					__gc.g_CArmRB2SourceCS[1][0] = (float)matR.at<double>(0, 1);
-					__gc.g_CArmRB2SourceCS[1][1] = (float)matR.at<double>(1, 1);
-					__gc.g_CArmRB2SourceCS[1][2] = (float)matR.at<double>(2, 1);
-					__gc.g_CArmRB2SourceCS[2][0] = (float)matR.at<double>(0, 2);
-					__gc.g_CArmRB2SourceCS[2][1] = (float)matR.at<double>(1, 2);
-					__gc.g_CArmRB2SourceCS[2][2] = (float)matR.at<double>(2, 2);
-					__gc.g_CArmRB2SourceCS[3][0] = (float)((double*)tvec.data)[0];
-					__gc.g_CArmRB2SourceCS[3][1] = (float)((double*)tvec.data)[1];
-					__gc.g_CArmRB2SourceCS[3][2] = (float)((double*)tvec.data)[2];
+					glm::fmat4x4 matRB2CA, matCA2RB;
+					ComputePoseMatrixFromRTVec(rvec, tvec, matRB2CA, matCA2RB);
+					__gc.g_CArmRB2SourceCS = matRB2CA;
 
 					cv::FileStorage fs(__gc.g_folder_trackingInfo + "rb2carm1.txt", cv::FileStorage::Mode::WRITE);
 					fs.write("rvec", rvec);
 					fs.write("tvec", tvec);
 					fs.release();
 
-					if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 
-						auto it = __gc.g_mapAidGroupCArmCam.find(indexExtrinsics);
-						if (it != __gc.g_mapAidGroupCArmCam.end())
-							vzm::RemoveSceneItem(it->second, true);
+					std::string timePack = std::to_string(navihelpers::GetCurrentTimePack());
+					auto it = __gc.g_mapAidGroupCArmCam.find(indexExtrinsics);
+					if (it != __gc.g_mapAidGroupCArmCam.end())
+						vzm::RemoveSceneItem(it->second, true);
 
+					cv::cvtColor(imgFlip, imgFlip, cv::COLOR_BGR2RGB);
+					int aidGroup = calibtask::RegisterCArmImage(sidScene, indexExtrinsics, K, D, matCA2RB, matRB2WS, imgFlip);
+					__gc.g_mapAidGroupCArmCam[indexExtrinsics] = aidGroup;
 
-						fs = cv::FileStorage(__gc.g_folder_trackingInfo + "carm_intrinsics.txt", cv::FileStorage::Mode::READ);
-						cv::Mat K;
-						fs["K"] >> K;
-						cv::Mat DistCoeffs;
-						fs["DistCoeffs"] >> DistCoeffs;
-						fs.release();
-
-						cv::Mat rb2wsMat(4, 4, CV_32FC1);
-						memcpy(rb2wsMat.ptr(), glm::value_ptr(matRB2WS),sizeof(float) * 16);
-						int aidGroup = calibtask::RegisterCArmImage(sidScene, std::to_string(indexExtrinsics), K, DistCoeffs, rvec, tvec, rb2wsMat, imgProcessing);
-						if (aidGroup != -1) {
-							__gc.g_mapAidGroupCArmCam[indexExtrinsics] = aidGroup;
-
-							// DOJO : 스캔 시 (carmIdx) 저장된 이미지(이미지 texture 가 포함된 plane actor)에 fitting 되도록 cpInterCams (by slerp) 지정 
-							// slerp 의 시작점은 현재 cidCam 카메라의 pose, 끝점은 스캔 시 (carmIdx) 저장된 이미지 fitting 카메라 pose
-							// 매 스캔 시에 호출되야 하는 SaveAndChangeViewState() 에서 호출함
-							int aidCArmPlane = vzmutils::GetSceneItemIdByName("CArm Plane:" + std::to_string(1));
-							if (aidCArmPlane != 0) {
-
-								vzm::ActorParameters apCArmPlane;
-								vzm::GetActorParams(aidCArmPlane, apCArmPlane);
-								glm::fmat4x4 matCA2WS = apCArmPlane.script_params.GetParam("matCA2WS", glm::fmat4x4(1));
-
-								rendertask::SetAnimationCamTo(cidRender1, 0,
-									K.at<double>(0, 0), K.at<double>(1, 1), K.at<double>(0, 1), K.at<double>(0, 2), K.at<double>(1, 2),
-									matCA2WS);
-							}
-						}
-						
-						// DOJO TO DO
-						// 구슬 띄우기
-					}
-					else {
-						SaveAndChangeViewState(sidScene, cidRender1, 1, &matRB2WS, &imgProcessing);
-					}
+					SetAnimation(cidRender1, 1, K, indexExtrinsics);
 				}
 				else {
 					__gc.SetErrorCode("Cannot load the Intrinsics!!");
@@ -1507,6 +1510,7 @@ namespace opcode {
 
 			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT)
 			{
+				// CALIB_EDIT 아닐 때는 일반 AP, LL 로 쓰이므로, CALIB_EDIT 일 때만 g_mapAidGroupCArmCam, mapScanToCalib 를 처리함
 				for (auto it = __gc.g_mapAidGroupCArmCam.begin(); it != __gc.g_mapAidGroupCArmCam.end(); it++) {
 					vzm::RemoveSceneItem(it->second, true);
 				}
@@ -1516,7 +1520,11 @@ namespace opcode {
 				}
 			}
 
+			vzm::RemoveSceneItem(aidMarkerGroup);
 
+			calib_points2Ds.clear();
+			calib_pointsWS3Ds.clear();
+			calib_pointsRB3Ds.clear();
 			__gc.g_homographyPairs.clear();
 			__gc.g_engineLogger->info("Extrinsic Points are cleaned!");
 		}
@@ -1536,6 +1544,11 @@ namespace opcode {
 						vzm::SetActorParams(aidImgPlane, apImg);
 					}
 				}
+			}
+			if (ImGui::Button("Process All Images for Extrinsics", ImVec2(0, buttonHeight)) || processAll >= 0) {
+				processAll++;
+				if (processAll == (int)img_files.size())
+					processAll = -1;
 			}
 		}
 		else {
