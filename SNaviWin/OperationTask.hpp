@@ -1134,18 +1134,18 @@ namespace opcode {
 		}
 
 		ImGui::SeparatorText("Parameter Settings:");
-		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
+		if (ImGui::Button("(I)Min Circularity")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderFloat("Min Circularity", &__gc.g_intParam_minCircularity, 0.0f, 1.0f);
-		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
+		ImGui::SliderFloat("I1", &__gc.g_intParam_minCircularity, 0.0f, 1.0f);
+		if (ImGui::Button("(I)Min InertiaRatio")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderFloat("Min InertiaRatio", &__gc.g_intParam_minInertiaRatio, 0.0f, 1.0f);
-		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
+		ImGui::SliderFloat("I2", &__gc.g_intParam_minInertiaRatio, 0.0f, 1.0f);
+		if (ImGui::Button("(I)Min Repeatability")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderInt("Min Repeatability", &__gc.g_intParam_minRepeatability, 1, 10);
+		ImGui::SliderInt("I3", &__gc.g_intParam_minRepeatability, 1, 10);
 
 		if (pSRV != NULL) {
 			ImGui::SeparatorText("Source Image:");
@@ -1607,18 +1607,18 @@ namespace opcode {
 		}
 
 		ImGui::SeparatorText("Parameter Settings:");
-		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
+		if (ImGui::Button("(E)Min Circularity")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderFloat("Min Circularity", &__gc.g_extParam_minCircularity, 0.0f, 1.0f);
-		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
+		ImGui::SliderFloat("E1", &__gc.g_extParam_minCircularity, 0.0f, 1.0f);
+		if (ImGui::Button("(E)Min InertiaRatio")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderFloat("Min InertiaRatio", &__gc.g_extParam_minInertiaRatio, 0.0f, 1.0f);
-		if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
+		ImGui::SliderFloat("E2", &__gc.g_extParam_minInertiaRatio, 0.0f, 1.0f);
+		if (ImGui::Button("(E)Min Repeatability")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderInt("Min Repeatability", &__gc.g_extParam_minRepeatability, 1, 10);
+		ImGui::SliderInt("E3", &__gc.g_extParam_minRepeatability, 1, 10);
 
 		if (pSRV != NULL) {
 			ImGui::SeparatorText("Source Image:");
