@@ -569,6 +569,13 @@ namespace opcode {
 				vzm::SetCameraParams(cidRender2, cpCam2);
 			}
 		}
+
+		ImGui::SameLine();
+		static bool hlsl = false;
+		if (ImGui::Button("Compile HLSL", ImVec2(0, buttonHeight)) || hlsl) {
+			hlsl = !hlsl;
+			vzm::SetRenderTestParam("_bool_ReloadHLSLObjFiles", hlsl, sidScene, cidRender1);
+		}
 		//ImGui::SameLine();
 		//if (ImGui::Button("Delete Scans", ImVec2(0, buttonHeight)))
 		//{
