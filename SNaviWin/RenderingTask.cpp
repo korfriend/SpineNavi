@@ -99,19 +99,6 @@ namespace rendertask {
 		*(glm::fvec3*)cpCam.view = glm::fvec3(1, -1, 1);
 		cpCam.displayActorLabel = cpCam.displayCamTextItem = true;
 
-		// YAML 로 이전에 저장된 (world view 에서의) 카메라 위치 정보 읽어 들임
-		cv::FileStorage fs(__gc->g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
-		if (fs.isOpened()) {
-			cv::Mat ocvVec3;
-			fs["POS"] >> ocvVec3;
-			memcpy(cpCam.pos, ocvVec3.ptr(), sizeof(float) * 3);
-			fs["VIEW"] >> ocvVec3;
-			memcpy(cpCam.view, ocvVec3.ptr(), sizeof(float) * 3);
-			fs["UP"] >> ocvVec3;
-			memcpy(cpCam.up, ocvVec3.ptr(), sizeof(float) * 3);
-			fs.release();
-		}
-
 		// 렌더링될 buffer 사이즈
 		cpCam.w = initBufW;
 		cpCam.h = initBufH;
@@ -184,6 +171,40 @@ namespace rendertask {
 		//vzm::AppendSceneItemToSceneTree(aidTextFrame, sidScene);
 		// NOTE : 여기에서는 모든 actor 및 camera, light 등 scene item 들이 모두 scene (i.e., root) 에 바로 연결되었지만,
 		// 특정 actor 의 자식으로 붙을 수도 있다 (e.g., scene<-aidAxis<-aidTextZ<-cidCam1 ,...)
+
+		cv::FileStorage fs(__gc->g_folder_data + "SceneCamPose.txt", cv::FileStorage::Mode::READ);
+		if (fs.isOpened()) {
+			vzm::CameraParameters cpCam1, cpCam2;
+			vzm::GetCameraParams(cidCam1, cpCam1);
+			vzm::GetCameraParams(cidCam2, cpCam2);
+			cv::Mat ocvVec3;
+			fs["POS"] >> ocvVec3;
+			memcpy(cpCam1.pos, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["VIEW"] >> ocvVec3;
+			memcpy(cpCam1.view, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["UP"] >> ocvVec3;
+			memcpy(cpCam1.up, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["fx"] >> cpCam1.fx;
+			fs["fy"] >> cpCam1.fy;
+			fs["sc"] >> cpCam1.sc;
+			fs["cx"] >> cpCam1.cx;
+			fs["cy"] >> cpCam1.cy;
+
+			fs["POS2"] >> ocvVec3;
+			memcpy(cpCam2.pos, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["VIEW2"] >> ocvVec3;
+			memcpy(cpCam2.view, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["UP2"] >> ocvVec3;
+			memcpy(cpCam2.up, ocvVec3.ptr(), sizeof(float) * 3);
+			fs["fx2"] >> cpCam2.fx;
+			fs["fy2"] >> cpCam2.fy;
+			fs["sc2"] >> cpCam2.sc;
+			fs["cx2"] >> cpCam2.cx;
+			fs["cy2"] >> cpCam2.cy;
+			fs.release();
+			vzm::SetCameraParams(cidCam1, cpCam1);
+			vzm::SetCameraParams(cidCam2, cpCam2);
+		}
 	}
 
 	// DOJO : 특별한 기능은 아니며, 카메라 전환 시 부드러운 변화를 위해 slerp 로 카메라 정보를 저장한 구조체
@@ -274,6 +295,128 @@ namespace rendertask {
 		}
 
 		g_arAnimationKeyFrame[viewIdx] = 0;
+	}
+
+	// DOJO: Scene 에 Text GUI 생성
+	void SetTextDisplay(const int cidCam1)
+	{
+		//int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
+		//vzm::ActorParameters apFrameText;
+		//vzm::GetActorParams(aidFrameText, apFrameText);
+		//int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
+		//std::vector<glm::fvec3> pinfo(3);
+		//pinfo[0] = glm::fvec3(0, 0.3, 0);
+		//pinfo[1] = glm::fvec3(0, 0, -1);
+		//pinfo[2] = glm::fvec3(0, 1, 0);
+		//vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
+
+		static int frameCount = 0;
+		int frame = __gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD ? (int)__gc->g_optiRecordFrame : frameCount++;
+
+		vzm::CameraParameters cpCam1;
+		vzm::GetCameraParams(cidCam1, cpCam1);
+		vzm::TextItem textItem;
+		textItem.textStr = "Frame : " + std::to_string(frame);
+		textItem.fontSize = 30.f;
+		textItem.iColor = 0xFFFFFF;
+		textItem.posScreenX = 0;
+		textItem.posScreenY = cpCam1.h - 40;
+		cpCam1.text_items.SetParam("FRAME", textItem);
+
+		if (__gc->g_downloadCompleted == 0)
+			textItem.textStr = "";
+		else if (__gc->g_downloadCompleted > 100)
+			textItem.textStr = fmt::format("Downloading... {} %", __gc->g_downloadCompleted - 100);
+		else
+			textItem.textStr = "Download Completed";
+		textItem.fontSize = 30.f;
+		textItem.alpha = (float)std::min((int)__gc->g_downloadCompleted, (int)100) * 0.01f;
+		textItem.iColor = 0xFFFF00;
+		textItem.posScreenX = 300;
+		textItem.posScreenY = cpCam1.h - 40;
+		cpCam1.text_items.SetParam("DOWNLOADED", textItem);
+
+		static float blinkAlpha = 1.f;
+		static bool isDecrease = true;
+		blinkAlpha = isDecrease ? blinkAlpha - 0.02f : blinkAlpha + 0.02f;
+		blinkAlpha = std::max(std::min(blinkAlpha, 1.f), 0.f);
+		if (blinkAlpha <= 0.5f) isDecrease = false;
+		else if (blinkAlpha >= 1.0f) isDecrease = true;
+
+		// top-right
+		switch (__gc->g_optiRecordMode) {
+		case OPTTRK_RECMODE::RECORD: textItem.textStr = "*REC*"; break;
+		case OPTTRK_RECMODE::LOAD: textItem.textStr = "*PLAY REC*"; break;
+		case OPTTRK_RECMODE::NONE:
+		default:
+			textItem.textStr = ""; break;
+		}
+		textItem.fontSize = 30.f;
+		textItem.alpha = blinkAlpha;
+		textItem.fontWeight = 9;
+		textItem.iColor = 0xFF3030;
+		textItem.alignment = "RIGHT";
+		textItem.posScreenX = cpCam1.w - 500;
+		textItem.posScreenY = 10;
+		cpCam1.text_items.SetParam("RECORD", textItem);
+
+		textItem.textStr = __gc->g_markerSelectionMode ? "SELECTING MARKER MODE (" + std::to_string(__gc->g_selectedMkNames.size()) + ")" : "";
+		textItem.iColor = 0xFFFF30;
+		textItem.posScreenY = 50;
+		cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
+
+		textItem.textStr = __gc->g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT ? "PIVOTING MODE " + std::to_string(__gc->g_optiPivotProgress) + "%" : "";
+		cpCam1.text_items.SetParam("PIVOT_PROGRESS", textItem);
+
+		if (__gc->g_downloadCompleted > 0 && __gc->g_downloadCompleted <= 100) __gc->g_downloadCompleted--;
+
+		// error code display
+		if (__gc->g_error_duration == 0) {
+			__gc->g_error_text = "";
+		}
+		textItem.alignment = "CENTER";
+		textItem.fontSize = 40.f;
+		textItem.iColor = 0xFF5050;
+		textItem.fontWeight = 7;
+		textItem.alpha = __gc->g_error_duration * 0.01f;
+		textItem.posScreenX = 10;
+		textItem.posScreenY = cpCam1.h / 2 - 30;
+		textItem.textStr = __gc->g_error_text;
+		__gc->g_error_duration = std::max(__gc->g_error_duration - 1, (int)0);
+		cpCam1.text_items.SetParam("ERRORCODE", textItem);
+
+		vzm::SetCameraParams(cidCam1, cpCam1);
+	}
+
+	void AnimateFrame(const int cidRender1, const int cidRender2)
+	{
+		if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD && __gc->g_optiRecordFrame <= 2) {
+			for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
+				g_arAnimationKeyFrame[i] = -1;
+			}
+		}
+
+		// DOJO : Animation effect
+		// cpInterCams 는 매 스캔 시 업데이트되며, 
+		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
+		int cidCams[2] = { cidRender1 , cidRender2 };
+		for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
+
+			int frameIdx = g_arAnimationKeyFrame[i];
+			if (frameIdx >= 0) {
+				vzm::CameraParameters& cpCam = g_cpInterCams[i][frameIdx];
+				cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
+				vzm::SetCameraParams(cidCams[i], cpCam);
+				if (frameIdx == g_numAnimationCount - 1)
+					frameIdx = -1;
+				else
+					frameIdx++;
+
+				g_arAnimationKeyFrame[i] = frameIdx;
+				//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
+				//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
+			}
+		}
 	}
 
 	// DOJO : Tracking 되는 정보를 Scene 에 반영시키는 함수
@@ -635,146 +778,9 @@ namespace rendertask {
 
 
 		/**/
-	}
 
-	// DOJO: Scene 에 Text GUI 생성
-	void SetTextDisplay(const int cidCam1)
-	{
-		//int aidFrameText = vzmutils::GetSceneItemIdByName("Frame Text");
-		//vzm::ActorParameters apFrameText;
-		//vzm::GetActorParams(aidFrameText, apFrameText);
-		//int oidFrameText = apFrameText.GetResourceID(vzm::ActorParameters::GEOMETRY);
-		//std::vector<glm::fvec3> pinfo(3);
-		//pinfo[0] = glm::fvec3(0, 0.3, 0);
-		//pinfo[1] = glm::fvec3(0, 0, -1);
-		//pinfo[2] = glm::fvec3(0, 1, 0);
-		//vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
-
-		static int frameCount = 0;
-		int frame = __gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD ? (int)__gc->g_optiRecordFrame : frameCount++;
-
-		vzm::CameraParameters cpCam1;
-		vzm::GetCameraParams(cidCam1, cpCam1);
-		vzm::TextItem textItem;
-		textItem.textStr = "Frame : " + std::to_string(frame);
-		textItem.fontSize = 30.f;
-		textItem.iColor = 0xFFFFFF;
-		textItem.posScreenX = 0;
-		textItem.posScreenY = cpCam1.h - 40;
-		cpCam1.text_items.SetParam("FRAME", textItem);
-
-		if (__gc->g_downloadCompleted == 0)
-			textItem.textStr = "";
-		else if (__gc->g_downloadCompleted > 100)
-			textItem.textStr = fmt::format("Downloading... {} %", __gc->g_downloadCompleted - 100);
-		else 
-			textItem.textStr = "Download Completed";
-		textItem.fontSize = 30.f;
-		textItem.alpha = (float)std::min((int)__gc->g_downloadCompleted, (int)100) * 0.01f;
-		textItem.iColor = 0xFFFF00;
-		textItem.posScreenX = 300;
-		textItem.posScreenY = cpCam1.h - 40;
-		cpCam1.text_items.SetParam("DOWNLOADED", textItem);
-
-		static float blinkAlpha = 1.f;
-		static bool isDecrease = true;
-		blinkAlpha = isDecrease? blinkAlpha - 0.02f : blinkAlpha + 0.02f;
-		blinkAlpha = std::max(std::min(blinkAlpha, 1.f), 0.f);
-		if (blinkAlpha <= 0.5f) isDecrease = false;
-		else if (blinkAlpha >= 1.0f) isDecrease = true;
-
-		// top-right
-		switch (__gc->g_optiRecordMode) {
-		case OPTTRK_RECMODE::RECORD: textItem.textStr = "*REC*"; break;
-		case OPTTRK_RECMODE::LOAD: textItem.textStr = "*PLAY REC*"; break;
-		case OPTTRK_RECMODE::NONE:
-		default:
-			textItem.textStr = ""; break;
-		}
-		textItem.fontSize = 30.f; 
-		textItem.alpha = blinkAlpha;
-		textItem.fontWeight = 9;
-		textItem.iColor = 0xFF3030;
-		textItem.alignment = "RIGHT";
-		textItem.posScreenX = cpCam1.w - 500;
-		textItem.posScreenY = 10;
-		cpCam1.text_items.SetParam("RECORD", textItem);
-
-		textItem.textStr = __gc->g_markerSelectionMode ? "SELECTING MARKER MODE (" + std::to_string(__gc->g_selectedMkNames.size()) + ")" : "";
-		textItem.iColor = 0xFFFF30;
-		textItem.posScreenY = 50;
-		cpCam1.text_items.SetParam("OPERATION_MODE", textItem);
-
-		textItem.textStr = __gc->g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT ? "PIVOTING MODE " + std::to_string(__gc->g_optiPivotProgress) + "%" : "";
-		cpCam1.text_items.SetParam("PIVOT_PROGRESS", textItem);
-
-		if (__gc->g_downloadCompleted > 0 && __gc->g_downloadCompleted <= 100) __gc->g_downloadCompleted--;
-
-		// error code display
-		if (__gc->g_error_duration == 0) {
-			__gc->g_error_text = "";
-		}
-		textItem.alignment = "CENTER";
-		textItem.fontSize = 40.f;
-		textItem.iColor = 0xFF5050;
-		textItem.fontWeight = 7;
-		textItem.alpha = __gc->g_error_duration * 0.01f;
-		textItem.posScreenX = 10;
-		textItem.posScreenY = cpCam1.h / 2 - 30;
-		textItem.textStr = __gc->g_error_text;
-		__gc->g_error_duration = std::max(__gc->g_error_duration - 1, (int)0);
-		cpCam1.text_items.SetParam("ERRORCODE", textItem);
-
-		vzm::SetCameraParams(cidCam1, cpCam1);
-	}
-	// DOJO : 현재 Scene (__gc->g_sceneName) 에서 등록된 camera (__gc->g_camName, __gc->g_camName2) 들에 대해 렌더링하는 함수
-	// Timer 에 등록된 CALLBACK TimerProc 에서 호출됨 (note: Timer 가 본 어플리케이션에서 rendering thread 로 사용됨)
-	void RenderTrackingScene(track_info* trackInfo)
-	{
-		if (__gc == NULL) return;
-
-		// DOJO : Tracking 되는 기본 세트 (individual markers + rigid body frames) 를 Scene 에 반영시키는 함수
-		if (trackInfo)
-			UpdateTrackInfo2Scene(*(track_info*)trackInfo);
-
-		int sidScene = vzmutils::GetSceneItemIdByName(__gc->g_sceneName);
 		int cidCam1 = vzmutils::GetSceneItemIdByName(__gc->g_camName);
-		int cidCam2 = vzmutils::GetSceneItemIdByName(__gc->g_camName2);
-
-		if ((sidScene & cidCam1 & cidCam2) == 0)
-			return;
-
-		if (__gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD && __gc->g_optiRecordFrame <= 2) {
-			for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
-				g_arAnimationKeyFrame[i] = -1;
-			}
-		}
-
-		// DOJO : Animation effect
-		// cpInterCams 는 매 스캔 시 업데이트되며, 
-		// slerp 로 인터폴레이션된 camera 정보를 받아 옴
-		int cidCams[2] = { cidCam1 , cidCam2 };
-		for (int i = 0; i < g_arAnimationKeyFrame.size(); i++) {
-
-			int frameIdx = g_arAnimationKeyFrame[i];
-			if (frameIdx >= 0) {
-				vzm::CameraParameters& cpCam = g_cpInterCams[i][frameIdx];
-				cpCam.projection_mode = vzm::CameraParameters::CAMERA_INTRINSICS;
-				vzm::SetCameraParams(cidCams[i], cpCam);
-				if (frameIdx == g_numAnimationCount - 1)
-					frameIdx = -1;
-				else
-					frameIdx++;
-
-				g_arAnimationKeyFrame[i] = frameIdx;
-				//UINT flags = SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE;
-				//SetWindowPos(g_hWnd, NULL, 100, 100, cpCam.w, cpCam.h, flags);
-			}
-		}
-
 		SetTextDisplay(cidCam1);
-
-		vzm::RenderScene(sidScene, cidCam1);
-		vzm::RenderScene(sidScene, cidCam2);
 	}
+
 }

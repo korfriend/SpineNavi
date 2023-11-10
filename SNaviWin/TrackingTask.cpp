@@ -486,14 +486,14 @@ namespace trackingtask {
 							cv::FileStorage config_fs(__gc->g_configFileName, cv::FileStorage::Mode::READ);
 							std::string configLoad;
 							config_fs["PivotSamples"] >> __gc->g_optiPivotSamples;
-							std::cout << (int)__gc->g_optiPivotSamples << std::endl;
+							config_fs["TimeInterval"] >> __gc->g_optiPivotTimeInterval;
 							config_fs.release();
 						}
 							if (optitrk::StartPivotSample(rbCID, __gc->g_optiPivotSamples)) pivotState = 1;
 							break;
 						case 1:
 							curTime = clock();
-							if ((double)(curTime - prevTime) / CLOCKS_PER_SEC > 0.01) {
+							if ((double)(curTime - prevTime) / CLOCKS_PER_SEC > __gc->g_optiPivotTimeInterval) {
 								prevTime = curTime;
 								if (optitrk::ProcessPivotSample(&progress, &initErr, &returnErr)) {
 									__gc->g_optiPivotProgress = (int)progress;

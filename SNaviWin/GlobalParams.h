@@ -374,6 +374,7 @@ enum class OPTTRK_RECMODE {
 	NONE = 0,
 	RECORD,
 	LOAD,
+	CALIB_EDIT,
 };
 
 enum class RENDER_THREAD {
@@ -466,6 +467,7 @@ typedef struct GlobalContainer {
 	std::atomic_int g_optiRecordFrame; // count in main thread (same as render thread)
 	int g_optiRecordPeriod;
 	int g_optiPivotSamples;
+	double g_optiPivotTimeInterval = 0.001; // seconds
 	std::atomic_int g_optiPivotProgress;
 
 	std::atomic<RENDER_THREAD> g_renderEvent;// { RENDER_THREAD::FREE };
