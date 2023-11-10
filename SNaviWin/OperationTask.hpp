@@ -371,6 +371,7 @@ namespace opcode {
 					camRight = glm::normalize(camRight);
 
 					float horizonAngle = fabs(glm::dot(camRight, dirCArm));
+					//bool isAP = true; // for experiment
 					bool isAP = horizonAngle < 0.3f;
 					int viewIdx = isAP ? 1 : 2;
 
@@ -1562,8 +1563,8 @@ namespace opcode {
 						vzm::RemoveSceneItem(it->second, true);
 
 					cv::cvtColor(imgFlip, imgFlip, cv::COLOR_BGR2RGB);
-					int aidGroup = calibtask::RegisterCArmImage(sidScene, indexExtrinsics, K, D, matCA2RB, matRB2WS, imgFlip);
-					__gc.g_mapAidGroupCArmCam[indexExtrinsics] = aidGroup;
+					//int aidGroup = calibtask::RegisterCArmImage(sidScene, indexExtrinsics, K, D, matCA2RB, matRB2WS, imgFlip); // for exp
+					//__gc.g_mapAidGroupCArmCam[indexExtrinsics] = aidGroup;
 
 					SetAnimation(cidRender1, 1, K, indexExtrinsics);
 				}
