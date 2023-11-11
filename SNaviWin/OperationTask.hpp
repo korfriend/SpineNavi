@@ -909,9 +909,16 @@ namespace opcode {
 			{
 				IFileOpenDialog* pFileOpen;
 
+
 				// Create the FileOpenDialog object.
 				hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
 					IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+
+				DWORD dwOptions;
+				if (SUCCEEDED(pFileOpen->GetOptions(&dwOptions)))
+				{
+					pFileOpen->SetOptions(dwOptions | FOS_PICKFOLDERS);
+				}
 
 				if (SUCCEEDED(hr))
 				{
@@ -922,7 +929,8 @@ namespace opcode {
 					if (SUCCEEDED(hr))
 					{
 						IShellItem* pItem;
-						hr = pFileOpen->GetResult(&pItem);
+						//hr = pFileOpen->GetResult(&pItem);
+						pFileOpen->GetFolder(&pItem);
 						if (SUCCEEDED(hr))
 						{
 							PWSTR pszFilePath;
@@ -935,7 +943,13 @@ namespace opcode {
 								std::string tempFilename;
 								std::wstring tempwFilename(pszFilePath);
 								tempFilename.assign(tempwFilename.begin(), tempwFilename.end());
-								__gc.g_engineLogger->info(tempFilename);
+
+
+								__gc.g_recFileName = tempFilename + "/TrackingRecord.csv";
+								__gc.g_recScanName = tempFilename + "/ScanRecord.csv";
+
+								__gc.g_optiRecordFrame = 0;
+								//__gc.g_engineLogger->info(tempFilename);
 							}
 							pItem->Release();
 						}
@@ -1690,6 +1704,65 @@ namespace opcode {
 
 	void ReplayControl()
 	{
+		ImGui::SeparatorText("Record:");
+		if (ImGui::Button("Open File", ImVec2(0, buttonHeight)))
+		{
+			HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED |
+				COINIT_DISABLE_OLE1DDE);
+			if (SUCCEEDED(hr))
+			{
+				IFileOpenDialog* pFileOpen;
+
+
+				// Create the FileOpenDialog object.
+				hr = CoCreateInstance(CLSID_FileOpenDialog, NULL, CLSCTX_ALL,
+					IID_IFileOpenDialog, reinterpret_cast<void**>(&pFileOpen));
+
+				DWORD dwOptions;
+				if (SUCCEEDED(pFileOpen->GetOptions(&dwOptions)))
+				{
+					pFileOpen->SetOptions(dwOptions | FOS_PICKFOLDERS);
+				}
+
+				if (SUCCEEDED(hr))
+				{
+					// Show the Open dialog box.
+					hr = pFileOpen->Show(NULL);
+
+					// Get the file name from the dialog box.
+					if (SUCCEEDED(hr))
+					{
+						IShellItem* pItem;
+						//hr = pFileOpen->GetResult(&pItem);
+						pFileOpen->GetFolder(&pItem);
+						if (SUCCEEDED(hr))
+						{
+							PWSTR pszFilePath;
+							hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &pszFilePath);
+
+							// Display the file name to the user.
+							if (SUCCEEDED(hr))
+							{
+								//pszFilePath->get
+								std::string tempFilename;
+								std::wstring tempwFilename(pszFilePath);
+								tempFilename.assign(tempwFilename.begin(), tempwFilename.end());
+
+
+								__gc.g_recFileName = tempFilename + "/TrackingRecord.csv";
+								__gc.g_recScanName = tempFilename + "/ScanRecord.csv";
+								
+								__gc.g_optiRecordFrame = 0;
+								//__gc.g_engineLogger->info(tempFilename);
+							}
+							pItem->Release();
+						}
+					}
+					pFileOpen->Release();
+				}
+				CoUninitialize();
+			}
+		}
 
 		int tempRecordFrame = __gc.g_optiRecordFrame;
 		ImGui::SliderInt("Frames", &tempRecordFrame, 1, __gc.g_recNumFrames);
