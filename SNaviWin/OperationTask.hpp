@@ -247,6 +247,9 @@ namespace opcode {
 			__gc.g_optiRecordFrame++;
 
 		static int recRowCount = -1;
+
+		recRowCount = __gc.g_recCurFrame;
+
 		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
 			if (__gc.g_recScanStream.is_open()) {
 				std::cout << "CSV (Scan) data has been written to " << __gc.g_recScanName << std::endl;
@@ -318,6 +321,7 @@ namespace opcode {
 			if (__gc.g_optiRecordFrame > recordFrame) {
 				std::vector<std::string> rowData = csvTrkData.GetRow<std::string>(recRowCount);
 				recRowCount++;
+				__gc.g_recCurFrame++;
 
 				bool isAP = rowData[1] == "AP";
 
@@ -1563,8 +1567,8 @@ namespace opcode {
 						vzm::RemoveSceneItem(it->second, true);
 
 					cv::cvtColor(imgFlip, imgFlip, cv::COLOR_BGR2RGB);
-					//int aidGroup = calibtask::RegisterCArmImage(sidScene, indexExtrinsics, K, D, matCA2RB, matRB2WS, imgFlip); // for exp
-					//__gc.g_mapAidGroupCArmCam[indexExtrinsics] = aidGroup;
+					int aidGroup = calibtask::RegisterCArmImage(sidScene, indexExtrinsics, K, D, matCA2RB, matRB2WS, imgFlip); // for exp
+					__gc.g_mapAidGroupCArmCam[indexExtrinsics] = aidGroup;
 
 					SetAnimation(cidRender1, 1, K, indexExtrinsics);
 				}
@@ -1682,6 +1686,16 @@ namespace opcode {
 			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
 			ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x), ImVec2(0, 0), ImVec2(1, 1));
 		}
+	}
+
+	void ReplayControl()
+	{
+
+		int tempRecordFrame = __gc.g_optiRecordFrame;
+		ImGui::SliderInt("Frames", &tempRecordFrame, 1, __gc.g_recNumFrames);
+
+		__gc.g_optiRecordFrame = tempRecordFrame;
+
 	}
 
 	void SystemInfo()

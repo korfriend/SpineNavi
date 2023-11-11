@@ -400,6 +400,9 @@ typedef struct GlobalContainer {
 	std::ofstream g_recFileStream;
 	std::ofstream g_recScanStream;
 
+	int g_recNumFrames;
+	int g_recCurFrame;
+
 	std::map<std::string, int> g_selectedMkNames;
 	std::vector<std::string> g_calibSortMKNames;
 	std::map<int, int> g_mapAidGroupCArmCam;
@@ -550,6 +553,9 @@ typedef struct GlobalContainer {
 
 		g_error_duration = 0;
 		g_error_text = "";
+
+		g_recNumFrames = 0;
+		g_recCurFrame = -1;
 
 	}
 

@@ -173,6 +173,12 @@ void mygui(ImGuiIO& io) {
 				opcode::CalibrateExtrinsics();
 			}
 		}
+		else // Load 모드 frame 조절 할 수 있도록.
+		{
+			if (ImGui::CollapsingHeader("Play Control", ImGuiTreeNodeFlags_DefaultOpen)) {
+				opcode::ReplayControl();
+			}
+		}
 
 		ImGui::Spacing();
 		if (ImGui::CollapsingHeader("System Information", ImGuiTreeNodeFlags_DefaultOpen)) {

@@ -311,7 +311,8 @@ namespace rendertask {
 		//vzm::GenerateTextObject((float*)&pinfo[0], "Frame : " + std::to_string(frame), 0.1, true, false, oidFrameText);
 
 		static int frameCount = 0;
-		int frame = __gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD ? (int)__gc->g_optiRecordFrame : frameCount++;
+		int frame = __gc->g_optiRecordMode == OPTTRK_RECMODE::LOAD ? (int)__gc->g_recCurFrame : frameCount++;
+		
 
 		vzm::CameraParameters cpCam1;
 		vzm::GetCameraParams(cidCam1, cpCam1);

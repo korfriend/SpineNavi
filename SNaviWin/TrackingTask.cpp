@@ -128,6 +128,7 @@ namespace trackingtask {
 
 					numCols = (int)csvTrkData.GetColumnCount();
 					numRows = (int)csvTrkData.GetRowCount();
+					
 
 					// get rbNames 
 					rbNames.clear();
@@ -148,10 +149,12 @@ namespace trackingtask {
 
 				const int frameRowIdx = 4;
 				const int numTotalFrames = numRows - 4;
+				__gc->g_recNumFrames = numTotalFrames;
 
 				if (recDataRowCount >= numTotalFrames) {
 					recDataRowCount = 0;
 					__gc->g_optiRecordFrame = 1;
+					
 				}
 
 				std::string frameStr = csvTrkData.GetRowName((int)frameRowIdx + (int)recDataRowCount);
