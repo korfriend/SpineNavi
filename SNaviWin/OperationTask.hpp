@@ -11,6 +11,7 @@
 #include "NetworkTask.h"
 #include "TrackingTask.h"
 #include "RenderingTask.h"
+#include "CameraTask.h"
 #include "VmGui.h"
 #include "../optitrk/optitrk.h"
 

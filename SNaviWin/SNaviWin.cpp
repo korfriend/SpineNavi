@@ -374,6 +374,9 @@ int main()
 	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE || __gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
 		network_processing_thread = std::thread(nettask::NetworkProcess);
 	}
+
+	std::thread camerar_processing_thread = std::thread(camtask::CameraProcess);;
+
 	// Main loop
 	bool done = false;
 	while (!done)
@@ -435,6 +438,9 @@ int main()
 	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
 		optitrk::DeinitOptiTrackLib();
 	}
+
+	__gc.g_camera_alive = false;
+	camerar_processing_thread.join();
 
 	vzm::DeinitEngineLib();
 	__gc.Deinit();

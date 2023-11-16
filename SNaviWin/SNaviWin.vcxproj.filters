@@ -59,6 +59,7 @@
       <Filter>imgui</Filter>
     </ClInclude>
     <ClInclude Include="OperationTask.hpp" />
+    <ClInclude Include="CameraTask.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="small.ico">
@@ -98,6 +99,7 @@
     <ClCompile Include="..\imgui\backends\imgui_impl_win32.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
+    <ClCompile Include="CameraTask.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="SNaviWin.rc">
