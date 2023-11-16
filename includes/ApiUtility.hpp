@@ -1098,6 +1098,14 @@ namespace vzmutils {
 		return vzm::ComputeDistanceToVolume(aidVolume, __FP posSatrtWS, __FP dirStartWS, distance);
 	}
 
+	inline bool ComputeObjectCenterPivotMatrix(const int objId, glm::fmat4x4& matPivot) {
+		glm::fvec3 aabb_min_os, aabb_max_os;
+		vzm::GetObjBoundingBox(objId, __FP aabb_min_os, __FP aabb_max_os);
+		glm::fvec3 center = (aabb_min_os + aabb_max_os) * 0.5f;
+		matPivot = glm::translate(-center);
+		return true;
+	}
+
 	struct GeneralMove {
 	private:
 		helpers::arcball aball_vr;
