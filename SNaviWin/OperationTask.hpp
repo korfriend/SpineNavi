@@ -1496,6 +1496,8 @@ namespace opcode {
 					}
 				}
 			}
+			else
+				indexExtrinsics = 1;
 
 			if (points2D.size() != extrinsicWidth * extrinsicHeight) {
 				__gc.SetErrorCode("Failure to detect the entire circles!");
