@@ -74,6 +74,9 @@ namespace vmgui {
 		vzm::CameraParameters __cpRender; // current
 		vzmutils::GeneralMove __gmEvent;
 
+		bool __zoomMoveEnabled = false, __zoomMoveLDragPan = true;
+		bool __zoomMoveUserMoveInvert = false, __zoomMovePreserveCenter = false;
+
 		void* __components = NULL;
 
 		glm::fvec2 __prevMousePos = glm::fvec2(-10000, -10000);
@@ -131,6 +134,14 @@ namespace vmgui {
 		void View(glm::ivec2* xyOnImage);
 		void SetStartEvent(const OnEvents oe) {
 			__eventStart = oe;
+		}
+		// note then the MRight Rotation will be disabled
+		void EnableZoomMoveOnMRightDrag(const bool zoomMoveEnabled, const bool mLDragPan = true, // (zoomMoveEnabled && !mLDragPan) then Rotate
+			const bool zoomMoveUserMoveInvert = false, const bool zoomMovePreserveCenter = false) {
+			__zoomMoveEnabled = zoomMoveEnabled;
+			__zoomMoveLDragPan = mLDragPan;
+			__zoomMoveUserMoveInvert = zoomMoveUserMoveInvert;
+			__zoomMovePreserveCenter = zoomMovePreserveCenter;
 		}
 	};
 

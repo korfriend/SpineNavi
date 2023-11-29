@@ -314,6 +314,7 @@ namespace vzm
 	private:
 		bool is_rowMajor = false;
 		bool use_localTrans = true;
+		float __pivot2os[16] = { 1.f, 0, 0, 0, 0, 1.f, 0, 0, 0, 0, 1.f, 0, 0, 0, 0, 1.f }; // original object space to pivot object space 
 		float __os2ls[16] = { 1.f, 0, 0, 0, 0, 1.f, 0, 0, 0, 0, 1.f, 0, 0, 0, 0, 1.f }; // object space to local space (used in hierarchical tree structure)
 		float __os2ws[16] = { 1.f, 0, 0, 0, 0, 1.f, 0, 0, 0, 0, 1.f, 0, 0, 0, 0, 1.f }; // 4x4 matrix col-major (same as in glm::fmat4x4)
 		ParamMap<RES_USAGE> associated_obj_ids; // <usage, obj_id> 
@@ -333,6 +334,12 @@ namespace vzm
 			memcpy(__os2ls, os2ls, sizeof(float) * 16); use_localTrans = true;
 		};
 		const float* GetLocalTransform() const { return __os2ls; };
+
+		void SetObjectPivot(const float* pivot2os) {
+			memcpy(__pivot2os, pivot2os, sizeof(float) * 16);
+		}
+
+		const float* GetPivotTransform() const { return __pivot2os; };
 		
 		// materials and expressions 
 		// note that those parameters are not passed on to children (of a tree node)
@@ -515,6 +522,7 @@ namespace vzm
 	__dojostatic bool SetCameraParams(const int cam_id, const CameraParameters& camera_params);
 	__dojostatic bool SetLightParams(const int light_id, const LightParameters& light_params);
 	__dojostatic bool AppendSceneItemToSceneTree(const int scene_item_id, const int parent_scene_item_id); // scene_item_id:
+	// remove its children
 	__dojostatic bool RemoveSceneItem(const int scene_item_id, const bool try_delete_associated_res_objs = false); // scene, actor, camera, or light
 	__dojostatic bool UpdateSceneTransforms(const int scene_id); // if -1, all scenes are updated
 
@@ -532,7 +540,7 @@ namespace vzm
 	__dojostatic bool PresentHWND(const HWND hWnd);
 
 	__dojostatic bool StartProgress();
-	__dojostatic bool GetProgress(int& progress);
+	__dojostatic bool GetProgress(int& progress, std::string* progressTag = NULL);
 	__dojostatic bool EndProgress();
 
 	// etc

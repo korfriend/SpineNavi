@@ -1,6 +1,4 @@
 #pragma once
-
-#pragma once
 #include "GlobalParams.h"
 
 #include <opencv2/opencv.hpp>

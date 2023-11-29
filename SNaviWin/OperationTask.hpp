@@ -11,6 +11,7 @@
 #include "NetworkTask.h"
 #include "TrackingTask.h"
 #include "RenderingTask.h"
+#include "CameraTask.h"
 #include "VmGui.h"
 #include "../optitrk/optitrk.h"
 
@@ -1509,6 +1510,8 @@ namespace opcode {
 					}
 				}
 			}
+			else
+				indexExtrinsics = 1;
 
 			if (points2D.size() != extrinsicWidth * extrinsicHeight) {
 				__gc.SetErrorCode("Failure to detect the entire circles!");
