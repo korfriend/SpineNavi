@@ -43,6 +43,10 @@ namespace optitrk
 	__dojostatic bool ProcessPivotSample(float* progress, float* errInit, float* errResult); // a percentage of the total samples during sampling.
 	__dojostatic bool ResetPivot(); // a percentage of the total samples during sampling.
 
+	__dojostatic bool StartRefineSample(const std::bitset<128>& cidRb, const int numSamples);
+	__dojostatic bool ProcessRefineSample(float* progress, float* errInit, float* errResult); // a percentage of the total samples during sampling.
+	__dojostatic bool ResetRefine(); // a percentage of the total samples during sampling.
+
 	// mat_cam2ws ==> glm::fmat4x4
 	// normal camera space.. up : y down (-y), view : +z
 	__dojostatic bool GetCameraLocation(const int cam_idx, float* mat_cam2ws);

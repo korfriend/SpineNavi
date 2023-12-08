@@ -459,6 +459,55 @@ bool optitrk::ResetPivot()
 	return TT_RigidBodyPivotSolverReset();
 }
 
+bool optitrk::StartRefineSample(const std::bitset<128>& cidRb, const int numSamples)
+{
+	Core::cUID rigidBodyID((cidRb >> 64).to_ullong(), ((cidRb << 64) >> 64).to_ullong());
+	return TT_RigidBodyRefineStart(rigidBodyID, numSamples);
+}
+
+bool optitrk::ProcessRefineSample(float* progress, float* errInit, float* errResult)
+{
+	auto SolverStateToString = [](TT_RigidBodyRefineStates refineSolverState) {
+		std::string stateStr;
+		switch (refineSolverState) {
+		case TT_RigidBodyRefine_Initialized: stateStr = "Initialized"; break;
+		case TT_RigidBodyRefine_Sampling: stateStr = "Sampling"; break;
+		case TT_RigidBodyRefine_Solving: stateStr = "Solving"; break;
+		case TT_RigidBodyRefine_Complete: stateStr = "Complete"; break;
+		case TT_RigidBodyRefine_Uninitialized: stateStr = "Uninitialized"; break;
+		}
+		return stateStr;
+	};
+
+	TT_RigidBodyRefineStates refineSolverState = TT_RigidBodyRefineState();
+	std::cout << "RigidBodyRefineSolverStates : " << SolverStateToString(refineSolverState) << std::endl;
+	if (refineSolverState == TT_RigidBodyRefine_Uninitialized)
+		return false;
+
+	bool ret = TT_RigidBodyRefineSample();
+
+	refineSolverState = TT_RigidBodyRefineState();
+
+	if (progress) *progress = TT_RigidBodyRefineProgress();
+	if (errInit) *errInit = TT_RigidBodyRefineInitialError();
+
+	if (refineSolverState == TT_RigidBodyRefine_Complete) {
+		if (errResult) *errResult = TT_RigidBodyRefineResultError();
+		TT_RigidBodyRefineApplyResult();
+	}
+	else {
+		if (errResult) *errResult = -1.f;
+	}
+	return ret;
+}
+
+bool optitrk::ResetRefine()
+{
+	return TT_RigidBodyRefineReset();
+}
+
+
+
 bool optitrk::Test(float* v) {
 	float   yaw, pitch, roll;
 	float   x, y, z;

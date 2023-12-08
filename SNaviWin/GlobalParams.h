@@ -368,6 +368,8 @@ enum class OPTTRK_THREAD {
 	TOOL_UPDATE,
 	TOOL_PIVOT,
 	TOOL_RESET_PIVOT,
+	RIGIDBODY_REFINE,
+	RIGIDBODY_RESET_REFINE,
 };
 
 enum class OPTTRK_RECMODE {
@@ -470,8 +472,11 @@ typedef struct GlobalContainer {
 	std::atomic_int g_optiRecordFrame; // count in main thread (same as render thread)
 	int g_optiRecordPeriod;
 	int g_optiPivotSamples;
+	int g_optiRefineSamples;
 	double g_optiPivotTimeInterval = 0.001; // seconds
-	std::atomic_int g_optiPivotProgress;
+	double g_optiRefineTimeInterval = 0.001; // seconds
+	std::atomic_int g_optiPivotProgress = -1;
+	std::atomic_int g_optiRefineProgress = -1;
 
 	std::atomic<RENDER_THREAD> g_renderEvent;// { RENDER_THREAD::FREE };
 

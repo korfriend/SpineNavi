@@ -307,7 +307,9 @@ int main()
 		config_fs["RecordMode"] >> configLoad;
 		config_fs["RecordPeriod"] >> __gc.g_optiRecordPeriod;
 		config_fs["PivotSamples"] >> __gc.g_optiPivotSamples;
-		config_fs["TimeInterval"] >> __gc.g_optiPivotTimeInterval;
+		config_fs["PivotTimeInterval"] >> __gc.g_optiPivotTimeInterval;
+		config_fs["RefineSamples"] >> __gc.g_optiRefineSamples;
+		config_fs["RefineTimeInterval"] >> __gc.g_optiRefineTimeInterval;
 	}
 	else {
 		trackDataFolder = "Tracking 2023-10-05";

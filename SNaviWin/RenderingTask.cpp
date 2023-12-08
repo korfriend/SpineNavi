@@ -369,6 +369,9 @@ namespace rendertask {
 		textItem.textStr = __gc->g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT ? "PIVOTING MODE " + std::to_string(__gc->g_optiPivotProgress) + "%" : "";
 		cpCam1.text_items.SetParam("PIVOT_PROGRESS", textItem);
 
+		textItem.textStr = __gc->g_optiEvent == OPTTRK_THREAD::RIGIDBODY_REFINE ? "REFINING MODE " + std::to_string(__gc->g_optiRefineProgress) + "%" : "";
+		cpCam1.text_items.SetParam("REFINE_PROGRESS", textItem);
+
 		if (__gc->g_downloadCompleted > 0 && __gc->g_downloadCompleted <= 100) __gc->g_downloadCompleted--;
 
 		// error code display

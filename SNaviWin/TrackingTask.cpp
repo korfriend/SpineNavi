@@ -365,6 +365,7 @@ namespace trackingtask {
 				// e.g., this tracking thread is trying to access the optitrack tracking resources while the main thread (event) is modifying the optitrack tracking resources
 
 				static int pivotState = 0;
+				static int refineState = 0;
 
 				static clock_t prevTime = clock(), curTime;
 
@@ -489,7 +490,7 @@ namespace trackingtask {
 							cv::FileStorage config_fs(__gc->g_configFileName, cv::FileStorage::Mode::READ);
 							std::string configLoad;
 							config_fs["PivotSamples"] >> __gc->g_optiPivotSamples;
-							config_fs["TimeInterval"] >> __gc->g_optiPivotTimeInterval;
+							config_fs["PivotTimeInterval"] >> __gc->g_optiPivotTimeInterval;
 							config_fs.release();
 						}
 							if (optitrk::StartPivotSample(rbCID, __gc->g_optiPivotSamples)) pivotState = 1;
@@ -505,7 +506,7 @@ namespace trackingtask {
 										pivotState = 0;
 										//__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 										__gc->g_optiEvent = OPTTRK_THREAD::TOOL_UPDATE;
-										__gc->g_engineLogger->info("Pivoting Completed! InitErr: {} mm, RetErr: {}mm", initErr, returnErr);
+										__gc->g_engineLogger->info("Pivoting Completed! InitErr: {} mm, RetErr: {}mm", initErr * 1000.f, returnErr * 1000.f);
 									}
 								}
 								else {
@@ -522,6 +523,68 @@ namespace trackingtask {
 					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
 					__gc->g_optiToolId = 0;
 					__gc->SetErrorCode("Pivoting Canceled");
+				} break;
+				case OPTTRK_THREAD::RIGIDBODY_REFINE: {
+					std::string rbName;
+					bool finishTask = false;
+					switch (__gc->g_optiToolId) {
+					case 1: rbName = "t-needle"; break;
+					case 2: rbName = "troca"; break;
+					case 3: rbName = "c-arm"; break;
+					default:
+						__gc->SetErrorCode("Invalid Opti Tool ID!!");
+						finishTask = true;
+						break;
+					}
+					if (finishTask) {
+						__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+						break;
+					}
+					
+					bitset<128> rbCID;
+					if (trk_info.GetRigidBodyByName(rbName, NULL, NULL, NULL, &rbCID)) {
+						float progress, initErr, returnErr;
+						switch (refineState) {
+						case 0:
+						{
+							cv::FileStorage config_fs(__gc->g_configFileName, cv::FileStorage::Mode::READ);
+							std::string configLoad;
+							config_fs["RefineSamples"] >> __gc->g_optiRefineSamples;
+							config_fs["RefineTimeInterval"] >> __gc->g_optiRefineTimeInterval;
+							config_fs.release();
+						}
+						if (optitrk::StartRefineSample(rbCID, __gc->g_optiRefineSamples)) refineState = 1;
+						break;
+						case 1:
+							curTime = clock();
+							if ((double)(curTime - prevTime) / CLOCKS_PER_SEC > __gc->g_optiRefineTimeInterval) {
+								prevTime = curTime;
+								if (optitrk::ProcessRefineSample(&progress, &initErr, &returnErr)) {
+									__gc->g_optiRefineProgress = (int)progress;
+
+									if (returnErr >= 0.f) {
+										refineState = 0;
+										__gc->g_engineLogger->info("Refining Completed! InitErr: {} mm, RetErr: {}mm", initErr * 1000.f, returnErr * 1000.f);
+										// use cam direction...
+										UpdateRigidBodiesInThread();
+										optitrk::StoreProfile(__gc->g_profileFileName);
+										__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+									}
+								}
+								else {
+									__gc->SetErrorCode("Refining Sample Error!");
+								}
+							}
+							break;
+						}
+					}
+				} break;
+				case OPTTRK_THREAD::RIGIDBODY_RESET_REFINE: {
+					optitrk::ResetRefine();
+					pivotState = 0;
+					__gc->g_optiEvent = OPTTRK_THREAD::FREE;
+					__gc->g_optiToolId = 0;
+					__gc->SetErrorCode("Refining Canceled");
 				} break;
 				case OPTTRK_THREAD::FREE:
 				default: break;

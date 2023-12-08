@@ -852,53 +852,70 @@ namespace opcode {
 			}
 		}
 
-		ImGui::SeparatorText("Pivoting:");
-		if (ImGui::Button("T-Needle(P)", ImVec2(0, buttonHeight)))
-		{
+		ImGui::SeparatorText("Refine:");
+		auto RefiningProcess = [](const std::string& rbName, const int optiToolId) {
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
 			else if (__gc.g_markerSelectionMode) {
-				__gc.SetErrorCode("Pivoting is Not Allowed during Marker Selection!");
+				__gc.SetErrorCode("Pivoting is Not Allowed during the marker Selecting!");
 			}
-			else if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_RESET_PIVOT) {
-				__gc.SetErrorCode("Wait for Canceling Pivot Process!");
+			else if (__gc.g_optiEvent == OPTTRK_THREAD::RIGIDBODY_RESET_REFINE) {
+				__gc.SetErrorCode("Wait for Canceling Refine Process!");
 			}
 			else {
-				if (!trackInfo.GetRigidBodyQuatTVecByName("t-needle", NULL, NULL)) {
-					__gc.SetErrorCode("No Tool is Registered!");
+				if (!trackInfo.GetRigidBodyQuatTVecByName(rbName, NULL, NULL)) {
+					__gc.SetErrorCode("(" + rbName + ") is Not tracked!");
 				}
 				else {
-					__gc.g_optiToolId = 1;
-					if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT)
-						__gc.g_optiEvent = OPTTRK_THREAD::TOOL_RESET_PIVOT;
-					else __gc.g_optiEvent = OPTTRK_THREAD::TOOL_PIVOT;;
+					__gc.g_optiToolId = optiToolId;
+					if (__gc.g_optiEvent == OPTTRK_THREAD::RIGIDBODY_REFINE)
+						__gc.g_optiEvent = OPTTRK_THREAD::RIGIDBODY_RESET_REFINE;
+					else __gc.g_optiEvent = OPTTRK_THREAD::RIGIDBODY_REFINE;;
 				}
 			}
+		};
+		if (ImGui::Button("C-Arm(R)", ImVec2(0, buttonHeight))) {
+			RefiningProcess("c-arm", 3);
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("Troca(P)", ImVec2(0, buttonHeight)))
-		{
+		if (ImGui::Button("T-Needle(R)", ImVec2(0, buttonHeight))) {
+			RefiningProcess("t-needle", 1);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Troca(R)", ImVec2(0, buttonHeight))) {
+			RefiningProcess("troca", 2);
+		}
+
+		ImGui::SeparatorText("Pivoting:");
+		auto PivotingProcess = [](const std::string& rbName, const int optiToolId) {
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
 			else if (__gc.g_markerSelectionMode) {
-				__gc.SetErrorCode("Pivoting is Not Allowed during Marker Selection!");
+				__gc.SetErrorCode("Pivoting is Not Allowed during the marker Selecting!");
 			}
 			else if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_RESET_PIVOT) {
 				__gc.SetErrorCode("Wait for Canceling Pivot Process!");
 			}
 			else {
-				if (!trackInfo.GetRigidBodyQuatTVecByName("troca", NULL, NULL)) {
-					__gc.SetErrorCode("No Tool is Registered!");
+				if (!trackInfo.GetRigidBodyQuatTVecByName(rbName, NULL, NULL)) {
+					__gc.SetErrorCode("(" + rbName + ") is Not tracked!");
 				}
 				else {
-					__gc.g_optiToolId = 2;
+					__gc.g_optiToolId = optiToolId;
 					if (__gc.g_optiEvent == OPTTRK_THREAD::TOOL_PIVOT)
 						__gc.g_optiEvent = OPTTRK_THREAD::TOOL_RESET_PIVOT;
 					else __gc.g_optiEvent = OPTTRK_THREAD::TOOL_PIVOT;;
 				}
 			}
+		};
+		if (ImGui::Button("T-Needle(P)", ImVec2(0, buttonHeight))) {
+			PivotingProcess("t-needle", 1);
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Troca(P)", ImVec2(0, buttonHeight))) {
+			PivotingProcess("troca", 2);
 		}
 
 		ImGui::SeparatorText("Record:");
