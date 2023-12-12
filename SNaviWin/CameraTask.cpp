@@ -21,12 +21,20 @@ namespace camtask {
 	void CameraProcess() {
 		if (__gc == NULL) return;
 
-
 		while (__gc->g_camera_alive)
 		{
-			camtrk::UpdateFrame();
+			camtrk::UpdateCamera();
 		}
 
 		camtrk::DeinitCamTrackLib();
+	}
+
+	bool GetCamTrackInfo(/*bool& isMoveDetected, image buffers...*/) {
+		static camtrk::CamTrackInfo camTrkInfo;
+		if (!camtrk::GetLatestCamTrackInfoSafe(camTrkInfo))
+			return false;
+		// to do
+
+		return true;
 	}
 }

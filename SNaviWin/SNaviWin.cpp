@@ -332,6 +332,7 @@ int main()
 	nettask::InitializeTask(&__gc);
 	trackingtask::InitializeTask(&__gc);
 	calibtask::InitializeTask(&__gc);
+	camtask::InitializeTask(&__gc);
 
 	vzm::InitEngineLib("SpineNavi");
 

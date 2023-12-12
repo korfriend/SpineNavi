@@ -486,6 +486,7 @@ typedef struct GlobalContainer {
 	std::atomic_bool g_tracker_alive;// { true };
 	std::atomic_bool g_network_alive;
 	std::atomic_bool g_camera_alive = true;
+	std::atomic_int g_camTargetState = 0;
 
 	// DOJO: asynchronous (read write modify) queue of tracking info.
 	// tracking thread 에서 queue 에 등록 (최신 정보 insert) 및 삭제 (오래된 element push out)

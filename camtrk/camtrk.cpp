@@ -10,7 +10,7 @@
 #include <queue>
 #include <mutex>
 
-static rs2::pipeline __pipe;
+static rs2::pipeline* __pipe = NULL;
 // Create and initialize GUI related objects
 static rs2::colorizer __c;                     // Helper to colorize depth images
 static rs2::config __cfg;
@@ -208,12 +208,14 @@ bool camtrk::InitCamTrackLib()
 	if (!device_with_streams({ RS2_STREAM_COLOR,RS2_STREAM_DEPTH }, serial))
 		return EXIT_SUCCESS;
 
+	__pipe = new rs2::pipeline();
+
 	// Create a pipeline to easily configure and start the camera
 	if (!serial.empty())
 		__cfg.enable_device(serial);
 	__cfg.enable_stream(RS2_STREAM_DEPTH);
 	__cfg.enable_stream(RS2_STREAM_COLOR);
-	__pipe.start(__cfg);
+	__pipe->start(__cfg);
 
 	return true;
 }
@@ -230,8 +232,9 @@ bool camtrk::GetLatestCamTrackInfoSafe(CamTrackInfo& camtrkInfo)
 	return true;
 }
 
-bool camtrk::UpdateFrame()
+bool camtrk::UpdateCamera()
 {
+	if (__pipe == NULL) return false;
 	// Define two align objects. One will be used to align
 	// to depth viewport and the other to color.
 	// Creating align object is an expensive operation
@@ -240,7 +243,7 @@ bool camtrk::UpdateFrame()
 	static rs2::align align_to_depth(RS2_STREAM_DEPTH);
 	static rs2::align align_to_color(RS2_STREAM_COLOR);
 
-	rs2::frameset frameset = __pipe.wait_for_frames();
+	rs2::frameset frameset = __pipe->wait_for_frames();
 
 	if (__alignDir == AlignDirection::TO_DEPTH)
 	{
@@ -278,5 +281,6 @@ bool camtrk::UpdateFrame()
 
 bool camtrk::DeinitCamTrackLib()
 {
+	delete __pipe;
 	return true;
 }
