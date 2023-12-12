@@ -6,6 +6,7 @@
 
 #include <time.h>
 #include <opencv2/opencv.hpp>
+#include "../camtrk/camtrk.h"
 
 namespace camtask {
 
@@ -13,8 +14,19 @@ namespace camtask {
 
 	void InitializeTask(__GC* gcp) {
 		__gc = gcp;
+
+		camtrk::InitCamTrackLib();
 	}
 
 	void CameraProcess() {
+		if (__gc == NULL) return;
+
+
+		while (__gc->g_camera_alive)
+		{
+			camtrk::UpdateFrame();
+		}
+
+		camtrk::DeinitCamTrackLib();
 	}
 }

@@ -377,7 +377,7 @@ int main()
 		network_processing_thread = std::thread(nettask::NetworkProcess);
 	}
 
-	std::thread camerar_processing_thread = std::thread(camtask::CameraProcess);;
+	std::thread camerar_processing_thread = std::thread(camtask::CameraProcess);
 
 	// Main loop
 	bool done = false;
