@@ -61,7 +61,7 @@ public:
 		}
 	}
 
-	void wait_and_pop(Data& popped_value)
+	void wait_and_pop(Data& latest_value)
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
@@ -70,7 +70,7 @@ public:
 			the_condition_variable.wait(lock);
 		}
 
-		popped_value = the_queue.front();
+		latest_value = the_queue.back();
 		the_queue.pop();
 	}
 
@@ -115,22 +115,22 @@ public:
 		return the_queue.empty();
 	}
 
-	Data& front()
+	Data& back()
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
 		if (the_queue.empty())
 			return undefinedData;
-		return the_queue.front();
+		return the_queue.back();
 	}
 
-	Data const& front() const
+	Data const& back() const
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
 		if (the_queue.empty())
 			return undefinedData;
-		return the_queue.front();
+		return the_queue.back();
 	}
 
 	void pop() // deque

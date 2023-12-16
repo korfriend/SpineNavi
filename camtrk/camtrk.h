@@ -22,7 +22,7 @@ namespace camtrk {
 
 	__dojostatic void SetAlignmentDir(bool toColorDir);
 	__dojostatic bool UpdateCamera();
-	__dojostatic bool GetLatestCamTrackInfoSafe(CamTrackInfo& camtrkInfo);
+	__dojostatic bool GetLatestCamTrackInfo_Safe(CamTrackInfo& camtrkInfo);
 
 	// add your functions, referring to optitrk.h
 }

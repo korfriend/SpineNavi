@@ -158,6 +158,13 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
+		if (__gc.g_camera_alive) {
+			ImGui::Spacing();
+			if (ImGui::CollapsingHeader("Vision Operation", ImGuiTreeNodeFlags_DefaultOpen)) {
+				opcode::VisionOperation();
+			}
+		}
+
 		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD) {
 
 		}
@@ -328,29 +335,24 @@ int main()
 	__gc.g_recFileName = __gc.g_folder_trackingInfo + "TrackingRecord.csv";
 	__gc.g_recScanName = __gc.g_folder_trackingInfo + "ScanRecord.csv";
 
-	rendertask::InitializeTask(&__gc);
-	nettask::InitializeTask(&__gc);
-	trackingtask::InitializeTask(&__gc);
-	calibtask::InitializeTask(&__gc);
-	camtask::InitializeTask(&__gc);
-
 	vzm::InitEngineLib("SpineNavi");
-
 	std::shared_ptr<void> nativeLogger;
 	vzm::GetLoggerPointer(nativeLogger);
 	__gc.g_engineLogger = std::static_pointer_cast<spdlog::logger, void>(nativeLogger);
 
 	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE) {
-		
-		bool optitrkMode = optitrk::InitOptiTrackLib();
-
-		optitrk::LoadProfileAndCalibInfo(__gc.g_profileFileName, "");
-		//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
-		//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
-		optitrk::SetCameraSettings(0, 4, 16, 200);
-		optitrk::SetCameraSettings(1, 4, 16, 200);
-		optitrk::SetCameraSettings(2, 4, 16, 200);
+		if (!trackingtask::InitializeTask(&__gc)) {
+			__gc.g_engineLogger->error("OptiTrack is not allowed!!");
+			vzm::DeinitEngineLib();
+			return true;
+		}
 	}
+
+	rendertask::InitializeTask(&__gc);
+	nettask::InitializeTask(&__gc);
+	calibtask::InitializeTask(&__gc);
+	__gc.g_camera_alive = camtask::InitializeTask(&__gc);
+
 
 	rendertask::SceneInit((g_sizeWinX - g_sizeRightPanelW) / 2, g_sizeWinY - g_sizeConsolePanelH - 30);
 	{
@@ -368,6 +370,9 @@ int main()
 	vzm::RenderScene(sidScene, cidRender1);
 	vzm::RenderScene(sidScene, cidRender2);
 
+	std::thread camerar_processing_thread = std::thread(camtask::CameraProcess);
+	if (!__gc.g_camera_alive) camerar_processing_thread.join();
+
 	std::thread tracker_processing_thread;
 	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::CALIB_EDIT) {
 		tracker_processing_thread = std::thread(trackingtask::OptiTrackingProcess);
@@ -378,7 +383,6 @@ int main()
 		network_processing_thread = std::thread(nettask::NetworkProcess);
 	}
 
-	std::thread camerar_processing_thread = std::thread(camtask::CameraProcess);
 
 	// Main loop
 	bool done = false;
@@ -438,12 +442,10 @@ int main()
 		network_processing_thread.join();
 	}
 
-	if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
-		optitrk::DeinitOptiTrackLib();
+	if (__gc.g_camera_alive) {
+		__gc.g_camera_alive = false;
+		camerar_processing_thread.join();
 	}
-
-	__gc.g_camera_alive = false;
-	camerar_processing_thread.join();
 
 	vzm::DeinitEngineLib();
 	__gc.Deinit();

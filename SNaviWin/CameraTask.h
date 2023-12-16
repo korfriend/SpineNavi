@@ -2,9 +2,10 @@
 #include "GlobalParams.h"
 
 namespace camtask {
-	void InitializeTask(__GC* gcp);
+	bool InitializeTask(__GC* gcp);
+	void DeinitializeTask();
 	void CameraProcess();
 
 	// this function will be called in the main thread
-	bool GetCamTrackInfo(/*bool& isMoveDetected, image buffers...*/);
+	bool GetCamTrackInfo_Safe(glm::ivec2* colorFbSize, void** colorBuffer, glm::ivec2* depthFbSize, void** depthColoredBuffer/*bool& isMoveDetected, image buffers...*/);
 }

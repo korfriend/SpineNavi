@@ -2,7 +2,7 @@
 
 #include <librealsense2/rs.hpp>
 
-//#include <concurrent_queue.h>
+#include <concurrent_queue.h>
 #include <iostream>
 #include <string>
 #include <map>
@@ -16,7 +16,7 @@ static rs2::colorizer __c;                     // Helper to colorize depth image
 static rs2::config __cfg;
 
 template<typename Data>
-class concurrent_queue // single consumer
+class concurrent_queue__ // single consumer
 {
 private:
 	std::queue<Data> the_queue;
@@ -27,7 +27,7 @@ private:
 	Data undefinedData;
 
 public:
-	concurrent_queue(int cap = 10)
+	concurrent_queue__(int cap = 10)
 	{
 		MAX_QUEUE = cap;
 	}
@@ -46,7 +46,7 @@ public:
 		}
 	}
 
-	void wait_and_pop(Data& popped_value)
+	void wait_and_pop(Data& latest_value)
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
@@ -55,7 +55,7 @@ public:
 			the_condition_variable.wait(lock);
 		}
 
-		popped_value = the_queue.front();
+		latest_value = the_queue.back();
 		the_queue.pop();
 	}
 
@@ -100,22 +100,22 @@ public:
 		return the_queue.empty();
 	}
 
-	Data& front()
+	Data& back()
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
 		if (the_queue.empty())
 			return undefinedData;
-		return the_queue.front();
+		return the_queue.back();
 	}
 
-	Data const& front() const
+	Data const& back() const
 	{
 		//std::lock_guard<std::mutex> lock(the_mutex);
 		std::unique_lock<std::mutex> lock(the_mutex);
 		if (the_queue.empty())
 			return undefinedData;
-		return the_queue.front();
+		return the_queue.back();
 	}
 
 	void pop() // deque
@@ -126,10 +126,13 @@ public:
 	}
 };
 
-namespace camtrk {
-	concurrent_queue<camtrk::CamTrackInfo> __trackInfoQueue;
-}
-//concurrency::concurrent_queue<camtrk::CamTrackInfo> __trackInfoQueue;
+#define MY_CQUE
+
+#ifdef MY_CQUE
+concurrent_queue__<camtrk::CamTrackInfo> __trackInfoQueue;
+#else
+concurrency::concurrent_queue<camtrk::CamTrackInfo> __trackInfoQueue;
+#endif
 
 // This example assumes camera with depth and color
 // streams, and direction lets you define the target stream
@@ -208,6 +211,11 @@ bool camtrk::InitCamTrackLib()
 	if (!device_with_streams({ RS2_STREAM_COLOR,RS2_STREAM_DEPTH }, serial))
 		return EXIT_SUCCESS;
 
+#ifdef MY_CQUE
+	__trackInfoQueue.SetMaxQueue(2);
+#else
+#endif
+
 	__pipe = new rs2::pipeline();
 
 	// Create a pipeline to easily configure and start the camera
@@ -225,10 +233,14 @@ void camtrk::SetAlignmentDir(bool toColorDir)
 	__alignDir = toColorDir ? AlignDirection::TO_COLOR : AlignDirection::TO_DEPTH;
 }
 
-bool camtrk::GetLatestCamTrackInfoSafe(CamTrackInfo& camtrkInfo)
+bool camtrk::GetLatestCamTrackInfo_Safe(CamTrackInfo& camtrkInfo)
 {
 	if (__trackInfoQueue.empty()) return false;
-	__trackInfoQueue.wait_and_pop(camtrkInfo);
+#ifdef MY_CQUE
+	camtrkInfo = __trackInfoQueue.back();
+#else
+#endif
+	//__trackInfoQueue.wait_and_pop(camtrkInfo);
 	return true;
 }
 
@@ -275,6 +287,8 @@ bool camtrk::UpdateCamera()
 
 	// TO DO
 	// DEFAULT PROCESSING
+
+	__trackInfoQueue.push(camTrkInfo);
 
 	return true;
 }

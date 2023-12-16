@@ -2,6 +2,10 @@
 #include "GlobalParams.h"
 
 namespace trackingtask {
-	void InitializeTask(__GC* gcp);
+	bool InitializeTask(__GC* gcp);
+
 	void OptiTrackingProcess();
+
+	// this function will be called in the main thread
+	bool GetOptiTrackCamera_Safe(const int camIdx, const int w, const int h, void* buffer);
 }

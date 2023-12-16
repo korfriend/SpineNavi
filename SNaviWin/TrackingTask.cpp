@@ -15,8 +15,26 @@ namespace trackingtask {
 
 	__GC* __gc = NULL;
 
-	void InitializeTask(__GC* gcp) {
+	bool InitializeTask(__GC* gcp) {
+
+		bool optitrkMode = optitrk::InitOptiTrackLib();
+		if (!optitrkMode) return false;
+
 		__gc = gcp;
+
+		optitrk::LoadProfileAndCalibInfo(__gc->g_profileFileName, "");
+		//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
+		//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
+		optitrk::SetCameraSettings(0, 4, 16, 200);
+		optitrk::SetCameraSettings(1, 4, 16, 200);
+		optitrk::SetCameraSettings(2, 4, 16, 200);
+
+		return true;
+	}
+
+	bool GetOptiTrackCamera_Safe(const int camIdx, const int w, const int h, void* buffer)
+	{
+		return optitrk::GetCameraBuffer(camIdx, w, h, (unsigned char*)buffer);
 	}
 
 	void OptiTrackingProcess() {
@@ -809,5 +827,7 @@ namespace trackingtask {
 			if (trk_info.NumMarkers() > 0 || trk_info.NumRigidBodies() > 0)
 				__gc->g_track_que.push(trk_info);
 		}
+
+		optitrk::DeinitOptiTrackLib();
 	}
 }

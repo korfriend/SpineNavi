@@ -13,7 +13,6 @@
 #include "RenderingTask.h"
 #include "CameraTask.h"
 #include "VmGui.h"
-#include "../optitrk/optitrk.h"
 
 #include <opencv2/opencv.hpp>
 
@@ -194,7 +193,7 @@ namespace opcode {
 	}
 
 	// Simple helper function to load an image into a DX11 texture with common settings
-	ID3D11ShaderResourceView* LoadTextureFromFile(const unsigned char* image_data, const char* texture_name, const int width, const int height)
+	ID3D11ShaderResourceView* LoadTextureFromMemory(const unsigned char* image_data, const char* texture_name, const int width, const int height)
 	{
 		// Create texture
 		D3D11_TEXTURE2D_DESC desc;
@@ -1019,7 +1018,7 @@ namespace opcode {
 			// Optitrack tri:120 uses 640x480 image
 			static cv::Size imgSize(640, 480);
 			cv::Mat imgGray = cv::Mat(imgSize, CV_8UC1);
-			optitrk::GetCameraBuffer(0, imgSize.width, imgSize.height, imgGray.data);
+			trackingtask::GetOptiTrackCamera_Safe(0, imgSize.width, imgSize.height, imgGray.data);
 
 			cv::Mat img;
 			cv::cvtColor(imgGray, img, cv::COLOR_GRAY2RGB);
@@ -1032,10 +1031,44 @@ namespace opcode {
 			}
 
 			static ID3D11ShaderResourceView* pSRV = NULL;
-			pSRV = LoadTextureFromFile(img.data, "OPTI_CAMERA1", imgSize.width, imgSize.height);
+			pSRV = LoadTextureFromMemory(img.data, "OPTI_CAMERA1", imgSize.width, imgSize.height);
 			if (pSRV != NULL) {
 				//ImVec2 pos = ImGui::GetCursorScreenPos();
 				ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x * ((float)imgSize.height / (float)imgSize.width)), ImVec2(0, 0), ImVec2(1, 1));
+			}
+		}
+	}
+
+	void VisionOperation() {
+		if (__gc.g_camera_alive)
+		{
+			ImGui::SeparatorText("Vision Camera:");
+			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
+
+			glm::ivec2 colorSize;
+			glm::ivec2 depthColoredSize;
+
+			void* colorBuffer;
+			void* depthColoredBuffer;
+			if (camtask::GetCamTrackInfo_Safe(&colorSize, &colorBuffer, &depthColoredSize, &depthColoredBuffer)) {
+
+				cv::Size imgSize(colorSize.x, colorSize.y);
+				cv::Mat imgColor = cv::Mat(imgSize, CV_8UC3, colorBuffer);
+
+				if (imgColor.channels() == 3) {
+					cv::cvtColor(imgColor, imgColor, cv::COLOR_RGB2RGBA);
+					std::vector<cv::Mat> channels(4);
+					cv::split(imgColor, channels);
+					channels[3] = 255;
+					cv::merge(channels, imgColor);
+				}
+
+				static ID3D11ShaderResourceView* pSRV = NULL;
+				pSRV = LoadTextureFromMemory(imgColor.data, "VISION_CAMERA1", imgSize.width, imgSize.height);
+				if (pSRV != NULL) {
+					//ImVec2 pos = ImGui::GetCursorScreenPos();
+					ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x * ((float)imgSize.height / (float)imgSize.width)), ImVec2(0, 0), ImVec2(1, 1));
+				}
 			}
 		}
 	}
@@ -1157,7 +1190,7 @@ namespace opcode {
 					cv::merge(channels, img);
 				}
 
-				pSRV = LoadTextureFromFile(img.data, "INTRINSIC_IMG", image_width, image_height);
+				pSRV = LoadTextureFromMemory(img.data, "INTRINSIC_IMG", image_width, image_height);
 				isCalibratedIntrinsic = false;
 			}
 		}
@@ -1486,7 +1519,7 @@ namespace opcode {
 
 					__gc.g_engineLogger->info("image index : {}", indexExtrinsics);
 
-					pSRV = LoadTextureFromFile(imgFlip.data, "EXTRINSIC_IMG", image_width, image_height);
+					pSRV = LoadTextureFromMemory(imgFlip.data, "EXTRINSIC_IMG", image_width, image_height);
 					isCalibratedExtrinsic = false;
 
 

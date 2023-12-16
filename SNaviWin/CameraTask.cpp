@@ -12,10 +12,10 @@ namespace camtask {
 
 	__GC* __gc = NULL;
 
-	void InitializeTask(__GC* gcp) {
+	bool InitializeTask(__GC* gcp) {
 		__gc = gcp;
 
-		camtrk::InitCamTrackLib();
+		return camtrk::InitCamTrackLib();
 	}
 
 	void CameraProcess() {
@@ -29,10 +29,16 @@ namespace camtask {
 		camtrk::DeinitCamTrackLib();
 	}
 
-	bool GetCamTrackInfo(/*bool& isMoveDetected, image buffers...*/) {
+	// this is supposed to be called in the main thread
+	bool GetCamTrackInfo_Safe(glm::ivec2* colorFbSize, void** colorBuffer, glm::ivec2* depthFbSize, void** depthColoredBuffer) {
 		static camtrk::CamTrackInfo camTrkInfo;
-		if (!camtrk::GetLatestCamTrackInfoSafe(camTrkInfo))
+		if (!camtrk::GetLatestCamTrackInfo_Safe(camTrkInfo))
 			return false;
+
+		if (colorFbSize) *colorFbSize = glm::ivec2(camTrkInfo.color_w, camTrkInfo.color_h);
+		if (colorBuffer) *colorBuffer = &camTrkInfo.colorBuffer[0];
+		if (depthFbSize) *depthFbSize = glm::ivec2(camTrkInfo.depth_w, camTrkInfo.depth_h);
+		if (depthColoredBuffer) *depthColoredBuffer = &camTrkInfo.depthColorCodedBuffer[0];
 		// to do
 
 		return true;
