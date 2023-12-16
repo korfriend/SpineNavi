@@ -37,6 +37,11 @@ namespace trackingtask {
 		return optitrk::GetCameraBuffer(camIdx, w, h, (unsigned char*)buffer);
 	}
 
+	bool DebugTest()
+	{
+		return optitrk::Test(NULL);
+	}
+
 	void OptiTrackingProcess() {
 		if (__gc == NULL) return;
 
@@ -448,11 +453,19 @@ namespace trackingtask {
 						for (int i = 0; i < (int)pos_rb_mks.size(); i++)
 							pos_rb_mks[i] = vzmutils::transformPos(pos_rb_mks[i], rbWS2LS);
 
+						//__gc->g_optiToolId == 1 : "t-needle"
+						//__gc->g_optiToolId == 2 : "troca"
+
+						static const float longLine[2] = { 110.0f, 90.82f };
+						static const float shortLine[2] = { 90.82f, 65.0f };
+						static const float ratio02[2] = { 65.0f, 50.0f };
+						static const float ratio13[2] = { 40.41f, 25.0f };
+						const int idx = __gc->g_optiToolId == 1? 1 : 0;
 						// compute center pos
 						glm::fvec3 v02 = pos_rb_mks[2] - pos_rb_mks[0];
-						glm::fvec3 p02 = pos_rb_mks[0] + v02 * (float)(65.0 / 110.0);
+						glm::fvec3 p02 = pos_rb_mks[0] + v02 * (float)(ratio02[idx] / longLine[idx]);
 						glm::fvec3 v13 = pos_rb_mks[3] - pos_rb_mks[1];
-						glm::fvec3 p13 = pos_rb_mks[1] + v13 * (float)(40.41 / 90.82);
+						glm::fvec3 p13 = pos_rb_mks[1] + v13 * (float)(ratio13[idx] / shortLine[idx]);
 						glm::fvec3 p1234 = (p02 + p13) * 0.5f;
 
 						// compute normal vec
@@ -549,6 +562,7 @@ namespace trackingtask {
 					case 1: rbName = "t-needle"; break;
 					case 2: rbName = "troca"; break;
 					case 3: rbName = "c-arm"; break;
+					case 4: rbName = "calib"; break;
 					default:
 						__gc->SetErrorCode("Invalid Opti Tool ID!!");
 						finishTask = true;

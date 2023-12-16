@@ -8,4 +8,6 @@ namespace trackingtask {
 
 	// this function will be called in the main thread
 	bool GetOptiTrackCamera_Safe(const int camIdx, const int w, const int h, void* buffer);
+
+	bool DebugTest();
 }

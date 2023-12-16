@@ -699,6 +699,8 @@ namespace opcode {
 		ImGui::SeparatorText("Marker Selection:");
 		if (ImGui::Button(__gc.g_markerSelectionMode ? "Selection OFF" : "Selection ON", ImVec2(0, buttonHeight)))
 		{
+			trackingtask::DebugTest();
+
 			if (__gc.g_optiRecordMode != OPTTRK_RECMODE::NONE) {
 				__gc.SetErrorCode("Not Allowed during Rec Processing!");
 			}
@@ -885,6 +887,10 @@ namespace opcode {
 		if (ImGui::Button("Troca(R)", ImVec2(0, buttonHeight))) {
 			RefiningProcess("troca", 2);
 		}
+		ImGui::SameLine();
+		if (ImGui::Button("Calib Rig(R)", ImVec2(0, buttonHeight))) {
+			RefiningProcess("calib", 4);
+		}
 
 		ImGui::SeparatorText("Pivoting:");
 		auto PivotingProcess = [](const std::string& rbName, const int optiToolId) {
@@ -999,17 +1005,6 @@ namespace opcode {
 		ImGui::SameLine();
 		if (__gc.g_refCArmRbDist < 0) {
 			ComputeRefCArmPhase(__gc.g_refCArmRbDist, __gc.g_refCArmRbAngle);
-		}
-		if (ImGui::Button("C-Arm Reference", ImVec2(0, buttonHeight)))
-		{
-			if (ComputeRefCArmPhase(__gc.g_refCArmRbDist, __gc.g_refCArmRbAngle)) {
-				cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_checker.txt", cv::FileStorage::Mode::WRITE);
-				fs << "DIST_REF" << __gc.g_refCArmRbDist;
-				fs << "ANGLE_REF" << __gc.g_refCArmRbAngle;
-				fs.release();
-			}
-			else
-				__gc.SetErrorCode("Both C-Arm and Checker should be detected!");
 		}
 		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD)
 		{
@@ -1168,7 +1163,7 @@ namespace opcode {
 
 				std::vector<float> circleRadiis;
 				points2D.clear();
-				mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2D, 1000.f, 10000.f, 50.f, &circleRadiis);
+				mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2D, 600.f, 20000.f, 50.f, &circleRadiis);
 
 				DrawCircles(points2D, circleRadiis, __gc.g_circleThickness, img);
 

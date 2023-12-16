@@ -9,6 +9,7 @@
 #include <set>
 #include <queue>
 #include <iostream>
+#include <functional>
 
 #include "./motive/NPTrackingTools.h"
 
@@ -27,6 +28,9 @@ template<size_t sz> struct bitset_comparer {
 		return b1.to_ulong() < b2.to_ulong();
 	}
 };
+
+
+static std::hash<std::string> g_hashId;
 
 // Local function prototypes
 void CheckResult(NPRESULT result);
@@ -304,6 +308,7 @@ bool optitrk::SetRigidBodyEnabledbyName(const std::string& name, const bool enab
 	return true;
 }
 
+/*
 bool SetRigidBodyOld(const std::string& name, const int numMKs, const float* mkPosArray)
 {
 	if (!is_initialized) return false;
@@ -375,6 +380,7 @@ bool SetRigidBodyOld(const std::string& name, const int numMKs, const float* mkP
 	cout << "\n" << name << " error : " << TT_RigidBodyMeanError(rb_idx) << endl;
 	return true;
 }
+/**/
 
 bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const float* mkPosArray)
 {
@@ -400,8 +406,13 @@ bool optitrk::SetRigidBody(const std::string& name, const int numMKs, const floa
 	for (int i = 0; i < numMKs; i++) {
 		mkMkPos[i] -= mkPivotPos;
 	}
+	
+	TT_CreateRigidBody(name.c_str(), g_hashId(name), numMKs, (float*)&mkMkPos[0]);
 
-	TT_CreateRigidBody(name.c_str(), rb_idx, numMKs, (float*)&mkMkPos[0]);
+	numRBs = optitrk::GetRigidBodies(&rbNames);
+	rb_idx = 0;
+	for (; rb_idx < numRBs; rb_idx++)
+		if (name == rbNames[rb_idx]) break;
 
 	RigidBodySolver::cRigidBodySettings settings;
 	TT_RigidBodySettings(rb_idx, settings);
@@ -508,10 +519,19 @@ bool optitrk::ResetRefine()
 
 
 
-bool optitrk::Test(float* v) {
-	float   yaw, pitch, roll;
-	float   x, y, z;
-	float   qx, qy, qz, qw;
+bool optitrk::Test(void* debug) {
+
+	std::vector<std::string> rbNames;
+	int numRBs = optitrk::GetRigidBodies(&rbNames);
+
+	std::cout << "******************* OPTI TRACK DEBUG TEST *****************" << std::endl;
+	for (int i = 0; i < (int)rbNames.size(); i++) {
+		std::cout << rbNames[i] << std::endl;
+		RigidBodySolver::cRigidBodySettings settings;
+		TT_RigidBodySettings(i, settings);
+		std::cout << settings.MinimumMarkerCount << ", "<< settings.AcquisitionMarkerCount << std::endl;
+	}
+
 	return true;
 }
 

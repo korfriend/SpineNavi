@@ -355,14 +355,6 @@ int main()
 
 
 	rendertask::SceneInit((g_sizeWinX - g_sizeRightPanelW) / 2, g_sizeWinY - g_sizeConsolePanelH - 30);
-	{
-		cv::FileStorage fs(__gc.g_folder_trackingInfo + "carm_checker.txt", cv::FileStorage::Mode::READ);
-		if (fs.isOpened()) {
-			fs["DIST_REF"] >> __gc.g_refCArmRbDist;
-			fs["ANGLE_REF"] >> __gc.g_refCArmRbAngle;
-			fs.release();
-		}
-	}
 
 	int sidScene = vzmutils::GetSceneItemIdByName(__gc.g_sceneName);
 	int cidRender1 = vzmutils::GetSceneItemIdByName(__gc.g_camName);
