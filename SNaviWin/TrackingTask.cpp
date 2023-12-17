@@ -52,13 +52,15 @@ namespace trackingtask {
 		for (int i = 0; i < 2; i++) {
 			cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip_" + toolNames[i] + ".txt", cv::FileStorage::Mode::READ);
 			if (fs.isOpened()) {
-				std::vector<glm::fvec3> toolUserData(2);
+				std::vector<glm::fvec3> toolUserData(3);
 
 				cv::Mat ocv3(1, 3, CV_32FC1);
 				fs["ToolPos"] >> ocv3;
 				memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
 				fs["ToolVec"] >> ocv3;
 				memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
+				fs["ToolUp"] >> ocv3;
+				memcpy(&toolUserData[2], ocv3.ptr(), sizeof(glm::fvec3));
 
 				__gc->g_rbLocalUserPoints[toolNames[i]] = toolUserData;
 			}
@@ -127,7 +129,7 @@ namespace trackingtask {
 
 					cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltipRecord.txt", cv::FileStorage::Mode::READ);
 					if (fs.isOpened()) {
-						std::vector<glm::fvec3> toolUserData(2);
+						std::vector<glm::fvec3> toolUserData(3);
 
 						std::vector<std::string> toolNames = { "t-needle", "troca" };
 						for (int i = 0; i < 2; i++) {
@@ -136,6 +138,8 @@ namespace trackingtask {
 							memcpy(&toolUserData[0], ocv3.ptr(), sizeof(glm::fvec3));
 							fs["ToolVec_" + to_string(i)] >> ocv3;
 							memcpy(&toolUserData[1], ocv3.ptr(), sizeof(glm::fvec3));
+							fs["ToolUp_" + to_string(i)] >> ocv3;
+							memcpy(&toolUserData[2], ocv3.ptr(), sizeof(glm::fvec3));
 							__gc->g_rbLocalUserPoints[toolNames[i]] = toolUserData;
 						}
 					}
@@ -456,10 +460,11 @@ namespace trackingtask {
 						//__gc->g_optiToolId == 1 : "t-needle"
 						//__gc->g_optiToolId == 2 : "troca"
 
-						static const float longLine[2] = { 110.0f, 90.82f };
-						static const float shortLine[2] = { 90.82f, 65.0f };
-						static const float ratio02[2] = { 65.0f, 50.0f };
+						static const float longLine[2] = { 110.0f, 90.f };
+						static const float shortLine[2] = { 90.82f, 64.0f };
+						static const float ratio02[2] = { 65.0f, 49.0f };
 						static const float ratio13[2] = { 40.41f, 25.0f };
+						static const float uLines[2] = { 65.36f, 55.f };
 						const int idx = __gc->g_optiToolId == 1? 1 : 0;
 						// compute center pos
 						glm::fvec3 v02 = pos_rb_mks[2] - pos_rb_mks[0];
@@ -467,6 +472,7 @@ namespace trackingtask {
 						glm::fvec3 v13 = pos_rb_mks[3] - pos_rb_mks[1];
 						glm::fvec3 p13 = pos_rb_mks[1] + v13 * (float)(ratio13[idx] / shortLine[idx]);
 						glm::fvec3 p1234 = (p02 + p13) * 0.5f;
+						float d = uLines[idx];
 
 						// compute normal vec
 						glm::fvec3 nrl1234 = glm::normalize(glm::cross(v02, v13));
@@ -476,9 +482,9 @@ namespace trackingtask {
 						glm::fvec3 faceDir = glm::normalize(glm::cross(nrl1234, v02));
 
 						// compute line 
-						glm::fvec3 p_line1 = p1234 - nrl1234 * (float)(65.36 * 0.001); // meter
+						glm::fvec3 p_line1 = p1234 - nrl1234 * d * 0.001f; // meter
 
-						std::vector<glm::fvec3> toolUserData = { p_line1, faceDir };
+						std::vector<glm::fvec3> toolUserData = { p_line1, faceDir, nrl1234 };
 						__gc->g_rbLocalUserPoints[rbName] = toolUserData;
 
 						cv::FileStorage fs(__gc->g_folder_trackingInfo + "tooltip_" + rbName + ".txt", cv::FileStorage::Mode::WRITE);
@@ -487,6 +493,8 @@ namespace trackingtask {
 						fs << "ToolPos" << ocv3;
 						memcpy(ocv3.ptr(), &faceDir, sizeof(glm::fvec3));
 						fs << "ToolVec" << ocv3;
+						memcpy(ocv3.ptr(), &nrl1234, sizeof(glm::fvec3));
+						fs << "ToolUp" << ocv3;
 						fs.release();
 
 						//__gc->g_toolTipPointLS = vzmutils::transformPos(selectedMks[selectedMks.size() - 1], rbWS2LS);
@@ -635,6 +643,8 @@ namespace trackingtask {
 								fs << "ToolPos_" + to_string(i) << ocv3;
 								memcpy(ocv3.ptr(), &toolUserData[1], sizeof(glm::fvec3));
 								fs << "ToolVec_" + to_string(i) << ocv3;
+								memcpy(ocv3.ptr(), &toolUserData[2], sizeof(glm::fvec3));
+								fs << "ToolUp_" + to_string(i) << ocv3; 
 							}
 							//else {
 							//	__gc->SetErrorCode("No Tool is Registered!");

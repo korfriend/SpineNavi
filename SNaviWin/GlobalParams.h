@@ -410,7 +410,8 @@ typedef struct GlobalContainer {
 	std::map<int, int> g_mapAidGroupCArmCam;
 
 	std::map<std::string, std::vector<glm::fvec3>> g_rbLocalUserPoints;
-
+	float g_toolGuideLineLength = 0.3f; // meter
+	glm::fvec2 g_toolGuideLineCorrection = glm::fvec2(0); // meter
 	std::vector<glm::fvec3> g_testMKs;
 	std::vector<glm::fvec3> g_global_calib_MKs;
 

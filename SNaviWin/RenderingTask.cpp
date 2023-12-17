@@ -558,37 +558,62 @@ namespace rendertask {
 
 				int aidToolBody = vzmutils::GetSceneItemIdByName(rbName + ":Body");
 				int aidToolTip = vzmutils::GetSceneItemIdByName(rbName + ":Tip");
-				vzm::ActorParameters apToolBody, apToolTip;
+				int aidToolGuide = vzmutils::GetSceneItemIdByName(rbName + ":Guide");
+				vzm::ActorParameters apToolBody, apToolTip, apToolGuide;
 				if (aidToolBody == 0) {
 					vzm::NewActor(apToolBody, rbName + ":Body", aidToolBody);
+					vzm::NewActor(apToolGuide, rbName + ":Guide", aidToolGuide);
 					apToolTip.SetResourceID(vzm::ActorParameters::GEOMETRY, oidMarker);
 					*(glm::fvec4*)apToolTip.color = glm::fvec4(1, 0.3, 0.7, 1.f);
 					apToolTip.phong_coeffs[1] = 0.7f;
 					vzm::NewActor(apToolTip, rbName + ":Tip", aidToolTip);
+
 					vzm::AppendSceneItemToSceneTree(aidToolBody, aidRb);
 					vzm::AppendSceneItemToSceneTree(aidToolTip, aidRb);
+					vzm::AppendSceneItemToSceneTree(aidToolGuide, aidRb);
 				}
 				vzm::GetActorParams(aidToolBody, apToolBody);
 				vzm::GetActorParams(aidToolTip, apToolTip);
+				vzm::GetActorParams(aidToolGuide, apToolGuide);
 				bool isPivoted = __gc->g_rbLocalUserPoints.find(rbName) != __gc->g_rbLocalUserPoints.end();
 				if (isRbTracked && isPivoted) {
 
 					apRb.is_visible = false;
 					apToolBody.is_visible = true;
+					apToolGuide.is_visible = true;
 
 					{
 						vector<fvec3> toolUserData = __gc->g_rbLocalUserPoints[rbName];
+
+						fvec3 toolUp = -toolUserData[2];
+						fvec3 toolOnPos = toolUserData[0] + toolUp * __gc->g_toolGuideLineCorrection.y;
+						fvec3 toolDir = normalize(fvec3(0) - toolOnPos);
+						fvec3 toolRight = cross(toolDir, toolUp);
+						toolOnPos += toolRight * __gc->g_toolGuideLineCorrection.x;
+
 						// compute the line geometry in the tool's rigid body
-						fvec3 linePos[2] = { toolUserData[0], fvec3(0) };
-						static int oidToolLines[2] = {0, 0};
+						fvec3 linePos[2] = { toolOnPos, fvec3(0) };
+						fvec3 dirPin = normalize(fvec3(0) - toolOnPos);
+						fvec3 guideLinePos[2] = { fvec3(0), dirPin * __gc->g_toolGuideLineLength };
+						static int oidToolLines[2] = { 0, 0 };
+						static int oidToolGuideLines[2] = { 0, 0 };
 						int& oidToolLine = oidToolLines[rbName == "t-needle" ? 0 : 1];
 						vzm::GenerateLinesObject((float*)linePos, NULL, 1, oidToolLine);
 						vzm::SetResObjectName(oidToolLine, rbName + " Line");
+
+						int& oidToolGuideLine = oidToolGuideLines[rbName == "t-needle" ? 0 : 1];
+						vzm::GenerateLinesObject((float*)guideLinePos, NULL, 1, oidToolGuideLine);
+						vzm::SetResObjectName(oidToolGuideLine, rbName + " Guide");
 
 						apToolBody.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolLine);
 						apToolBody.line_thickness = 3;
 						apToolBody.phong_coeffs[1] = 1.f;
 						*(glm::fvec4*)apToolBody.color = glm::fvec4(1, 1, 1, 1);
+
+						apToolGuide.SetResourceID(vzm::ActorParameters::GEOMETRY, oidToolGuideLine);
+						apToolGuide.line_thickness = 2;
+						apToolGuide.phong_coeffs[1] = 1.f;
+						*(glm::fvec4*)apToolGuide.color = glm::fvec4(0, 1, 1, 1);
 					}
 
 					apToolTip.is_visible = true;
@@ -596,11 +621,13 @@ namespace rendertask {
 					apToolTip.SetLocalTransform(__FP matScale);
 				}
 				else {
+					apToolGuide.is_visible = false;
 					apToolBody.is_visible = false;
 					apToolTip.is_visible = false;
 				}
 				vzm::SetActorParams(aidToolBody, apToolBody);
 				vzm::SetActorParams(aidToolTip, apToolTip);
+				vzm::SetActorParams(aidToolGuide, apToolGuide);
 			}
 			
 			// Rb markers //

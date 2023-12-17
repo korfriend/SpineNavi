@@ -685,10 +685,14 @@ namespace opcode {
 			}
 		}
 
+		ImGui::SeparatorText("Tool Guide Line:");
+		ImGui::SetNextItemWidth(200);
+		ImGui::SliderFloat("Tool Guide Line", &__gc.g_toolGuideLineLength, 0.0f, 0.5f);
+		ImGui::SliderFloat("Center Correction(U)", &__gc.g_toolGuideLineCorrection.y, -0.01f, 0.01f, "%.4f");
+		ImGui::SliderFloat("Center Correction(R)", &__gc.g_toolGuideLineCorrection.x, -0.01f, 0.01f, "%.4f");
+
 		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD) {
 			ImGui::SeparatorText("Image Processing Display:");
-			if (ImGui::Button("Key")) ImGui::SetKeyboardFocusHere();
-			ImGui::SameLine();
 			ImGui::SetNextItemWidth(200);
 			ImGui::SliderInt("Circle Line Thickness", &__gc.g_circleThickness, 1, 5);
 		}
@@ -996,16 +1000,15 @@ namespace opcode {
 			}
 		}
 		// To Do... Add... Recording File Names
-		ImGui::SeparatorText("Safe Instructions:");
-		if (ImGui::Button("Shot Pose Capture", ImVec2(0, buttonHeight)))
-		{
-			__gc.g_optiEvent = OPTTRK_THREAD::C_ARM_SHOT_MOMENT;
-			while (__gc.g_optiEvent == OPTTRK_THREAD::C_ARM_SHOT_MOMENT) { Sleep(2); }
-		}
-		ImGui::SameLine();
-		if (__gc.g_refCArmRbDist < 0) {
-			ComputeRefCArmPhase(__gc.g_refCArmRbDist, __gc.g_refCArmRbAngle);
-		}
+		//ImGui::SeparatorText("Safe Instructions:");
+		//if (ImGui::Button("Shot Pose Capture", ImVec2(0, buttonHeight)))
+		//{
+		//	__gc.g_optiEvent = OPTTRK_THREAD::C_ARM_SHOT_MOMENT;
+		//	while (__gc.g_optiEvent == OPTTRK_THREAD::C_ARM_SHOT_MOMENT) { Sleep(2); }
+		//}
+		//if (__gc.g_refCArmRbDist < 0) {
+		//	ComputeRefCArmPhase(__gc.g_refCArmRbDist, __gc.g_refCArmRbAngle);
+		//}
 		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD)
 		{
 			ImGui::SeparatorText("Tracking Camera 0:");
@@ -1257,11 +1260,11 @@ namespace opcode {
 		if (ImGui::Button("(I)Min Circularity")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderFloat("I1", &__gc.g_intParam_minCircularity, 0.0f, 1.0f);
+		ImGui::SliderFloat("I1", &__gc.g_intParam_minCircularity, 0.001f, 1.0f);
 		if (ImGui::Button("(I)Min InertiaRatio")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
-		ImGui::SliderFloat("I2", &__gc.g_intParam_minInertiaRatio, 0.0f, 1.0f);
+		ImGui::SliderFloat("I2", &__gc.g_intParam_minInertiaRatio, 0.001f, 1.0f);
 		if (ImGui::Button("(I)Min Repeatability")) ImGui::SetKeyboardFocusHere();
 		ImGui::SameLine();
 		ImGui::SetNextItemWidth(200);
