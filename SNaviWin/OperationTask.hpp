@@ -83,6 +83,23 @@ namespace opcode {
 			cv::putText(img, std::to_string(i), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 2, cv::Scalar(255, 0, 0), 2);
 		}
 	};
+
+	auto DrawCenter = [](const std::vector<cv::Point2f>& points2Ds, const int selectedCircleidx, const int thickness, cv::Mat& img) {
+		for (int i = 0; i < (int)points2Ds.size(); i++) {
+			cv::Point2f center = points2Ds[i];
+			float x = (center.x); // cvRound
+			float y = (center.y);
+			float r = 0;
+
+			if( i == selectedCircleidx)
+				cv::circle(img, cv::Point(x, y), r, cv::Scalar(255, 0, 0), thickness);
+			else
+				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), thickness);
+
+			cv::putText(img, fmt::format("({},{})",(int)x,(int)y), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0, 0), 2);
+		}
+		
+	};
 	auto ComputeReprojectionErrors = [](const std::vector<std::vector<cv::Point3f>>& objectPoints,
 		const std::vector<std::vector<cv::Point2f> >& imagePoints,
 		const std::vector<cv::Mat>& rvecs, const std::vector<cv::Mat>& tvecs,
@@ -1319,6 +1336,9 @@ namespace opcode {
 		static bool showOnlyCurrentSelectionScan = false;
 		static int processAll = -1;
 		static int aidMarkerGroup = 0;
+		static bool editCircleFlag = false; // Circle 미세 조정 모드 flag
+		static int selectedCircleidx = -1; // 미세 조정할 Circle index
+
 		if (__gc.g_optiRecordMode == OPTTRK_RECMODE::CALIB_EDIT) {
 			for (int i = 0; i < (int)img_files.size(); i++)
 			{
@@ -1730,6 +1750,61 @@ namespace opcode {
 				}
 			}
 		}
+		ImGui::SameLine();
+
+		bool buttonColorFlag = false; // color 설정 위한 flag
+		if (editCircleFlag)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6, 0.1, 0.2, 1));
+			buttonColorFlag = true;
+		}
+		if (ImGui::Button("Edit Circle", ImVec2(0, buttonHeight)))
+		{
+			if (!editCircleFlag)
+			{
+				ImGui::SetKeyboardFocusHere(0);
+
+				if (imgOriginal.data != NULL) {
+					int image_width = imgOriginal.cols;
+					int image_height = imgOriginal.rows;
+
+					// optional
+					cv::flip(imgOriginal, imgFlip, 1);
+
+					cv::Mat imgGray;
+					cv::cvtColor(imgFlip, imgGray, cv::COLOR_RGB2GRAY);
+
+					DrawCenter(points2D, selectedCircleidx, __gc.g_circleThickness + 15, imgFlip);
+					if (imgFlip.channels() == 3) {
+						// First create the image with alpha channel
+						cv::cvtColor(imgFlip, imgFlip, cv::COLOR_RGB2RGBA);
+
+						// # Split the image for access to alpha channel
+						std::vector<cv::Mat> channels(4);
+						cv::split(imgFlip, channels);
+
+						// Assign the mask to the last channel of the image
+						channels[3] = 255;
+
+						// Finally concat channels for rgba image
+						cv::merge(channels, imgFlip);
+					}
+					pSRV = LoadTextureFromMemory(imgFlip.data, "EXTRINSIC_IMG", imgFlip.size().width, imgFlip.size().height);
+					isCalibratedExtrinsic = false;
+				}
+
+			}
+			else
+			{
+				ImGuiIO& io = ImGui::GetIO();
+				io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+			}
+			editCircleFlag = !editCircleFlag;
+		}
+		if (buttonColorFlag)
+		{
+			ImGui::PopStyleColor();
+		}
 
 		ImGui::SeparatorText("Parameter Settings:");
 		if (ImGui::Button("(E)Min Circularity")) ImGui::SetKeyboardFocusHere();
@@ -1750,6 +1825,130 @@ namespace opcode {
 			//ImVec2 pos = ImGui::GetCursorScreenPos();
 			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
 			ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x), ImVec2(0, 0), ImVec2(1, 1));
+
+			auto updateImage = []()
+			{
+				if (imgOriginal.data != NULL) {
+					int image_width = imgOriginal.cols;
+					int image_height = imgOriginal.rows;
+
+					// optional
+					cv::flip(imgOriginal, imgFlip, 1);
+
+					cv::Mat imgGray;
+					cv::cvtColor(imgFlip, imgGray, cv::COLOR_RGB2GRAY);
+
+					DrawCenter(points2D, selectedCircleidx, __gc.g_circleThickness + 15, imgFlip);
+					if (imgFlip.channels() == 3) {
+						// First create the image with alpha channel
+						cv::cvtColor(imgFlip, imgFlip, cv::COLOR_RGB2RGBA);
+
+						// # Split the image for access to alpha channel
+						std::vector<cv::Mat> channels(4);
+						cv::split(imgFlip, channels);
+
+						// Assign the mask to the last channel of the image
+						channels[3] = 255;
+
+						// Finally concat channels for rgba image
+						cv::merge(channels, imgFlip);
+					}
+					pSRV = LoadTextureFromMemory(imgFlip.data, "EXTRINSIC_IMG", imgFlip.size().width, imgFlip.size().height);
+					isCalibratedExtrinsic = false;
+				}
+			};
+
+			if (!editCircleFlag)
+			{
+				selectedCircleidx = -1;
+			}
+			if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+			{
+				if (ImGui::IsItemHovered())
+				{
+					if (editCircleFlag)
+					{
+
+						ImVec2 mousePositionAbsolute = ImGui::GetMousePos();
+						ImVec2 screenPositionAbsolute = ImGui::GetItemRectMin();
+						ImVec2 mousePositionRelative = ImVec2(mousePositionAbsolute.x - screenPositionAbsolute.x, mousePositionAbsolute.y - screenPositionAbsolute.y);
+						//__gc.g_engineLogger->debug(fmt::format("({} , {})", mousePositionRelative.x, mousePositionRelative.y));
+
+
+						//__gc.g_engineLogger->debug(fmt::format("({} , {})", imgOriginal.size().width, imgOriginal.size().height));
+						
+						float scale_x = (float)imgOriginal.size().width / canvas_size.x;
+						float scale_y = (float)imgOriginal.size().height / canvas_size.x;
+
+						float clicked_x = mousePositionRelative.x * scale_x;
+						float clicked_y = mousePositionRelative.y * scale_y;
+						cv::Point2f clicked_point(clicked_x, clicked_y);
+
+
+						float minDist = D3D10_FLOAT32_MAX;
+						
+						for (int i = 0; i < (int)points2D.size(); i++)
+						{
+							float dist = cv::norm(clicked_point - points2D[i]);
+							if (minDist > dist)
+							{
+								minDist = dist;
+								selectedCircleidx = i;
+							}
+						}
+						updateImage();
+					}
+				}
+			}
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::SetKeyboardFocusHere();
+				ImGuiIO& io = ImGui::GetIO();
+				io.ConfigFlags &= ~ImGuiConfigFlags_NavEnableKeyboard;
+				//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+				//ImGuiConfigFlags_NavNoCaptureKeyboard
+			}
+			else
+			{
+				
+			}
+			if (selectedCircleidx >= 0 && editCircleFlag)
+			{
+				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_UpArrow))
+				{
+					ImGui::SetKeyboardFocusHere();
+					//__gc.g_engineLogger->debug(fmt::format("Circle : ({}), moved up", selectedCircleidx));
+					points2D[selectedCircleidx].y--;
+					updateImage();
+					//ImGui::PopAllowKeyboardFocus();
+				}
+				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_DownArrow))
+				{
+					ImGui::SetKeyboardFocusHere();
+					//__gc.g_engineLogger->debug(fmt::format("Circle : ({}), moved down", selectedCircleidx));
+					points2D[selectedCircleidx].y++;
+					updateImage();
+					//ImGui::PopAllowKeyboardFocus();
+				}
+				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_LeftArrow))
+				{
+					ImGui::SetKeyboardFocusHere();
+					//__gc.g_engineLogger->debug(fmt::format("Circle : ({}), moved left", selectedCircleidx));
+					points2D[selectedCircleidx].x--;
+					updateImage();
+					//ImGui::PopAllowKeyboardFocus();
+				}
+				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_RightArrow))
+				{
+					ImGui::SetKeyboardFocusHere();
+					//__gc.g_engineLogger->debug(fmt::format("Circle : ({}), moved right", selectedCircleidx));
+					points2D[selectedCircleidx].x++;
+					updateImage();
+					//ImGui::PopAllowKeyboardFocus();
+				}
+			}
+
+			
 		}
 	}
 
