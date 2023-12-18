@@ -1929,7 +1929,7 @@ namespace opcode {
 					updateImage();
 					//ImGui::PopAllowKeyboardFocus();
 				}
-				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_R))
+				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_D))
 				{
 					ImGui::SetKeyboardFocusHere();
 					//__gc.g_engineLogger->debug(fmt::format("Circle : ({}), moved up", selectedCircleidx));
