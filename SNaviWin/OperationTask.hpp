@@ -84,17 +84,19 @@ namespace opcode {
 		}
 	};
 
-	auto DrawCenter = [](const std::vector<cv::Point2f>& points2Ds, const int selectedCircleidx, const int thickness, cv::Mat& img) {
+	auto DrawCenter = [](const std::vector<cv::Point2f>& points2Ds, std::vector<float>& circleRadiis, const int selectedCircleidx, const int thickness, cv::Mat& img) {
 		for (int i = 0; i < (int)points2Ds.size(); i++) {
 			cv::Point2f center = points2Ds[i];
 			float x = (center.x); // cvRound
 			float y = (center.y);
-			float r = 0;
+			float r = (circleRadiis[i]);;
+			cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 255, 255), thickness);
+
 
 			if( i == selectedCircleidx)
-				cv::circle(img, cv::Point(x, y), r, cv::Scalar(255, 0, 0), thickness);
+				cv::circle(img, cv::Point(x, y), 0, cv::Scalar(255, 0, 0), thickness + 15);
 			else
-				cv::circle(img, cv::Point(x, y), r, cv::Scalar(0, 0, 255), thickness);
+				cv::circle(img, cv::Point(x, y), 0, cv::Scalar(0, 0, 255), thickness + 15);
 
 			cv::putText(img, fmt::format("({},{})",(int)x,(int)y), cv::Point(x - 20, y - 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(255, 0, 0), 2);
 		}
@@ -1181,6 +1183,7 @@ namespace opcode {
 				cv::cvtColor(img, imgGray, cv::COLOR_RGB2GRAY);
 				// processing..
 
+				
 				std::vector<float> circleRadiis;
 				points2D.clear();
 				mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, intrinsicWidth, intrinsicHeight, points2D, 600.f, 20000.f, 50.f, &circleRadiis);
@@ -1324,6 +1327,7 @@ namespace opcode {
 		static std::vector<cv::Point3f> pointsWS3D;
 		static std::vector<cv::Point3f> pointsRB3D;
 		static std::vector<cv::Point2f> points2D;
+		static std::vector<float> circleRadiis;
 		static std::vector<std::vector<cv::Point3f>> calib_pointsRB3Ds;
 		static std::vector<std::vector<cv::Point3f>> calib_pointsWS3Ds;
 		static std::vector<std::vector<cv::Point2f>> calib_points2Ds;
@@ -1514,7 +1518,7 @@ namespace opcode {
 					cv::Mat imgGray;
 					cv::cvtColor(imgFlip, imgGray, cv::COLOR_RGB2GRAY);
 
-					std::vector<float> circleRadiis;
+					circleRadiis.clear();
 					points2D.clear();
 					mystudents::Get2DPostionsFromFMarkersPhantom(imgGray, extrinsicWidth, extrinsicHeight, points2D, 1500.f, 16000.f, 100.f, &circleRadiis);
 
@@ -1774,7 +1778,8 @@ namespace opcode {
 					cv::Mat imgGray;
 					cv::cvtColor(imgFlip, imgGray, cv::COLOR_RGB2GRAY);
 
-					DrawCenter(points2D, selectedCircleidx, __gc.g_circleThickness + 15, imgFlip);
+					DrawCenter(points2D, circleRadiis, selectedCircleidx, __gc.g_circleThickness, imgFlip);
+					//DrawCircles(points2D, circleRadiis, __gc.g_circleThickness, imgFlip);
 					if (imgFlip.channels() == 3) {
 						// First create the image with alpha channel
 						cv::cvtColor(imgFlip, imgFlip, cv::COLOR_RGB2RGBA);
@@ -1838,7 +1843,8 @@ namespace opcode {
 					cv::Mat imgGray;
 					cv::cvtColor(imgFlip, imgGray, cv::COLOR_RGB2GRAY);
 
-					DrawCenter(points2D, selectedCircleidx, __gc.g_circleThickness + 15, imgFlip);
+					DrawCenter(points2D, circleRadiis, selectedCircleidx, __gc.g_circleThickness, imgFlip);
+					//DrawCircles(points2D, circleRadiis, __gc.g_circleThickness, imgFlip);
 					if (imgFlip.channels() == 3) {
 						// First create the image with alpha channel
 						cv::cvtColor(imgFlip, imgFlip, cv::COLOR_RGB2RGBA);
@@ -1914,6 +1920,24 @@ namespace opcode {
 			}
 			if (selectedCircleidx >= 0 && editCircleFlag)
 			{
+				
+				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_I))
+				{
+					ImGui::SetKeyboardFocusHere();
+					//__gc.g_engineLogger->debug(fmt::format("Circle : ({}), moved up", selectedCircleidx));
+					circleRadiis[selectedCircleidx]+=1;
+					updateImage();
+					//ImGui::PopAllowKeyboardFocus();
+				}
+				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_R))
+				{
+					ImGui::SetKeyboardFocusHere();
+					//__gc.g_engineLogger->debug(fmt::format("Circle : ({}), moved up", selectedCircleidx));
+					circleRadiis[selectedCircleidx] -= 1;
+					updateImage();
+					//ImGui::PopAllowKeyboardFocus();
+				}
+
 				if (ImGui::IsKeyPressed(ImGuiKey::ImGuiKey_UpArrow))
 				{
 					ImGui::SetKeyboardFocusHere();
