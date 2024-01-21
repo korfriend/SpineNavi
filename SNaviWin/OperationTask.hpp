@@ -1754,7 +1754,7 @@ namespace opcode {
 				}
 			}
 		}
-		ImGui::SameLine();
+		//ImGui::SameLine();
 
 		bool buttonColorFlag = false; // color 설정 위한 flag
 		if (editCircleFlag)
@@ -1883,6 +1883,8 @@ namespace opcode {
 
 						//__gc.g_engineLogger->debug(fmt::format("({} , {})", imgOriginal.size().width, imgOriginal.size().height));
 						
+						
+
 						float scale_x = (float)imgOriginal.size().width / canvas_size.x;
 						float scale_y = (float)imgOriginal.size().height / canvas_size.x;
 
