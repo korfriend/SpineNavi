@@ -17,10 +17,12 @@ namespace trackingtask {
 
 	bool InitializeTask(__GC* gcp) {
 
+		__gc = gcp;
+		if (__gc->g_optiRecordMode != OPTTRK_RECMODE::NONE)
+			return true;
+
 		bool optitrkMode = optitrk::InitOptiTrackLib();
 		if (!optitrkMode) return false;
-
-		__gc = gcp;
 
 		optitrk::LoadProfileAndCalibInfo(__gc->g_profileFileName, "");
 		//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");

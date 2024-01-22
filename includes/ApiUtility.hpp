@@ -64,21 +64,6 @@ namespace vzmutils {
 		fvec3 tmin = glm::min(ttop, tbot);
 		fvec3 tmax = glm::max(ttop, tbot);
 
-		// find the largest tmin and the smallest tmax
-		if (vec_dir.x == 0)
-			tmin.x = -FLT_MAX;
-		if (vec_dir.y == 0)
-			tmin.y = -FLT_MAX;
-		if (vec_dir.z == 0)
-			tmin.z = -FLT_MAX;
-
-		if (vec_dir.x == 0)
-			tmax.x = FLT_MAX;
-		if (vec_dir.y == 0)
-			tmax.y = FLT_MAX;
-		if (vec_dir.z == 0)
-			tmax.z = FLT_MAX;
-
 		float largest_tmin = std::max(std::max(tmin.x, tmin.y), std::max(tmin.x, tmin.z));
 		float smallest_tmax = std::min(std::min(tmax.x, tmax.y), std::min(tmax.x, tmax.z));
 
@@ -1104,6 +1089,73 @@ namespace vzmutils {
 		glm::fvec3 center = (aabb_min_os + aabb_max_os) * 0.5f;
 		matPivot = glm::translate(-center);
 		return true;
+	}
+
+	inline bool CheckBoxCollision(vzm::BoxTr& boxTr1, vzm::BoxTr& boxTr2) {
+		// 1st check the collision btw two bounding spheres
+		glm::fvec3 whd1, whd2, pO1, pO2;
+		boxTr1.GetCubeInfo(__FP whd1, __FP pO1, NULL, NULL);
+		boxTr2.GetCubeInfo(__FP whd2, __FP pO2, NULL, NULL);
+		float r1 = std::max(std::max(whd1.x, whd1.y), whd1.z);
+		float r2 = std::max(std::max(whd2.x, whd2.y), whd2.z);
+		float distO_12 = glm::length(pO1 - pO2) * 0.5f;
+		if (distO_12 >= r1 + r2)
+			return false;
+
+		// Box Check
+		auto CheckBoxCollision2 = [](vzm::BoxTr& boxTrSrc, vzm::BoxTr& boxTrDst) {
+			// Lines in Src to Dst Unit Box
+			glm::fmat4x4 matToUnitAaBb;
+			boxTrDst.GetMatrix(__FP matToUnitAaBb, NULL);
+
+			glm::fmat4x4 matSrcUnitToWS;
+			boxTrSrc.GetMatrix(NULL, __FP matSrcUnitToWS);
+
+			glm::fmat4x4 matSrcToDstUnitAaBb = matToUnitAaBb * matSrcUnitToWS;
+			std::vector<glm::fvec3> pts = {
+				glm::fvec3(-0.5f), glm::fvec3(0.5f, -0.5f, -0.5f), glm::fvec3(0.5f, 0.5f, -0.5f), glm::fvec3(-0.5f, 0.5f, -0.5f),
+				glm::fvec3(-0.5f, -0.5f, 0.5f), glm::fvec3(0.5f, -0.5f, 0.5f), glm::fvec3(0.5f), glm::fvec3(-0.5f, 0.5f, 0.5f)
+			};
+			std::vector<glm::ivec2> lines = {
+				glm::ivec2(0, 1), glm::ivec2(1, 2), glm::ivec2(2, 3), glm::ivec2(3, 0),
+				glm::ivec2(4, 5), glm::ivec2(5, 6), glm::ivec2(6, 7), glm::ivec2(7, 4),
+				glm::ivec2(0, 4), glm::ivec2(1, 5), glm::ivec2(2, 6), glm::ivec2(3, 7),
+			};
+
+			for (int i = 0; i < 8; i++) {
+				glm::fvec3 p = vzmutils::transformPos(pts[i], matSrcToDstUnitAaBb);
+				glm::fvec3 p0 = glm::fvec3(-0.5f) - p;
+				glm::fvec3 p1 = glm::fvec3(0.5f) - p;
+				glm::fvec3 d = p0 * p1;
+				if (d.x < 0 && d.y < 0 && d.z < 0)
+					return true;
+			}
+
+			bool isCollision = false;
+			for (int i = 0; i < 12; i++) {
+				glm::ivec2 line = lines[i];
+				glm::fvec3 p0 = vzmutils::transformPos(pts[line.x], matSrcToDstUnitAaBb);
+				glm::fvec3 p1 = vzmutils::transformPos(pts[line.y], matSrcToDstUnitAaBb);
+				glm::fvec2 t;
+
+				if (vzmutils::ComputeCrossPointsBtwLineAndAlignedCube(glm::fvec3(-0.5f), glm::fvec3(0.5f), p0, p1 - p0, t))
+				{
+					if ((t.x > 0 && t.x < 1.f) || (t.y > 0 && t.y < 1.f)) {
+						isCollision = true;
+						break;
+					}
+				}
+			}
+			return isCollision;
+		};
+
+		if (CheckBoxCollision2(boxTr1, boxTr2))
+			return true;
+
+		if (CheckBoxCollision2(boxTr2, boxTr1))
+			return true;
+
+		return false;
 	}
 
 	struct GeneralMove {
