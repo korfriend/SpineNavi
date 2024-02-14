@@ -62,8 +62,9 @@ namespace vmgui {
 			CUSTOM_MOVE = 0x1 << 4,
 			CUSTOM_DOWN = 0x1 << 5,
 			CUSTOM_WHEEL = 0x1 << 6,
+			POSTERIOR_CALLBACK = 0x1 << 20, // posterior callback after the main event process
 		};
-	private:
+private:
 		std::string __windowName = "";
 		int __sidScene = 0;
 		int __cidRender = 0;
@@ -71,13 +72,19 @@ namespace vmgui {
 		glm::fvec3 __centerStage = glm::fvec3(0);
 		float __centerStageScale = 100.f;
 
+		std::string __moreHelp = "";
+		bool __useDefaultHelp = true;
+
 		vzm::CameraParameters __cpRender; // current
 		vzmutils::GeneralMove __gmEvent;
 
 		bool __zoomMoveEnabled = false, __zoomMoveLDragPan = true;
 		bool __zoomMoveUserMoveInvert = false, __zoomMovePreserveCenter = false;
+		bool __cameraFrustumDisplayed = false;
 
 		void* __components = NULL;
+		void* __dxSrv = NULL;
+		int prev_W = 0, prev_H = 0;
 
 		glm::fvec2 __prevMousePos = glm::fvec2(-10000, -10000);
 		glm::fvec2 __curMousePos = glm::fvec2(-10000, -10000);
@@ -91,12 +98,21 @@ namespace vmgui {
 		std::map<OnEvents, std::vector<CFn>> __callbacks;
 
 		bool __skipRender = false;
+		bool __readyCallRender = false;
+		bool __resizedFrame = false;
 
 	public:
 
 		ImGuiVzmWindow(const std::string& windowName, const int sidScene, const int cidRender, const void* dx11ImGuiDevice);
 		~ImGuiVzmWindow();
+
 		std::string GetWindowName();
+		void GetFrameRenderCallStates(bool* skipRender, bool* readyCallRender, bool* resizedFrame) {
+			if (skipRender) *skipRender = __skipRender;
+			if (readyCallRender) *readyCallRender = __readyCallRender;
+			if (resizedFrame) *resizedFrame = __resizedFrame;
+		}
+
 		void SetStageCenterScale(const glm::fvec3& centerStage, const float centerStageScale);
 		void GetStageCenterScale(glm::fvec3& centerStage, float& centerStageScale) {
 			centerStage = __centerStage;
@@ -127,7 +143,7 @@ namespace vmgui {
 		void EnableTransformer(const bool enabled);
 		void EnableCustomMove(const bool enabled);
 		void EnableCustomDown(const bool enabled);
-		void EnableCustomWHEEL(const bool enabled);
+		void EnableCustomWheel(const bool enabled);
 		void EnableBoxClipper(const bool enabled, const int aidTarget);
 		void EnableMouseMove(const bool enabled);
 		void EnableMouseZoom(const bool enabled);
@@ -136,6 +152,7 @@ namespace vmgui {
 			__eventStart = oe;
 		}
 		// note then the MRight Rotation will be disabled
+		// the wheel event will move the camera forward or backward
 		void EnableZoomMoveOnMRightDrag(const bool zoomMoveEnabled, const bool mLDragPan = true, // (zoomMoveEnabled && !mLDragPan) then Rotate
 			const bool zoomMoveUserMoveInvert = false, const bool zoomMovePreserveCenter = false) {
 			__zoomMoveEnabled = zoomMoveEnabled;
@@ -143,6 +160,13 @@ namespace vmgui {
 			__zoomMoveUserMoveInvert = zoomMoveUserMoveInvert;
 			__zoomMovePreserveCenter = zoomMovePreserveCenter;
 		}
+
+		void EnableSlicerActorToScene(const bool enabled, const glm::fvec3 color);
+		void AddHelpText(const std::string& helpTxt, const bool useDefaultHelp) {
+			__moreHelp = helpTxt;
+			__useDefaultHelp = useDefaultHelp;
+		}
+		static void FinishVzmWindow();
 	};
 
 	__dojoclass ImTermWindow

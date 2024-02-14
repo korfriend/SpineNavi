@@ -26,6 +26,7 @@ DAMAGE.
 
 #include <string>
 #include <map>
+#include <unordered_map>
 #include <vector>
 #include <set>
 #include <any>
@@ -47,9 +48,13 @@ namespace vzm
 {
 	template <typename NAME> struct ParamMap {
 	private:
-		std::string __PM_VERSION = "LIBI_1.3";
-		std::map<NAME, std::any> __params;
+		std::string __PM_VERSION = "LIBI_1.4";
+		std::unordered_map<NAME, std::any> __params;
 	public:
+		bool FindParam(const NAME& param_name) {
+			auto it = __params.find(param_name);
+			return !(it == __params.end());
+		}
 		template <typename SRCV> bool GetParamCheck(const NAME& param_name, SRCV& param) {
 			auto it = __params.find(param_name);
 			if (it == __params.end()) return false;
@@ -96,7 +101,7 @@ namespace vzm
 			return __PM_VERSION;
 		}
 
-		typedef std::map<NAME, std::any> MapType;
+		typedef std::unordered_map<NAME, std::any> MapType;
 		typename typedef MapType::iterator iterator;
 		typename typedef MapType::const_iterator const_iterator;
 		typename typedef MapType::reference reference;
@@ -140,11 +145,11 @@ namespace vzm
 		}
 		// mat_tr : to aligned unit-cube
 		// inv_mat_tr : to oblique cube
-		void GetMatrix(float* mat_tr, float* inv_mat_tr) {
+		void GetMatrix(float* mat_tr, float* inv_mat_tr) const {
 			SAFE_GET_COPY(mat_tr, __mat_tr, float, 16);
 			SAFE_GET_COPY(inv_mat_tr, __inv_mat_tr, float, 16);
 		}
-		void GetCubeInfo(float* cube_size, float* pos_center, float* y_axis, float* z_axis) {
+		void GetCubeInfo(float* cube_size, float* pos_center, float* y_axis, float* z_axis) const {
 			SAFE_GET_COPY(cube_size, __cube_size, float, 3);
 			SAFE_GET_COPY(pos_center, __pos_center, float, 3);
 			SAFE_GET_COPY(y_axis, __y_axis, float, 3);
@@ -295,6 +300,16 @@ namespace vzm
 			if(it != hidden_actors.end())
 				hidden_actors.erase(it);
 		}
+		// this clipper is prior to the actor's clipper
+		void SetClipper(const BoxTr* clipBox = NULL, const float* plane = NULL) {
+			if (clipBox != NULL) script_params.SetParam("BOX_CLIPPER", *clipBox);
+			else script_params.RemoveParam("BOX_CLIPPER");
+			if (plane != NULL) {
+				std::vector<float> _plane(6);
+				script_params.SetParam("PLANE_CLIPPER", std::vector<float>(plane, plane + 6));
+			}
+			else script_params.RemoveParam("PLANE_CLIPPER");
+		}
 	};
 
 	// note that object id must be unique in a scene!!
@@ -422,6 +437,10 @@ namespace vzm
 		bool GetClipPlane(std::vector<float>& pos_vec_plane) {
 			return script_params.GetParamCheck("CLIPSETTING_PLANE", pos_vec_plane);
 		}
+
+		void SetClipFree(const bool clipFree) {
+			script_params.SetParam("CLIP_FREE", clipFree);
+		}
 	};
 
 	struct LightParameters
@@ -468,7 +487,7 @@ namespace vzm
 	__dojostatic bool GenerateEmptyVolume(int& vol_id, const int ref_vol_id = 0, const std::string& data_type = "", const double min_v = 0, const double max_v = 0, const double fill_v = 0);
 	// note that redundant safe-bnd to slices is not allowed
 	// data_type "CHAR" "BYTE[1-3]" "SHORT" "USHORT" "INT" "FLOAT"
-	__dojostatic bool GenerateVolumeFromData(int& vol_id, const void** vol_slices_2darray, const std::string& data_type, const int* size_xyz, const float* pitch_xyz, const float* axis_x_os, const float* axis_y_os, const bool is_rhs, const bool is_safe_bnd);
+	__dojostatic bool GenerateVolumeFromData(int& vol_id, const void** vol_slices_2darray, const std::string& data_type, const int* size_xyz, const float* pitch_xyz, const float* axis_x_os, const float* axis_y_os, const bool is_rhs, const bool is_safe_bnd, const std::string* src_original_data_type = NULL, const float* original_minV = NULL, const float* original_maxV = NULL);
 	__dojostatic bool GenerateEmptyPrimitive(int& prim_id);
 	__dojostatic bool GenerateArrowObject(const float* pos_s, const float* pos_e, const float radius_body, const float radius_head, int& obj_id);
 	// buffer's format must be byte and ch must be 3 or 4, this is convenient method for opencv image conversion
@@ -496,6 +515,8 @@ namespace vzm
 	__dojostatic bool GenerateMappingTable(const int table_size, const int num_alpha_ctrs, const float* ctr_alpha_idx_list, const int num_rgb_ctrs, const float* ctr_rgb_idx_list, int& tmap_id);
 	__dojostatic bool GenerateMultiMappingTable(const int table_size, const int num_tables, const int target_table_idx, const int num_alpha_ctrs, const float* ctr_alpha_idx_list, const int num_rgb_ctrs, const float* ctr_rgb_idx_list, int& tmap_id);
 	__dojostatic bool GenerateCopiedObject(const int obj_src_id, int& obj_id);
+	__dojostatic bool GenerateDistanceMap(int& obj_id, const std::vector<int>& aidSrcMeshes, const vzm::BoxTr& roiCube, const float voxelPitch, int* mapSizeX = NULL, int* mapSizeY = NULL, int* mapSizeZ = NULL, float* minSignedDist = NULL, float* maxSignedDist = NULL);
+
 	__dojostatic bool SetResObjectName(const int obj_id, const std::string& name);
 	__dojostatic bool GetResObjectName(const int obj_id, std::string& name);
 	__dojostatic bool GetResObjectByName(const std::string& name, int& obj_id);
@@ -508,16 +529,22 @@ namespace vzm
 	//////////////////////////////
 
 	//////////////////////////////////
-	// 	   Scenes and Actors
+	// 	   Scenes and Actors	
+	__dojostatic bool GenerateSceneItemGroup(int& aid_group, vzm::BoxTr* boundingBoxWS, const std::string& group_name, const int parent_sitem_id, const std::vector<int>& aid_targets);
 	__dojostatic bool NewScene(const std::string& scene_title, int& scene_id); 
 	__dojostatic bool NewActor(const ActorParameters& actor_params, const std::string& actor_name, int& actor_id);
 	__dojostatic bool NewCamera(const CameraParameters& cam_params, const std::string& camera_name, int& cam_id);
 	__dojostatic bool NewLight(const LightParameters& light_params, const std::string& light_name, int& light_id);
 	__dojostatic bool GetActorParams(const int actor_id, ActorParameters& actor_params);
 	__dojostatic bool GetCameraParams(const int cam_id, CameraParameters& camera_params);
+	// note : CameraParameters::ip_w and ip_h are the initial setting values, which will be re-calculated 
+	// w.r.t. camera setting parameters. So, if you want to get the exact size of current renderer's image plane size
+	// use this "GetCameraImagePlane" (do not use CameraParameters::ip_w and ip_h, which may result in undesirable recursive changes of image plane)
+	__dojostatic bool GetCameraImagePlane(const int cam_id, float& ip_w, float& ip_h, float* ip4PtsXYZ_LT_RT_RB_LB = NULL);
 	__dojostatic bool GetLightParams(const int light_id, LightParameters& light_params);
 	__dojostatic bool GetSceneItemsByName(const std::string& name, std::vector<int>& scene_itemIDs);
 	__dojostatic bool GetNameBySceneItemID(const int scene_item_id, std::string& name);
+	__dojostatic bool SetSceneItemName(const int scene_item_id, const std::string& name);
 	__dojostatic bool SetActorParams(const int actor_id, const ActorParameters& actor_params);
 	__dojostatic bool SetCameraParams(const int cam_id, const CameraParameters& camera_params);
 	__dojostatic bool SetLightParams(const int light_id, const LightParameters& light_params);
@@ -526,7 +553,7 @@ namespace vzm
 	__dojostatic bool RemoveSceneItem(const int scene_item_id, const bool try_delete_associated_res_objs = false); // scene, actor, camera, or light
 	__dojostatic bool UpdateSceneTransforms(const int scene_id); // if -1, all scenes are updated
 
-	__dojostatic bool GetActorWorldBoundingBox(const int actor_id, BoxTr& boxTr); // from unitcube
+	__dojostatic bool GetActorWorldBoundingBox(const int actor_id, BoxTr& boxTr, const bool is_world_aligned = false); // from unitcube
 	__dojostatic bool GetObjBoundingBox(const int obj_id, float* pos_min_os, float* pos_max_os);
 	__dojostatic bool GetCamProjMatrix(const int cam_id, float* mat_ws2ss, float* mat_ss2ws = nullptr, bool is_col_major = true);
 
@@ -559,7 +586,7 @@ namespace vzm
 
 	// picking
 	__dojostatic bool PickActor(int& picked_actor_id, float* pos_pick, const int x, const int y, const int cam_id, int* picked_submask_id = nullptr, int* picked_primitive_id = nullptr);
-	__dojostatic bool PickActorList(std::vector<int>& picked_actor_ids, std::vector<float>& pos_picks, const int x, const int y, const int cam_id, std::vector<int>* picked_submask_ids = nullptr, std::vector<int>* picked_primitive_ids = nullptr);
+	__dojostatic bool PickActorList(std::vector<int>& picked_actor_ids, std::vector<float>& pos_picks, const int x, const int y, const int cam_id, std::vector<int>* picked_submask_ids = nullptr, std::vector<int>* picked_primitive_ids = nullptr, const bool tryAllMaskValues = false, std::vector<float>* depths = nullptr);
 	__dojostatic bool CheckCollisionTwoMeshActors(const int actorId0, const int actorId1);
 	__dojostatic bool ComputeDistanceToVolume(const int volActorId, const float* pos_origin_ws, const float* dir_origin_ws, float& distance);
 
@@ -573,8 +600,8 @@ namespace vzm
 	// note: 
 	// * value of ioResObjs is (VmVObject*)
 	// * value of ioActors is (VmActor*)
-	// * value of parameters is std::any
-	__dojostatic bool ExecuteCustomModule(const std::string& module_dll_file, const std::string& dll_function, const ParamMap<std::string>& ioResObjs, const ParamMap<std::string>& ioActors, const ParamMap<std::string>& parameters);
+	// * value of ioParams is std::any
+	__dojostatic bool ExecuteCustomModule(const std::string& module_dll_file, const std::string& dll_function, ParamMap<std::string>& ioResObjs, ParamMap<std::string>& ioActors, ParamMap<std::string>& ioParams);
 }
 
 namespace vzmpf
@@ -583,6 +610,8 @@ namespace vzmpf
 	__dojostatic size_t GetRenderCount();
 }
 
+// not 'generating' objects, 'new' actors, or 'modify' scene tree
+// modifying the given objects, calculating some variables...
 namespace vzmproc
 {
 	// three curve-types : "uniform", "centripetal", , "chordal" 
@@ -592,22 +621,14 @@ namespace vzmproc
 		const float* pos_ctr_vecs = nullptr, std::vector<float>* curve_xyz_vecs = nullptr,
 		const float* size_ctr_points = nullptr, std::vector<float>* curve_sizes = nullptr);
 
-	__dojostatic bool SimplifyPModelByUGrid(const int obj_src_id, const float cell_width, int& obj_dst_id);
-	__dojostatic bool ComputePCA(const int obj_id, float* egvals /*float3*/, float* egvecs /*three of float3*/);
-	__dojostatic bool ComputePCAc(const float* xyz_list, const int num_points, float* egvals /*float3*/, float* egvecs /*three of float3*/);
-
-	__dojostatic bool GenerateSamplePoints(const int obj_src_id, const float* pos_src, const float r, const float min_interval, int& obj_dst_id);
-	// based on special-care ICP
-	__dojostatic bool ComputeMatchingTransform(const int obj_from_id, const int obj_to_id, float* mat_tr /*float16*/);
-	// at least 3 point-pairs are requested
-	// matching based on least squares
-	// assume each point pair has the same index of the point list (one-to-one);
-	__dojostatic bool ComputeRigidTransform(const float* xyz_from_list, const float* xyz_to_list, const int num_pts, float* mat_tr /*float16*/);
-
 	// if obj_dst_id == 0, then modify obj_src_id's gemometry resource!!
 	__dojostatic bool ModifyRedundantGeometry(const int obj_src_id, const int obj_dst_id);
 
 	__dojostatic bool ComputeCustomOBB(const int obj_id, const float* axis_1, const float* axis_2, const float* axis_3, vzm::BoxTr& boxTr);
+
+
+	// the following functions will not be supported at this moment. 
+	// if any requests, then let me know.
 
 	// mat_ext : glm::fmat4x3 format, conventional camera system's extrinsic parameters (y down and z as view direction)
 	// fx, fy : focusing parameters
@@ -626,6 +647,19 @@ namespace vzmproc
 
 	__dojostatic bool ComputeArCameraCalibrateInfo(const float* mat_rbs2ts, const float* calrb_xyz_ts, const float* calrb_xy_ss, const int num_mks,
 		float* mat_camcs2rbs, vzm::CameraParameters* cam_ar_mode_params);
+
+
+	__dojostatic bool SimplifyPModelByUGrid(const int obj_src_id, const float cell_width, int& obj_dst_id);
+	__dojostatic bool ComputePCA(const int obj_id, float* egvals /*float3*/, float* egvecs /*three of float3*/);
+	__dojostatic bool ComputePCAc(const float* xyz_list, const int num_points, float* egvals /*float3*/, float* egvecs /*three of float3*/);
+
+	__dojostatic bool GenerateSamplePoints(const int obj_src_id, const float* pos_src, const float r, const float min_interval, int& obj_dst_id);
+	// based on special-care ICP
+	__dojostatic bool ComputeMatchingTransform(const int obj_from_id, const int obj_to_id, float* mat_tr /*float16*/);
+	// at least 3 point-pairs are requested
+	// matching based on least squares
+	// assume each point pair has the same index of the point list (one-to-one);
+	__dojostatic bool ComputeRigidTransform(const float* xyz_from_list, const float* xyz_to_list, const int num_pts, float* mat_tr /*float16*/);
 }
 
 namespace helpers

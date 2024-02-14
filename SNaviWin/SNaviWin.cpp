@@ -2,7 +2,6 @@
 // If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
 // Read online: https://github.com/ocornut/imgui/tree/master/docs
 #include "OperationTask.hpp"
-\
 #include "framework.h"
 #include "SNaviWin.h"
 
@@ -128,8 +127,8 @@ void mygui(ImGuiIO& io) {
 		view1.AddCallback(vmgui::ImGuiVzmWindow::OnEvents::CUSTOM_DOWN, CallBackMouseDown);
 		view1.AddCallback(vmgui::ImGuiVzmWindow::OnEvents::CUSTOM_WHEEL, CallBackMouseWheel);
 		view2.AddCallback(vmgui::ImGuiVzmWindow::OnEvents::CUSTOM_WHEEL, CallBackMouseWheel);
-		view1.EnableCustomWHEEL(true);
-		view2.EnableCustomWHEEL(true);
+		view1.EnableCustomWheel(true);
+		view2.EnableCustomWheel(true);
 		view1.EnableMouseZoom(false);
 		view2.EnableMouseZoom(false);
 		view1.SkipRender(true);
@@ -341,14 +340,13 @@ int main()
 	vzm::GetLoggerPointer(nativeLogger);
 	__gc.g_engineLogger = std::static_pointer_cast<spdlog::logger, void>(nativeLogger);
 
-	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE) { // LOAD 용 initializer 없음
-		if (!trackingtask::InitializeTask(&__gc)) {
-			__gc.g_engineLogger->error("OptiTrack is not allowed!!");
-			vzm::DeinitEngineLib();
-			return true;
-		}
+	if (!trackingtask::InitializeTask(&__gc)) {
+		__gc.g_engineLogger->error("OptiTrack is not allowed!!");
+		vzm::DeinitEngineLib();
+		return true;
 	}
 
+	trackingtask::InitializeTask(&__gc);
 	rendertask::InitializeTask(&__gc);
 	nettask::InitializeTask(&__gc);
 	calibtask::InitializeTask(&__gc);
