@@ -158,7 +158,7 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
-		if (__gc.g_camera_alive) {
+		if (__gc.g_camera_alive || __gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
 			ImGui::Spacing();
 			if (ImGui::CollapsingHeader("Vision Operation", ImGuiTreeNodeFlags_DefaultOpen)) {
 				opcode::VisionOperation();
@@ -334,13 +334,14 @@ int main()
 	__gc.g_folder_trackingInfo = __gc.g_folder_data + trackDataFolder + "/";
 	__gc.g_recFileName = __gc.g_folder_trackingInfo + "TrackingRecord.csv";
 	__gc.g_recScanName = __gc.g_folder_trackingInfo + "ScanRecord.csv";
+	__gc.g_recVideoName = __gc.g_folder_trackingInfo + "VideoRecord.avi";
 
 	vzm::InitEngineLib("SpineNavi");
 	std::shared_ptr<void> nativeLogger;
 	vzm::GetLoggerPointer(nativeLogger);
 	__gc.g_engineLogger = std::static_pointer_cast<spdlog::logger, void>(nativeLogger);
 
-	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE) {
+	if (__gc.g_optiRecordMode == OPTTRK_RECMODE::NONE) { // LOAD 용 initializer 없음
 		if (!trackingtask::InitializeTask(&__gc)) {
 			__gc.g_engineLogger->error("OptiTrack is not allowed!!");
 			vzm::DeinitEngineLib();
