@@ -27,9 +27,27 @@ namespace trackingtask {
 		optitrk::LoadProfileAndCalibInfo(__gc->g_profileFileName, "");
 		//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-08-06.motive", folder_data + "System Calibration.cal");
 		//optitrk::LoadProfileAndCalibInfo(folder_data + "Motive Profile - 2023-07-04.motive", folder_data + "System Calibration.cal");
-		optitrk::SetCameraSettings(0, 4, 16, 200);
-		optitrk::SetCameraSettings(1, 4, 16, 200);
-		optitrk::SetCameraSettings(2, 4, 16, 200);
+
+		cv::FileStorage config_fs(__gc->g_folder_data + "trk_cameras.txt", cv::FileStorage::Mode::READ);
+		if (config_fs.isOpened()) {
+			int trk_camera_videoType = 4;
+			int trk_camera_exposure = 17;
+			int trk_camera_threshold = 200;
+			config_fs["TRK_CAM_VIDEO_TYPE"] >> trk_camera_videoType;
+			config_fs["TRK_CAM_EXPOSURE"] >> trk_camera_exposure;
+			config_fs["TRK_CAM_THRESHOLD"] >> trk_camera_threshold;
+
+			if (trk_camera_exposure == 0) {
+				trk_camera_videoType = 4;
+				trk_camera_exposure = 17;
+				trk_camera_threshold = 200;
+			}
+
+			__gc->g_customParams.SetParam("_int_Threshold", trk_camera_threshold);
+			__gc->g_customParams.SetParam("_int_Exposure", trk_camera_exposure);
+			__gc->g_customParams.SetParam("_int_VideoType", trk_camera_videoType);
+		}
+		config_fs.release();
 
 		return true;
 	}
@@ -119,6 +137,34 @@ namespace trackingtask {
 					cid |= lbs;
 				}
 				return cid;
+			};
+			auto setCameras = []() {
+				static int videoType0 = 4;
+				static float exposure0 = 17.f;
+				static float threshold0 = 200.f;
+
+				int videoType = __gc->g_customParams.GetParam("_int_VideoType", (int)0);
+				int exposure = __gc->g_customParams.GetParam("_int_Exposure", (int)0);
+				int threshold = __gc->g_customParams.GetParam("_int_Threshold", (int)0);
+
+				if (videoType != videoType0 || exposure != exposure0 || threshold != threshold0) {
+					
+					videoType0 = videoType;
+					exposure0 = exposure;
+					threshold0 = threshold;
+
+					for (int i = 0; i < 3; i++) {
+						optitrk::SetCameraSettings(i, videoType, exposure, threshold);
+					}
+
+					cv::FileStorage config_fs(__gc->g_folder_data + "trk_cameras.txt", cv::FileStorage::Mode::WRITE);
+					if (config_fs.isOpened()) {
+						config_fs << "TRK_CAM_VIDEO_TYPE" << videoType;
+						config_fs << "TRK_CAM_EXPOSURE" << exposure;
+						config_fs << "TRK_CAM_THRESHOLD" << threshold;
+					}
+					config_fs.release();
+				}
 			};
 
 			std::string optRbState = "";
@@ -288,6 +334,8 @@ namespace trackingtask {
 			}
 			else {	// __gc->g_optiRecordMode != OPTTRK_RECMODE::LOAD
 
+				setCameras();
+				
 				optitrk::UpdateFrame();
 
 				int numAllFramesRBs = optitrk::GetRigidBodies(&rbNames);

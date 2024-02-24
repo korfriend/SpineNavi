@@ -252,6 +252,7 @@ namespace vzm
 		ParamMap<std::string> text_items; // value must be TextItem
 		bool displayCamTextItem = false;
 		bool displayActorLabel = false;
+		unsigned long long timeStamp = 0ull; // will be automatically set 
 
 		std::set<int> hidden_actors;
 		void SetCurvedSlicer(const float curved_plane_w, const float curved_plane_h, const float* curve_pos_pts, const float* curve_up_pts, const float* curve_tan_pts, const int num_curve_pts) {
@@ -309,6 +310,10 @@ namespace vzm
 				script_params.SetParam("PLANE_CLIPPER", std::vector<float>(plane, plane + 6));
 			}
 			else script_params.RemoveParam("PLANE_CLIPPER");
+		}
+		void Set2ndLayerDisplayOptions(const int patternInterval = 3, const float blendingW = 0.2f) {
+			script_params.SetParam("SECOND_LAYER_PATTERN_INTERVAL", patternInterval);
+			script_params.SetParam("SECOND_LAYER_BLENDING_WEIGHT", blendingW);
 		}
 	};
 
@@ -379,6 +384,7 @@ namespace vzm
 		bool is_wireframe = false; // available when the object is a polygonal mesh
 		bool use_vertex_wirecolor = false; // use vertex color instead of wire_color[0,1,2], if vertex buffer contains color information. note that color[3] is always used for the transparency
 		float wire_color[4] = {1.f, 1.f, 1.f, 1.f}; // rgba [0,1].. only for wireframe object
+		unsigned long long timeStamp = 0ull; // will be automatically set 
 
 		TextItem label;
 
@@ -441,6 +447,13 @@ namespace vzm
 		void SetClipFree(const bool clipFree) {
 			script_params.SetParam("CLIP_FREE", clipFree);
 		}
+
+		void SetUndercut(const bool applyUndercut, const float* undercutDir, const float* undercutColorRGB, const bool useUndercutMap = true) {
+			script_params.SetParam("APPLY_UNDERCUT", applyUndercut);
+			script_params.SetParam("USE_UNDERCUTMAP", useUndercutMap);
+			script_params.SetParam("UNDERCUT_DIR", std::vector<float> {undercutDir[0], undercutDir[1], undercutDir[2]});
+			script_params.SetParam("UNDERCUT_COLOR", std::vector<float> {undercutColorRGB[0], undercutColorRGB[1], undercutColorRGB[2]});
+		}
 	};
 
 	struct LightParameters
@@ -451,6 +464,7 @@ namespace vzm
 		float up[3] = { 0, 1.f, 0 }; // Local coordinates
 		bool is_pointlight = false; // 'true' uses pos_light, 'false' uses dir_light
 		bool is_on_camera = true; // 'true' sets cam params to light source. in this case, it is unnecessary to set pos, dir, and up (ignore these)
+		unsigned long long timeStamp = 0ull; // will be automatically set 
 		//vmfloat3 ambient_color = vmfloat3(1.f);
 		//vmfloat3 diffuse_color = vmfloat3(1.f);
 		//vmfloat3 specular_color = vmfloat3(1.f);
@@ -464,12 +478,13 @@ namespace vzm
 			int num_steps = 8;
 			bool smooth_filter;
 		}; 
-		SSAO_Params effect_ssao;
+		SSAO_Params effect_ssao = {};
 	};
 
 	__dojostatic bool InitEngineLib(const std::string& coreName = "VizMotive", const std::string& logFileName = "EngineApi.log", const std::string& performanceLevel = "DEFAULT");
 	__dojostatic bool DeinitEngineLib();
 
+	__dojostatic unsigned long long GetEngineTimePack();
 	__dojostatic void GetLoggerPointer(std::shared_ptr<void>& logger);
 
 	__dojostatic std::string GetEngineAPIsVer();
@@ -481,7 +496,7 @@ namespace vzm
 	// here, obj_id (without const) is [in/out].. in : when a registered object of obj_id exists, out : when there is no registered object of obj_id
 	__dojostatic bool LoadModelFile(const std::string& filename, int& obj_id, const bool unify_redundancy = false);
 	__dojostatic bool LoadMaskVolumeFile(const std::string& filename, const int ref_vol_obj, const std::string& data_type, int& obj_id, const bool reverse_zdir = false);
-	__dojostatic bool LoadMultipleModelsFile(const std::string& filename, std::vector<int>& obj_ids, const bool unify_redundancy = false);
+	__dojostatic bool LoadMultipleModelsFile(const std::string& filename, std::vector<int>& obj_ids);
 	__dojostatic bool LoadImageFile(const std::string& filename, int& obj_id, const bool hFlip = false, const bool vFlip = false);
 	// data_type "CHAR" "BYTE" "SHORT" "USHORT" "INT" "FLOAT"
 	__dojostatic bool GenerateEmptyVolume(int& vol_id, const int ref_vol_id = 0, const std::string& data_type = "", const double min_v = 0, const double max_v = 0, const double fill_v = 0);
@@ -489,7 +504,7 @@ namespace vzm
 	// data_type "CHAR" "BYTE[1-3]" "SHORT" "USHORT" "INT" "FLOAT"
 	__dojostatic bool GenerateVolumeFromData(int& vol_id, const void** vol_slices_2darray, const std::string& data_type, const int* size_xyz, const float* pitch_xyz, const float* axis_x_os, const float* axis_y_os, const bool is_rhs, const bool is_safe_bnd, const std::string* src_original_data_type = NULL, const float* original_minV = NULL, const float* original_maxV = NULL);
 	__dojostatic bool GenerateEmptyPrimitive(int& prim_id);
-	__dojostatic bool GenerateArrowObject(const float* pos_s, const float* pos_e, const float radius_body, const float radius_head, int& obj_id);
+	__dojostatic bool GenerateArrowObject(const float* pos_s, const float* pos_e, const float radius_body, const float radius_head, const float ratio_body_head, int& obj_id);
 	// buffer's format must be byte and ch must be 3 or 4, this is convenient method for opencv image conversion
 	__dojostatic bool GenerateImageBuffer(int& imgobj_id, const void* buffer, const int w, const int h, const int ch);
 	// optional : rgb_list (if NULL, this is not used)

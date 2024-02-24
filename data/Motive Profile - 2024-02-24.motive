@@ -1,0 +1,1090 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Profile version="1">
+    <PropertyWarehouse>
+        <properties>
+            <property>
+                <name>StreamSkeletons</name>
+                <value>false</value>
+                <defaultValue>false</defaultValue>
+            </property>
+            <property>
+                <name>MarkerLocation</name>
+                <value>nan,9.99126e-43,0</value>
+                <defaultValue>nan,9.99126e-43,0</defaultValue>
+            </property>
+            <property>
+                <name>DialogExportGroupPath</name>
+                <value>C:/Users/korfr/Documents/OptiTrack/Session 2023-05-20/</value>
+                <defaultValue>C:/Users/korfr/Documents/OptiTrack/Session 2023-05-20/</defaultValue>
+            </property>
+            <property>
+                <name>DialogOtherGroupPath</name>
+                <value>C:/Users/korfr/Documents/OptiTrack/Session 2023-05-20</value>
+                <defaultValue>C:/Users/korfr/Documents/OptiTrack/Session 2023-04-19/</defaultValue>
+            </property>
+            <property>
+                <name>DialogProfileGroupPath</name>
+                <value>D:/Spine Project/SpineNavi/data</value>
+                <defaultValue>C:/Users/korfr/Documents/OptiTrack/Session 2023-04-19</defaultValue>
+            </property>
+            <property>
+                <name>DialogTakeGroupPath</name>
+                <value>D:/Spine Project/SpineNavi/data/Session 2023-04-19</value>
+                <defaultValue>D:/Spine Project/SpineNavi/data/Session 2023-04-19</defaultValue>
+            </property>
+            <property>
+                <name>PCResidual</name>
+                <value>0.010000</value>
+                <defaultValue>0.010000</defaultValue>
+            </property>
+            <property>
+                <name>TrajNumPasses</name>
+                <value>1</value>
+                <defaultValue>1</defaultValue>
+            </property>
+            <property>
+                <name>TrajRBAssistedPredictionRadius</name>
+                <value>10</value>
+                <defaultValue>10</defaultValue>
+            </property>
+            <property>
+                <name>Maximum2DPoints</name>
+                <value>512</value>
+                <defaultValue>512</defaultValue>
+            </property>
+            <property>
+                <name>TrajTrajectoryBased</name>
+                <value>false</value>
+                <defaultValue>false</defaultValue>
+            </property>
+            <property>
+                <name>CSVExporterFilename</name>
+                <value>C:/Users/korfr/Documents/OptiTrack/Session 2023-05-20/Take 2023-05-20 07.17.24 PM.csv</value>
+                <defaultValue>C:/Users/korfr/Documents/OptiTrack/Session 2023-05-20/Take 2023-05-20 07.17.24 PM.csv</defaultValue>
+            </property>
+            <property>
+                <name>C3DExporterXAxis</name>
+                <value>0</value>
+            </property>
+            <property>
+                <name>C3DExporterYAxis</name>
+                <value>5</value>
+            </property>
+            <property>
+                <name>C3DExporterZAxis</name>
+                <value>2</value>
+            </property>
+            <property>
+                <name>FBXSkeletonNulls</name>
+                <value>false</value>
+                <defaultValue>false</defaultValue>
+            </property>
+            <property>
+                <name>FBXBinarySkeletonNulls</name>
+                <value>false</value>
+                <defaultValue>false</defaultValue>
+            </property>
+        </properties>
+    </PropertyWarehouse>
+    <MouseActions version="1">
+        <assignment name="ExpandSelectInView">
+            <buttons invertX="0" invertY="0">
+                <left/>
+            </buttons>
+            <modifiers>
+                <shift/>
+            </modifiers>
+        </assignment>
+        <assignment name="PanView">
+            <buttons invertX="0" invertY="0">
+                <middle/>
+            </buttons>
+            <modifiers/>
+        </assignment>
+        <assignment name="RotateView">
+            <buttons invertX="0" invertY="0">
+                <right/>
+            </buttons>
+            <modifiers/>
+        </assignment>
+        <assignment name="ScrubTime">
+            <buttons invertX="0" invertY="0">
+                <left/>
+            </buttons>
+            <modifiers>
+                <alt/>
+            </modifiers>
+        </assignment>
+        <assignment name="SelectInView">
+            <buttons invertX="0" invertY="0">
+                <left/>
+            </buttons>
+            <modifiers/>
+        </assignment>
+        <assignment name="ToggleSelectInView">
+            <buttons invertX="0" invertY="0">
+                <left/>
+            </buttons>
+            <modifiers>
+                <ctrl/>
+            </modifiers>
+        </assignment>
+        <assignment name="ZoomView">
+            <buttons invertX="0" invertY="0">
+                <wheel/>
+            </buttons>
+            <modifiers/>
+        </assignment>
+    </MouseActions>
+    <ActionManager>
+        <actions/>
+        <hotkeys version="1"/>
+        <actionProperties/>
+    </ActionManager>
+    <PropertyDefinitionWarehouse version="1">
+        <definitions>
+            <definition>
+                <name>CameraNodeCameraSubModel</name>
+                <advanced>true</advanced>
+            </definition>
+            <definition>
+                <name>CameraNodeIsCalibrated</name>
+                <advanced>true</advanced>
+            </definition>
+            <definition>
+                <name>EndTime</name>
+                <advanced>false</advanced>
+            </definition>
+            <definition>
+                <name>Maximum2DPoints</name>
+                <advanced>false</advanced>
+            </definition>
+            <definition>
+                <name>StartTime</name>
+                <advanced>false</advanced>
+            </definition>
+            <definition>
+                <name>TrajNumPasses</name>
+                <advanced>false</advanced>
+            </definition>
+            <definition>
+                <name>TrajRBAssistedPredictionRadius</name>
+                <advanced>false</advanced>
+            </definition>
+        </definitions>
+    </PropertyDefinitionWarehouse>
+    <LabelingPanel>
+        <properties/>
+    </LabelingPanel>
+    <TakeManager version="1">
+        <sessions>
+            <session path="C:/Users/korfr/Documents/OptiTrack/Session 2023-11-16/"/>
+        </sessions>
+        <current_session path="C:/Users/korfr/Documents/OptiTrack/Session 2023-11-16/"/>
+    </TakeManager>
+    <PluginDevices/>
+    <NodeAssets>
+        <rigid_body version="1.1" id="2e37eef81c58cc9c:17dc022a7bc811ee">
+            <markers>
+                <marker id="0:0">
+                    <position>-6.16639e-05,0.0185811,0.124619</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>1</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.000218171,0.0185811,0.174473</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>2</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.0304948,0.0185811,0.224338</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>3</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.0294118,0.0185811,0.2591</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>4</label_id>
+                </marker>
+            </markers>
+            <properties>
+                <property>
+                    <name>NodeName</name>
+                    <value>probe</value>
+                    <defaultValue>probe</defaultValue>
+                </property>
+                <property>
+                    <name>Color</name>
+                    <value>11010194</value>
+                    <defaultValue>11010194</defaultValue>
+                </property>
+                <property>
+                    <name>DisplayLabel</name>
+                    <value>true</value>
+                    <defaultValue>true</defaultValue>
+                </property>
+                <property>
+                    <name>ModelName</name>
+                    <value>C:/ProgramData/OptiTrack/Motive/ObjectFiles/Probe/Probe.obj</value>
+                    <defaultValue>C:/ProgramData/OptiTrack/Motive/ObjectFiles/Probe/Probe.obj</defaultValue>
+                </property>
+                <property>
+                    <name>ModelYaw</name>
+                    <value>-90.000000</value>
+                </property>
+                <property>
+                    <name>ModelRoll</name>
+                    <value>180.000000</value>
+                </property>
+                <property>
+                    <name>UserData</name>
+                    <value>999</value>
+                    <defaultValue>999</defaultValue>
+                </property>
+                <property>
+                    <name>MinimumMarkerCount</name>
+                    <value>4</value>
+                    <defaultValue>4</defaultValue>
+                </property>
+                <property>
+                    <name>AcquisitionFrames</name>
+                    <value>1</value>
+                    <defaultValue>1</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation0</name>
+                    <value>-6.16639e-05,0.0185811,0.124619</value>
+                    <defaultValue>-6.16639e-05,0.0185811,0.124619</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation1</name>
+                    <value>0.000218171,0.0185811,0.174473</value>
+                    <defaultValue>0.000218171,0.0185811,0.174473</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation2</name>
+                    <value>0.0304948,0.0185811,0.224338</value>
+                    <defaultValue>0.0304948,0.0185811,0.224338</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation3</name>
+                    <value>-0.0294118,0.0185811,0.2591</value>
+                    <defaultValue>-0.0294118,0.0185811,0.2591</defaultValue>
+                </property>
+            </properties>
+            <MarkerNames ReorderMarkers="true">
+                <!--To rename markers, modify the value in the "name" tag.-->
+                <Marker name="Marker1" oldName="Marker1"/>
+                <Marker name="Marker2" oldName="Marker2"/>
+                <Marker name="Marker3" oldName="Marker3"/>
+                <Marker name="Marker4" oldName="Marker4"/>
+                <!--Renaming markers added to a skeletons: If a fourth marker is added manually to the head of a skeleton, then add a tag such as <Marker name="Head_4" oldName="Head_4" /> where the values in name and oldName are the bone segment (case matters) followed by the marker number.-->
+                <!--Skeleton Bone Segment Names: Head, Neck, Chest, Ab, Hip, LShoulder, LUArm, LFArm, LHand, RShoulder, RUArm, RFArm, RHand, LThigh, LShin, LFoot, LToe, RThigh, RShin, RFoot, RToe.-->
+                <!--If "ReorderMarkers = True" the order here persists into the labeling pane.-->
+            </MarkerNames>
+            <MarkerColors>
+                <!--The "name" tag in this section corresponds with the "name" values in <MarkerNames>.-->
+                <Marker name="Marker1" color="146 0 168" movable="false"/>
+                <Marker name="Marker2" color="146 0 168" movable="false"/>
+                <Marker name="Marker3" color="146 0 168" movable="false"/>
+                <Marker name="Marker4" color="146 0 168" movable="false"/>
+                <!--If nothing appears in this section it is because you need to update or generate colors. You can do this in the asset's context menu.-->
+                <!--The movable="false" tag currently is not functioning.-->
+            </MarkerColors>
+            <MarkerSticks>
+                <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
+            </MarkerSticks>
+        </rigid_body>
+        <rigid_body version="1.1" id="2e37eef81c58d19c:956e3ee69c0511ee">
+            <markers>
+                <marker id="0:0">
+                    <position>-0.150732,-0.0118253,-0.08755</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>1</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.172724,0.0274642,-0.0650657</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>2</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.147263,0.0649213,-0.0414828</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>3</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.111421,0.0337947,-0.0598179</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>4</label_id>
+                </marker>
+            </markers>
+            <properties>
+                <property>
+                    <name>NodeName</name>
+                    <value>t-needle</value>
+                    <defaultValue>t-needle</defaultValue>
+                </property>
+                <property>
+                    <name>Color</name>
+                    <value>16775334</value>
+                    <defaultValue>16775334</defaultValue>
+                </property>
+                <property>
+                    <name>UserData</name>
+                    <value>-973640523</value>
+                    <defaultValue>-973640523</defaultValue>
+                </property>
+                <property>
+                    <name>MinimumMarkerCount</name>
+                    <value>4</value>
+                    <defaultValue>4</defaultValue>
+                </property>
+                <property>
+                    <name>TrackingAlgorithmLevel</name>
+                    <value>1</value>
+                    <defaultValue>1</defaultValue>
+                </property>
+                <property>
+                    <name>AcquisitionFrames</name>
+                    <value>1</value>
+                    <defaultValue>1</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation0</name>
+                    <value>-0.150732,-0.0118253,-0.08755</value>
+                    <defaultValue>-0.150732,-0.0118253,-0.08755</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation1</name>
+                    <value>-0.172724,0.0274642,-0.0650657</value>
+                    <defaultValue>-0.172724,0.0274642,-0.0650657</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation2</name>
+                    <value>-0.147263,0.0649213,-0.0414828</value>
+                    <defaultValue>-0.147263,0.0649213,-0.0414828</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation3</name>
+                    <value>-0.111421,0.0337947,-0.0598179</value>
+                    <defaultValue>-0.111421,0.0337947,-0.0598179</defaultValue>
+                </property>
+            </properties>
+            <MarkerNames ReorderMarkers="true">
+                <!--To rename markers, modify the value in the "name" tag.-->
+                <Marker name="Marker1" oldName="Marker1"/>
+                <Marker name="Marker2" oldName="Marker2"/>
+                <Marker name="Marker3" oldName="Marker3"/>
+                <Marker name="Marker4" oldName="Marker4"/>
+                <!--Renaming markers added to a skeletons: If a fourth marker is added manually to the head of a skeleton, then add a tag such as <Marker name="Head_4" oldName="Head_4" /> where the values in name and oldName are the bone segment (case matters) followed by the marker number.-->
+                <!--Skeleton Bone Segment Names: Head, Neck, Chest, Ab, Hip, LShoulder, LUArm, LFArm, LHand, RShoulder, RUArm, RFArm, RHand, LThigh, LShin, LFoot, LToe, RThigh, RShin, RFoot, RToe.-->
+                <!--If "ReorderMarkers = True" the order here persists into the labeling pane.-->
+            </MarkerNames>
+            <MarkerColors>
+                <!--The "name" tag in this section corresponds with the "name" values in <MarkerNames>.-->
+                <Marker name="Marker1" color="166 248 255" movable="false"/>
+                <Marker name="Marker2" color="166 248 255" movable="false"/>
+                <Marker name="Marker3" color="166 248 255" movable="false"/>
+                <Marker name="Marker4" color="166 248 255" movable="false"/>
+                <!--If nothing appears in this section it is because you need to update or generate colors. You can do this in the asset's context menu.-->
+                <!--The movable="false" tag currently is not functioning.-->
+            </MarkerColors>
+            <MarkerSticks>
+                <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
+            </MarkerSticks>
+        </rigid_body>
+        <rigid_body version="1.1" id="2e37eef81c58d89c:134f743db8b911ee">
+            <markers>
+                <marker id="0:0">
+                    <position>0.171878,0.0222253,0.00569178</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>1</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.104163,0.0453437,-0.013573</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>2</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.0406422,-0.0102348,-0.00985074</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>3</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.0989509,-0.0584195,0.0148159</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>4</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.149988,-0.0371233,0.0184759</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>5</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.0463407,0.0579541,-0.0264866</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>6</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.122753,0.0755805,-0.0116258</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>7</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.178217,0.0113992,0.0170629</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>8</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.116252,-0.0426953,0.0144766</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>9</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.0590284,-0.0585137,0.00319487</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>10</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.0430432,-0.00546391,-0.012157</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>11</label_id>
+                </marker>
+            </markers>
+            <properties>
+                <property>
+                    <name>NodeName</name>
+                    <value>c-arm</value>
+                    <defaultValue>c-arm</defaultValue>
+                </property>
+                <property>
+                    <name>Color</name>
+                    <value>16775334</value>
+                    <defaultValue>16775334</defaultValue>
+                </property>
+                <property>
+                    <name>UserData</name>
+                    <value>161636093</value>
+                    <defaultValue>161636093</defaultValue>
+                </property>
+                <property>
+                    <name>MinimumMarkerCount</name>
+                    <value>11</value>
+                    <defaultValue>11</defaultValue>
+                </property>
+                <property>
+                    <name>Smoothing</name>
+                    <value>0.100000</value>
+                    <defaultValue>0.100000</defaultValue>
+                </property>
+                <property>
+                    <name>TrackingAlgorithmLevel</name>
+                    <value>1</value>
+                    <defaultValue>1</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation0</name>
+                    <value>0.171878,0.0222253,0.00569178</value>
+                    <defaultValue>0.171878,0.0222253,0.00569178</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation1</name>
+                    <value>0.104163,0.0453437,-0.013573</value>
+                    <defaultValue>0.104163,0.0453437,-0.013573</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation2</name>
+                    <value>0.0406422,-0.0102348,-0.00985074</value>
+                    <defaultValue>0.0406422,-0.0102348,-0.00985074</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation3</name>
+                    <value>0.0989509,-0.0584195,0.0148159</value>
+                    <defaultValue>0.0989509,-0.0584195,0.0148159</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation4</name>
+                    <value>0.149988,-0.0371233,0.0184759</value>
+                    <defaultValue>0.149988,-0.0371233,0.0184759</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation5</name>
+                    <value>-0.0463407,0.0579541,-0.0264866</value>
+                    <defaultValue>-0.0463407,0.0579541,-0.0264866</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation6</name>
+                    <value>-0.122753,0.0755805,-0.0116258</value>
+                    <defaultValue>-0.122753,0.0755805,-0.0116258</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation7</name>
+                    <value>-0.178217,0.0113992,0.0170629</value>
+                    <defaultValue>-0.178217,0.0113992,0.0170629</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation8</name>
+                    <value>-0.116252,-0.0426953,0.0144766</value>
+                    <defaultValue>-0.116252,-0.0426953,0.0144766</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation9</name>
+                    <value>-0.0590284,-0.0585137,0.00319487</value>
+                    <defaultValue>-0.0590284,-0.0585137,0.00319487</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation10</name>
+                    <value>-0.0430432,-0.00546391,-0.012157</value>
+                    <defaultValue>-0.0430432,-0.00546391,-0.012157</defaultValue>
+                </property>
+            </properties>
+            <MarkerNames ReorderMarkers="true">
+                <!--To rename markers, modify the value in the "name" tag.-->
+                <Marker name="Marker1" oldName="Marker1"/>
+                <Marker name="Marker2" oldName="Marker2"/>
+                <Marker name="Marker3" oldName="Marker3"/>
+                <Marker name="Marker4" oldName="Marker4"/>
+                <Marker name="Marker5" oldName="Marker5"/>
+                <Marker name="Marker6" oldName="Marker6"/>
+                <Marker name="Marker7" oldName="Marker7"/>
+                <Marker name="Marker8" oldName="Marker8"/>
+                <Marker name="Marker9" oldName="Marker9"/>
+                <Marker name="Marker10" oldName="Marker10"/>
+                <Marker name="Marker11" oldName="Marker11"/>
+                <!--Renaming markers added to a skeletons: If a fourth marker is added manually to the head of a skeleton, then add a tag such as <Marker name="Head_4" oldName="Head_4" /> where the values in name and oldName are the bone segment (case matters) followed by the marker number.-->
+                <!--Skeleton Bone Segment Names: Head, Neck, Chest, Ab, Hip, LShoulder, LUArm, LFArm, LHand, RShoulder, RUArm, RFArm, RHand, LThigh, LShin, LFoot, LToe, RThigh, RShin, RFoot, RToe.-->
+                <!--If "ReorderMarkers = True" the order here persists into the labeling pane.-->
+            </MarkerNames>
+            <MarkerColors>
+                <!--The "name" tag in this section corresponds with the "name" values in <MarkerNames>.-->
+                <Marker name="Marker1" color="166 248 255" movable="false"/>
+                <Marker name="Marker2" color="166 248 255" movable="false"/>
+                <Marker name="Marker3" color="166 248 255" movable="false"/>
+                <Marker name="Marker4" color="166 248 255" movable="false"/>
+                <Marker name="Marker5" color="166 248 255" movable="false"/>
+                <Marker name="Marker6" color="166 248 255" movable="false"/>
+                <Marker name="Marker7" color="166 248 255" movable="false"/>
+                <Marker name="Marker8" color="166 248 255" movable="false"/>
+                <Marker name="Marker9" color="166 248 255" movable="false"/>
+                <Marker name="Marker10" color="166 248 255" movable="false"/>
+                <Marker name="Marker11" color="166 248 255" movable="false"/>
+                <!--If nothing appears in this section it is because you need to update or generate colors. You can do this in the asset's context menu.-->
+                <!--The movable="false" tag currently is not functioning.-->
+            </MarkerColors>
+            <MarkerSticks>
+                <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
+            </MarkerSticks>
+        </rigid_body>
+        <rigid_body version="1.1" id="2e37eef81c58d89c:f8549920b8b911ee">
+            <markers>
+                <marker id="0:0">
+                    <position>-0.0730282,0.0295673,0.0367498</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>1</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.0158971,0.0336401,0.0466843</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>2</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.0413416,0.0396103,0.0610416</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>3</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.0565458,-0.0113435,-0.0111027</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>4</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.000947025,-0.00527757,0.00280905</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>5</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.0565202,0.0124529,0.00633252</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>6</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.041072,-0.0433659,-0.057158</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>7</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.0157137,-0.0292979,-0.0481093</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>8</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>0.0720205,-0.0259856,-0.0372473</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>9</label_id>
+                </marker>
+            </markers>
+            <properties>
+                <property>
+                    <name>NodeName</name>
+                    <value>calib</value>
+                    <defaultValue>calib</defaultValue>
+                </property>
+                <property>
+                    <name>Color</name>
+                    <value>8454079</value>
+                    <defaultValue>8454079</defaultValue>
+                </property>
+                <property>
+                    <name>UserData</name>
+                    <value>-1654572320</value>
+                    <defaultValue>-1654572320</defaultValue>
+                </property>
+                <property>
+                    <name>MinimumMarkerCount</name>
+                    <value>9</value>
+                    <defaultValue>9</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation0</name>
+                    <value>-0.0730282,0.0295673,0.0367498</value>
+                    <defaultValue>-0.0730282,0.0295673,0.0367498</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation1</name>
+                    <value>-0.0158971,0.0336401,0.0466843</value>
+                    <defaultValue>-0.0158971,0.0336401,0.0466843</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation2</name>
+                    <value>0.0413416,0.0396103,0.0610416</value>
+                    <defaultValue>0.0413416,0.0396103,0.0610416</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation3</name>
+                    <value>-0.0565458,-0.0113435,-0.0111027</value>
+                    <defaultValue>-0.0565458,-0.0113435,-0.0111027</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation4</name>
+                    <value>0.000947025,-0.00527757,0.00280905</value>
+                    <defaultValue>0.000947025,-0.00527757,0.00280905</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation5</name>
+                    <value>0.0565202,0.0124529,0.00633252</value>
+                    <defaultValue>0.0565202,0.0124529,0.00633252</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation6</name>
+                    <value>-0.041072,-0.0433659,-0.057158</value>
+                    <defaultValue>-0.041072,-0.0433659,-0.057158</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation7</name>
+                    <value>0.0157137,-0.0292979,-0.0481093</value>
+                    <defaultValue>0.0157137,-0.0292979,-0.0481093</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation8</name>
+                    <value>0.0720205,-0.0259856,-0.0372473</value>
+                    <defaultValue>0.0720205,-0.0259856,-0.0372473</defaultValue>
+                </property>
+            </properties>
+            <MarkerNames ReorderMarkers="true">
+                <!--To rename markers, modify the value in the "name" tag.-->
+                <Marker name="Marker1" oldName="Marker1"/>
+                <Marker name="Marker2" oldName="Marker2"/>
+                <Marker name="Marker3" oldName="Marker3"/>
+                <Marker name="Marker4" oldName="Marker4"/>
+                <Marker name="Marker5" oldName="Marker5"/>
+                <Marker name="Marker6" oldName="Marker6"/>
+                <Marker name="Marker7" oldName="Marker7"/>
+                <Marker name="Marker8" oldName="Marker8"/>
+                <Marker name="Marker9" oldName="Marker9"/>
+                <!--Renaming markers added to a skeletons: If a fourth marker is added manually to the head of a skeleton, then add a tag such as <Marker name="Head_4" oldName="Head_4" /> where the values in name and oldName are the bone segment (case matters) followed by the marker number.-->
+                <!--Skeleton Bone Segment Names: Head, Neck, Chest, Ab, Hip, LShoulder, LUArm, LFArm, LHand, RShoulder, RUArm, RFArm, RHand, LThigh, LShin, LFoot, LToe, RThigh, RShin, RFoot, RToe.-->
+                <!--If "ReorderMarkers = True" the order here persists into the labeling pane.-->
+            </MarkerNames>
+            <MarkerColors>
+                <!--The "name" tag in this section corresponds with the "name" values in <MarkerNames>.-->
+                <Marker name="Marker1" color="191 255 128" movable="false"/>
+                <Marker name="Marker2" color="191 255 128" movable="false"/>
+                <Marker name="Marker3" color="191 255 128" movable="false"/>
+                <Marker name="Marker4" color="191 255 128" movable="false"/>
+                <Marker name="Marker5" color="191 255 128" movable="false"/>
+                <Marker name="Marker6" color="191 255 128" movable="false"/>
+                <Marker name="Marker7" color="191 255 128" movable="false"/>
+                <Marker name="Marker8" color="191 255 128" movable="false"/>
+                <Marker name="Marker9" color="191 255 128" movable="false"/>
+                <!--If nothing appears in this section it is because you need to update or generate colors. You can do this in the asset's context menu.-->
+                <!--The movable="false" tag currently is not functioning.-->
+            </MarkerColors>
+            <MarkerSticks>
+                <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
+            </MarkerSticks>
+        </rigid_body>
+        <rigid_body version="1.1" id="2e37eef81c58d89c:fab3462eb8ce11ee">
+            <markers>
+                <marker id="0:0">
+                    <position>-0.177501,-8.66503e-06,-0.0329349</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>1</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.196367,0.0512452,-0.000644426</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>2</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.143749,0.0962304,0.0067115</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>3</label_id>
+                </marker>
+                <marker id="0:0">
+                    <position>-0.109205,0.0637026,-0.0205761</position>
+                    <size>0</size>
+                    <residual>0</residual>
+                    <label_id>4</label_id>
+                </marker>
+            </markers>
+            <properties>
+                <property>
+                    <name>NodeName</name>
+                    <value>troca</value>
+                    <defaultValue>troca</defaultValue>
+                </property>
+                <property>
+                    <name>Color</name>
+                    <value>16775334</value>
+                    <defaultValue>16775334</defaultValue>
+                </property>
+                <property>
+                    <name>UserData</name>
+                    <value>-167304948</value>
+                    <defaultValue>-167304948</defaultValue>
+                </property>
+                <property>
+                    <name>MinimumMarkerCount</name>
+                    <value>4</value>
+                    <defaultValue>4</defaultValue>
+                </property>
+                <property>
+                    <name>TrackingAlgorithmLevel</name>
+                    <value>1</value>
+                </property>
+                <property>
+                    <name>MarkerLocation0</name>
+                    <value>-0.177501,-8.66503e-06,-0.0329349</value>
+                    <defaultValue>-0.177501,-8.66503e-06,-0.0329349</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation1</name>
+                    <value>-0.196367,0.0512452,-0.000644426</value>
+                    <defaultValue>-0.196367,0.0512452,-0.000644426</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation2</name>
+                    <value>-0.143749,0.0962304,0.0067115</value>
+                    <defaultValue>-0.143749,0.0962304,0.0067115</defaultValue>
+                </property>
+                <property>
+                    <name>MarkerLocation3</name>
+                    <value>-0.109205,0.0637026,-0.0205761</value>
+                    <defaultValue>-0.109205,0.0637026,-0.0205761</defaultValue>
+                </property>
+            </properties>
+            <MarkerNames ReorderMarkers="true">
+                <!--To rename markers, modify the value in the "name" tag.-->
+                <Marker name="Marker1" oldName="Marker1"/>
+                <Marker name="Marker2" oldName="Marker2"/>
+                <Marker name="Marker3" oldName="Marker3"/>
+                <Marker name="Marker4" oldName="Marker4"/>
+                <!--Renaming markers added to a skeletons: If a fourth marker is added manually to the head of a skeleton, then add a tag such as <Marker name="Head_4" oldName="Head_4" /> where the values in name and oldName are the bone segment (case matters) followed by the marker number.-->
+                <!--Skeleton Bone Segment Names: Head, Neck, Chest, Ab, Hip, LShoulder, LUArm, LFArm, LHand, RShoulder, RUArm, RFArm, RHand, LThigh, LShin, LFoot, LToe, RThigh, RShin, RFoot, RToe.-->
+                <!--If "ReorderMarkers = True" the order here persists into the labeling pane.-->
+            </MarkerNames>
+            <MarkerColors>
+                <!--The "name" tag in this section corresponds with the "name" values in <MarkerNames>.-->
+                <Marker name="Marker1" color="166 248 255" movable="false"/>
+                <Marker name="Marker2" color="166 248 255" movable="false"/>
+                <Marker name="Marker3" color="166 248 255" movable="false"/>
+                <Marker name="Marker4" color="166 248 255" movable="false"/>
+                <!--If nothing appears in this section it is because you need to update or generate colors. You can do this in the asset's context menu.-->
+                <!--The movable="false" tag currently is not functioning.-->
+            </MarkerColors>
+            <MarkerSticks>
+                <!--The "origin" and "end" tags in this section correspond with the "name" values in <MarkerNames>-->
+            </MarkerSticks>
+        </rigid_body>
+    </NodeAssets>
+    <DeviceAssets>
+        <sync_device version="1.0" id="2e37eef81c58d89c:da586140b8be11ee">
+            <properties>
+                <property>
+                    <name>NodeName</name>
+                    <value>V120:Trio 331510a</value>
+                    <defaultValue>V120:Trio 331510a</defaultValue>
+                </property>
+                <property>
+                    <name>SyncDeviceConnected</name>
+                    <value>true</value>
+                    <defaultValue>true</defaultValue>
+                </property>
+                <property>
+                    <name>SyncDeviceModel</name>
+                    <value>T-Bar Sync</value>
+                    <defaultValue>T-Bar Sync</defaultValue>
+                </property>
+                <property>
+                    <name>SyncDeviceSerial</name>
+                    <value>331510a</value>
+                    <defaultValue>331510a</defaultValue>
+                </property>
+                <property>
+                    <name>SyncMode</name>
+                    <value>0</value>
+                    <defaultValue>0</defaultValue>
+                    <constraints>
+                        <constraint name="FreeRun" value="0"/>
+                        <constraint name="Custom" value="1"/>
+                        <constraint name="3DGlasses" value="2"/>
+                    </constraints>
+                </property>
+                <property>
+                    <name>CameraExposure</name>
+                    <value>16</value>
+                    <defaultValue>16</defaultValue>
+                </property>
+                <property>
+                    <name>SyncInputSource</name>
+                    <value>0</value>
+                    <defaultValue>0</defaultValue>
+                    <constraints>
+                        <constraint name="Internal Sync" value="0"/>
+                        <constraint name="Sync In" value="2"/>
+                    </constraints>
+                </property>
+                <property>
+                    <name>InternalSyncGeneratorFrequency</name>
+                    <value>120.000000</value>
+                </property>
+                <property>
+                    <name>SyncOutput1Enabled</name>
+                    <value>true</value>
+                    <defaultValue>true</defaultValue>
+                </property>
+                <property>
+                    <name>kSyncFinalCameraRate</name>
+                    <value>120.000000</value>
+                </property>
+                <property>
+                    <name>SyncOutput1Phase</name>
+                    <value>0</value>
+                </property>
+                <property>
+                    <name>SyncOutput1PulseDuration</name>
+                    <value>0</value>
+                    <defaultValue>0</defaultValue>
+                    <constraints>
+                        <constraint name="Exposure Time" value="0"/>
+                        <constraint name="Pass-Through" value="1"/>
+                        <constraint name="Recording Gate" value="2"/>
+                        <constraint name="Gated Exposure Time" value="3"/>
+                    </constraints>
+                </property>
+                <property>
+                    <name>SyncOutput2Phase</name>
+                    <value>0</value>
+                </property>
+                <property>
+                    <name>SyncOutput2PulseDuration</name>
+                    <value>0</value>
+                    <defaultValue>0</defaultValue>
+                </property>
+                <property>
+                    <name>SyncOutput3Phase</name>
+                    <value>0</value>
+                </property>
+                <property>
+                    <name>SyncOutput3PulseDuration</name>
+                    <value>0</value>
+                    <defaultValue>0</defaultValue>
+                </property>
+                <property>
+                    <name>SyncOutput4Phase</name>
+                    <value>0</value>
+                </property>
+                <property>
+                    <name>SyncOutput4PulseDuration</name>
+                    <value>0</value>
+                    <defaultValue>0</defaultValue>
+                </property>
+                <property>
+                    <name>SyncOutputVesaPulseDuration</name>
+                    <value>0</value>
+                    <defaultValue>0</defaultValue>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorInternalClock</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorSMPTE</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorGenlock</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorIsolated</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorLoZ</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorHiZ</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorInput1</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorInput2</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorInput3</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorVESA</name>
+                    <value>0.000000</value>
+                </property>
+                <property>
+                    <name>SyncDeviceMonitorReserved</name>
+                    <value>0.000000</value>
+                </property>
+            </properties>
+        </sync_device>
+        <camera_node_list>
+            <camera_node>
+                <properties>
+                    <property>
+                        <name>CameraNodeCameraSerialNumber</name>
+                        <value>2147815158</value>
+                        <defaultValue>2147815158</defaultValue>
+                    </property>
+                    <property>
+                        <name>CameraNodeCameraFrameRateDivisor</name>
+                        <value>1</value>
+                        <constraints>
+                            <constraint name="x1 (120 Hz)" value="1"/>
+                        </constraints>
+                    </property>
+                    <property>
+                        <name>CameraNodeCameraExposure</name>
+                        <value>16</value>
+                        <defaultValue>50</defaultValue>
+                        <constraints>
+                            <constraint name="Min" value="1"/>
+                            <constraint name="Max" value="480"/>
+                        </constraints>
+                    </property>
+                </properties>
+            </camera_node>
+            <camera_node>
+                <properties>
+                    <property>
+                        <name>CameraNodeCameraSerialNumber</name>
+                        <value>331510</value>
+                        <defaultValue>331510</defaultValue>
+                    </property>
+                    <property>
+                        <name>CameraNodeCameraFrameRateDivisor</name>
+                        <value>1</value>
+                        <constraints>
+                            <constraint name="x1 (120 Hz)" value="1"/>
+                        </constraints>
+                    </property>
+                    <property>
+                        <name>CameraNodeCameraExposure</name>
+                        <value>16</value>
+                        <defaultValue>50</defaultValue>
+                        <constraints>
+                            <constraint name="Min" value="1"/>
+                            <constraint name="Max" value="480"/>
+                        </constraints>
+                    </property>
+                </properties>
+            </camera_node>
+            <camera_node>
+                <properties>
+                    <property>
+                        <name>CameraNodeCameraSerialNumber</name>
+                        <value>1074073334</value>
+                        <defaultValue>1074073334</defaultValue>
+                    </property>
+                    <property>
+                        <name>CameraNodeCameraFrameRateDivisor</name>
+                        <value>1</value>
+                        <constraints>
+                            <constraint name="x1 (120 Hz)" value="1"/>
+                        </constraints>
+                    </property>
+                    <property>
+                        <name>CameraNodeCameraExposure</name>
+                        <value>16</value>
+                        <defaultValue>50</defaultValue>
+                        <constraints>
+                            <constraint name="Min" value="1"/>
+                            <constraint name="Max" value="480"/>
+                        </constraints>
+                    </property>
+                </properties>
+            </camera_node>
+        </camera_node_list>
+    </DeviceAssets>
+    <CameraManager>
+        <properties>
+            <property>
+                <name>CameraManagerMasterRateSource</name>
+                <value>0</value>
+            </property>
+        </properties>
+    </CameraManager>
+</Profile>

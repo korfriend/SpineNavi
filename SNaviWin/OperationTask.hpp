@@ -1031,6 +1031,16 @@ namespace opcode {
 		if (__gc.g_optiRecordMode != OPTTRK_RECMODE::LOAD)
 		{
 			ImGui::SeparatorText("Tracking Camera 0:");
+			static bool showGrayscaleMode = __gc.g_customParams.GetParam("_int_VideoType", (int)1) == 1;
+			ImGui::Checkbox("Show Grayscale Image", &showGrayscaleMode);
+			static int exposure = __gc.g_customParams.GetParam("_int_Exposure", (int)17);
+			ImGui::SliderInt("Exposure", &exposure, 1, 50);
+			static int threshold = __gc.g_customParams.GetParam("_int_Threshold", (int)200);
+			ImGui::SliderInt("Threshold", &threshold, 50, 250);
+			__gc.g_customParams.SetParam("_int_Threshold", threshold);
+			__gc.g_customParams.SetParam("_int_Exposure", exposure);
+			__gc.g_customParams.SetParam("_int_VideoType", showGrayscaleMode ? (int)1 : (int)4);
+
 			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
 			// Optitrack tri:120 uses 640x480 image
 			static cv::Size imgSize(640, 480);
