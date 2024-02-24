@@ -13,6 +13,8 @@
 #include <mutex>
 #include <thread>
 
+#include <opencv2/opencv.hpp>
+
 #include <spdlog/spdlog.h>
 
 // math using GLM
@@ -459,6 +461,7 @@ typedef struct GlobalContainer {
 	std::string g_profileFileName;
 	std::string g_recFileName;
 	std::string g_recScanName;
+	std::string g_recVideoName;
 	std::string g_configFileName;
 
 	std::string g_sceneName;// = "Scene1"; // Scene1, Scene2
@@ -467,6 +470,9 @@ typedef struct GlobalContainer {
 
 	std::ofstream g_recFileStream;
 	std::ofstream g_recScanStream;
+
+	cv::VideoWriter g_recVideoWriter;
+	cv::VideoCapture g_recVideoCapture;
 
 	int g_recNumFrames;
 	int g_recCurFrame;

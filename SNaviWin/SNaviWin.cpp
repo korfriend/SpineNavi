@@ -2,7 +2,6 @@
 // If you are new to Dear ImGui, read documentation from the docs/ folder + read the top of imgui.cpp.
 // Read online: https://github.com/ocornut/imgui/tree/master/docs
 #include "OperationTask.hpp"
-\
 #include "framework.h"
 #include "SNaviWin.h"
 
@@ -158,7 +157,7 @@ void mygui(ImGuiIO& io) {
 			}
 		}
 
-		if (__gc.g_camera_alive) {
+		if (__gc.g_camera_alive || __gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD) {
 			ImGui::Spacing();
 			if (ImGui::CollapsingHeader("Vision Operation", ImGuiTreeNodeFlags_DefaultOpen)) {
 				opcode::VisionOperation();
@@ -334,6 +333,7 @@ int main()
 	__gc.g_folder_trackingInfo = __gc.g_folder_data + trackDataFolder + "/";
 	__gc.g_recFileName = __gc.g_folder_trackingInfo + "TrackingRecord.csv";
 	__gc.g_recScanName = __gc.g_folder_trackingInfo + "ScanRecord.csv";
+	__gc.g_recVideoName = __gc.g_folder_trackingInfo + "VideoRecord.avi";
 
 	vzm::InitEngineLib("SpineNavi");
 	std::shared_ptr<void> nativeLogger;

@@ -1067,7 +1067,8 @@ namespace opcode {
 	}
 
 	void VisionOperation() {
-		if (__gc.g_camera_alive)
+
+		if (__gc.g_camera_alive || __gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD)
 		{
 			ImGui::SeparatorText("Vision Camera:");
 			ImVec2 canvas_size = ImGui::GetContentRegionAvail();
@@ -1077,7 +1078,40 @@ namespace opcode {
 
 			void* colorBuffer;
 			void* depthColoredBuffer;
-			if (camtask::GetCamTrackInfo_Safe(&colorSize, &colorBuffer, &depthColoredSize, &depthColoredBuffer)) {
+
+			if (__gc.g_optiRecordMode == OPTTRK_RECMODE::LOAD)
+			{
+				if (!__gc.g_recVideoCapture.isOpened())
+				{
+					__gc.g_recVideoCapture.open(__gc.g_recVideoName);
+				}
+				else
+				{
+					cv::Mat imgColor;
+					__gc.g_recVideoCapture >> imgColor;
+
+					if (!imgColor.empty())
+					{
+
+						if (imgColor.channels() == 3) {
+							cv::cvtColor(imgColor, imgColor, cv::COLOR_RGB2RGBA);
+							std::vector<cv::Mat> channels(4);
+							cv::split(imgColor, channels);
+							channels[3] = 255;
+							cv::merge(channels, imgColor);
+						}
+						cv::Size imgSize(imgColor.cols, imgColor.rows);
+
+						static ID3D11ShaderResourceView* pSRV = NULL;
+						pSRV = LoadTextureFromMemory(imgColor.data, "VISION_CAMERA1", imgSize.width, imgSize.height);
+						if (pSRV != NULL) {
+							//ImVec2 pos = ImGui::GetCursorScreenPos();
+							ImGui::Image(pSRV, ImVec2(canvas_size.x, canvas_size.x * ((float)imgSize.height / (float)imgSize.width)), ImVec2(0, 0), ImVec2(1, 1));
+						}
+					}
+				}
+			}
+			else if (camtask::GetCamTrackInfo_Safe(&colorSize, &colorBuffer, &depthColoredSize, &depthColoredBuffer)) {
 
 				cv::Size imgSize(colorSize.x, colorSize.y);
 				cv::Mat imgColor = cv::Mat(imgSize, CV_8UC3, colorBuffer);
@@ -1088,6 +1122,21 @@ namespace opcode {
 					cv::split(imgColor, channels);
 					channels[3] = 255;
 					cv::merge(channels, imgColor);
+				}
+
+				if (__gc.g_optiRecordMode == OPTTRK_RECMODE::RECORD)
+				{
+					if (!__gc.g_recVideoWriter.isOpened())
+					{
+						int fourcc = cv::VideoWriter::fourcc('D', 'I', 'V', 'X');
+						__gc.g_recVideoWriter.open(__gc.g_recVideoName, fourcc, 60, imgSize);
+					}
+					else
+					{
+						__gc.g_recVideoWriter.write(imgColor);
+					}
+
+					//CCCCCC
 				}
 
 				static ID3D11ShaderResourceView* pSRV = NULL;
